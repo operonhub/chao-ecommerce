@@ -1,0 +1,61 @@
+{% load static humanize_ar %}
+{% comment %} Contenido interno del cajón. El <aside class="cajon"> lo pone base.html; este
+   parcial es lo que el servidor devuelve en cada acción y el JS reemplaza. {% endcomment %}
+<div class="cajon__cabeza">
+  <h2 class="cajon__titulo">Tu carrito{% if carrito|length %} ({{ carrito|length }}){% endif %}</h2>
+  <button class="cajon__cerrar" data-cerrar-carrito aria-label="Cerrar el carrito">&times;</button>
+</div>
+
+<div class="cajon__cuerpo">
+  {% if carrito.vacio %}
+    <div class="cajon__vacio">
+      <p>Todavía no agregaste nada.</p>
+      <p><a href="{% url 'catalogo:home' %}#looks" class="btn btn--secundario" data-cerrar-carrito>Ver los looks</a></p>
+    </div>
+  {% else %}
+    {% for linea in carrito %}
+      {% with foto=linea.producto.foto_principal %}
+      <div class="linea">
+        <img src="{{ foto.url }}" alt="{{ foto.alt|default:linea.producto.nombre }}" loading="lazy">
+        <div>
+          <p class="linea__nombre">{{ linea.producto.nombre }}</p>
+          <p class="linea__meta">
+            {% if linea.talle %}
+              Talle {{ linea.talle }}
+            {% else %}
+              {% if linea.producto.necesita_elegir_talle %}
+                <span class="linea__falta-talle">Elegí el talle</span>
+              {% else %}
+                Talle único
+              {% endif %}
+            {% endif %}
+            · ${{ linea.precio|pesos }}
+          </p>
+          <div class="linea__acciones">
+            <div class="cantidad">
+              <button type="button" data-cantidad="{{ linea.clave }}" data-valor="{{ linea.cantidad|add:'-1' }}"
+                      aria-label="Quitar una unidad">&minus;</button>
+              <span>{{ linea.cantidad }}</span>
+              <button type="button" data-cantidad="{{ linea.clave }}" data-valor="{{ linea.cantidad|add:'1' }}"
+                      aria-label="Sumar una unidad">+</button>
+            </div>
+            <button type="button" class="linea__quitar" data-quitar="{{ linea.clave }}">Quitar</button>
+            <span class="linea__subtotal">${{ linea.subtotal|pesos }}</span>
+          </div>
+        </div>
+      </div>
+      {% endwith %}
+    {% endfor %}
+  {% endif %}
+</div>
+
+{% if not carrito.vacio %}
+<div class="cajon__pie">
+  <div class="cajon__total">
+    <span>Total</span>
+    <b>${{ carrito.total|pesos }}</b>
+  </div>
+  <p class="cajon__cuotas">o 3 cuotas sin interés de ${{ carrito.total|cuota:3 }}</p>
+  <a href="{% url 'pedidos:checkout' %}" class="btn btn--primario btn--bloque">Finalizar compra</a>
+</div>
+{% endif %}

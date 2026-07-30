@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Tu pedido quedó guardado — {{ negocio.nombre }}{% endblock %}
+
+{% block contenido %}
+{% comment %} Mercado Pago no respondió, pero el pedido ya existe. La venta no se pierde: se
+   termina por el canal que CHAO usa hoy. {% endcomment %}
+<section class="contenido seccion" style="max-width:720px">
+  <p class="sup">Pedido #{{ pedido.pk }}</p>
+  <h1 class="display seccion__titulo">Tu pedido quedó guardado</h1>
+  <p class="seccion__nota">
+    No pudimos abrir el pago online en este momento, pero ya tenemos tu pedido anotado.
+    Mandanos el mensaje de acá abajo y lo cerramos por WhatsApp en el día.
+  </p>
+
+  <div class="resumen" style="margin-top:2rem;position:static">
+    <p class="sup">Lo que pediste</p>
+    {% for item in pedido.items.all %}
+      <div class="resumen__linea">
+        <span>
+          {{ item.cantidad }}× {{ item.producto.nombre }}
+          {% if item.talle %}<br><small>Talle {{ item.talle }}</small>{% endif %}
+        </span>
+        <span>${{ item.subtotal|pesos }}</span>
+      </div>
+    {% endfor %}
+    <div class="resumen__total">
+      <span class="sup">Total</span>
+      <b>${{ pedido.total|pesos }}</b>
+    </div>
+  </div>
+
+  <p style="margin-top:2rem">
+    <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ pedido.resumen_whatsapp|urlencode }}"
+       class="btn btn--wsp btn--bloque" target="_blank" rel="noopener">
+      Mandar el pedido por WhatsApp
+    </a>
+  </p>
+
+  {% if debug %}
+    <p class="sandbox"><strong>Detalle técnico (solo en desarrollo):</strong> {{ motivo }}</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load static humanize_ar %}
+
+{% block titulo %}{{ prenda.nombre }} — {{ negocio.nombre }}{% endblock %}
+{% block descripcion %}{{ prenda.descripcion }} Disponible en CHAO Indumentaria, {{ negocio.direccion }}.{% endblock %}
+
+{% block contenido %}
+<section class="contenido checkout">
+  <div>
+    {% with foto=prenda.foto_principal hover=prenda.foto_hover %}
+      <div class="hero__foto">
+        <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}" width="900" height="1200">
+      </div>
+      {% if hover %}
+        <p class="sup" style="margin-top:1rem">En el local</p>
+        <div class="local__foto" style="aspect-ratio:3/4">
+          <img src="{{ hover.url }}" alt="{{ hover.alt }}" width="1440" height="1920" loading="lazy">
+        </div>
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <div>
+    <p class="sup">
+      <a href="{% url 'catalogo:home' %}#catalogo">Catálogo</a> · {{ prenda.categoria.nombre }}
+    </p>
+    <h1 class="display seccion__titulo">{{ prenda.nombre }}</h1>
+
+    <p class="card__precio" style="font-size:1.9rem;margin:1rem 0 0">${{ prenda.precio|pesos }}</p>
+    <p class="card__cuotas">3 x ${{ prenda.precio|cuota:3 }} sin interés</p>
+
+    {% if prenda.precio_a_confirmar %}
+      <p class="aviso" style="margin-top:1.25rem">
+        <span aria-hidden="true">⚠</span>
+        <span><strong>Precio de referencia.</strong> Estimado de mercado, a confirmar con CHAO.</span>
+      </p>
+    {% endif %}
+
+    <p class="seccion__nota" style="margin:1.5rem 0">{{ prenda.descripcion }}</p>
+
+    <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito>
+      {% csrf_token %}
+      <input type="hidden" name="producto" value="{{ prenda.pk }}">
+
+      {% if prenda.necesita_elegir_talle %}
+        <p class="sup">Elegí tu talle</p>
+        <div class="talles" data-talles-producto>
+          {% for variante in prenda.variantes.all %}
+            <button type="button" class="talle" data-talle="{{ variante.talle.pk }}"
+                    aria-pressed="false" {% if variante.stock <= 0 %}disabled title="Sin stock"{% endif %}>
+              {{ variante.talle }}
+            </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="talle" value="" data-talle-elegido>
+
+        {% if prenda.hay_stock %}
+          <button type="submit" class="btn btn--primario btn--bloque" data-agregar-producto disabled>
+            Elegí tu talle
+          </button>
+        {% else %}
+          <button type="button" class="btn btn--primario btn--bloque" disabled>Sin stock por ahora</button>
+        {% endif %}
+      {% else %}
+        {# Una sola variante: el talle viaja resuelto, sin pedirle un clic de más. #}
+        <p class="sup">Talle único</p>
+        {% if prenda.variante_unica %}
+          <input type="hidden" name="talle" value="{{ prenda.variante_unica.talle.pk }}">
+        {% endif %}
+        {% if prenda.tiene_talles and not prenda.hay_stock %}
+          <button type="button" class="btn btn--primario btn--bloque" disabled>Sin stock por ahora</button>
+        {% else %}
+          <button type="submit" class="btn btn--primario btn--bloque">Agregar al carrito</button>
+        {% endif %}
+      {% endif %}
+    </form>
+
+    <p style="margin-top:0.85rem">
+      <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ prenda.nombre|add:' — quería consultar por esta prenda.'|urlencode }}"
+         class="btn btn--secundario btn--bloque" target="_blank" rel="noopener">
+        Consultar por WhatsApp
+      </a>
+    </p>
+
+    <ul class="local__datos">
+      <li>
+        <div class="dato__etiqueta">Retiro en el local</div>
+        <div class="dato__valor">{{ negocio.direccion }} · {{ negocio.dias }}</div>
+      </li>
+      <li>
+        <div class="dato__etiqueta">Cambios</div>
+        <div class="dato__valor">Prenda sin usar y con etiqueta</div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+{% if relacionados %}
+<section class="contenido seccion">
+  <div class="seccion__cabeza">
+    <h2 class="display seccion__titulo">Más de {{ prenda.categoria.nombre|lower }}</h2>
+  </div>
+  <div class="grilla">
+    {% for otra in relacionados %}
+      {% include "catalogo/_card.html" with prenda=otra %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="cierre">
+  <h2 class="display">¿Te la reservamos?</h2>
+  <p>Escribinos y te la guardamos hasta que puedas pasar por Gaucho Cruz.</p>
+  <div class="hero__acciones" style="justify-content:center">
+    <a href="{% url 'catalogo:home' %}#catalogo" class="btn btn--primario">Seguir viendo</a>
+    <a href="https://wa.me/{{ negocio.whatsapp }}" class="btn btn--secundario" target="_blank" rel="noopener">WhatsApp</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,51 @@
+# Deploy en Render. Importás el repo y Render lee este archivo.
+#
+# El plan `starter` no es capricho: en el free tier Render duerme el servicio y el
+# primer visitante espera ~50 segundos. Para una demo que el cliente abre una sola
+# vez, eso es perder la venta en la pantalla de carga.
+services:
+  - type: web
+    name: chao-ecommerce
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    startCommand: "gunicorn chao.wsgi:application"
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        # RENDER_EXTERNAL_HOSTNAME se agrega solo desde settings.py.
+        value: "localhost,127.0.0.1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chao-db
+          property: connectionString
+      # Token TEST- de Mercado Pago. Se carga a mano en el panel de Render, no acá:
+      # este archivo va al repo.
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_PUBLIC_KEY
+        sync: false
+
+      # --- Si la dueña va a subir fotos desde el panel ---------------------
+      # Descomentar junto con el bloque `disk` de abajo. Sin disco persistente, lo
+      # que suba se borra en el próximo deploy (las fotos del catálogo inicial no,
+      # esas viajan en static/ y las sirve WhiteNoise).
+      # - key: MEDIA_ROOT
+      #   value: /var/data/media
+
+    # disk:
+    #   name: media
+    #   mountPath: /var/data
+    #   sizeGB: 1
+
+databases:
+  - name: chao-db
+    plan: basic-256mb
+    region: oregon

@@ -1,0 +1,109 @@
+{
+ "look-elegancia-simple": [
+  {
+   "producto": "bolso-tote-gamuza-marron",
+   "x": 21.53,
+   "y": 40.96
+  },
+  {
+   "producto": "sweater-tejido-crudo",
+   "x": 50.0,
+   "y": 42.19
+  },
+  {
+   "producto": "pantalon-sastrero-negro",
+   "x": 74.31,
+   "y": 47.06
+  },
+  {
+   "producto": "sweater-rombos-marron",
+   "x": 90.97,
+   "y": 26.22
+  }
+ ],
+ "look-del-dia": [
+  {
+   "producto": "sweater-fino-bordo",
+   "x": 55.56,
+   "y": 46.35
+  },
+  {
+   "producto": "bandolera-croco-negra",
+   "x": 31.94,
+   "y": 59.38
+  },
+  {
+   "producto": "panuelo-estampado-rosa",
+   "x": 54.86,
+   "y": 30.73
+  }
+ ],
+ "look-outfit-del-dia": [
+  {
+   "producto": "sweater-fino-marron",
+   "x": 44.44,
+   "y": 39.58
+  },
+  {
+   "producto": "panuelo-rayado-beige",
+   "x": 12.5,
+   "y": 26.04
+  },
+  {
+   "producto": "jean-recto-celeste",
+   "x": 82.99,
+   "y": 40.62
+  }
+ ],
+ "look-basicos-sweaters": [
+  {
+   "producto": "sweater-fino-crudo",
+   "x": 58.68,
+   "y": 33.15
+  },
+  {
+   "producto": "bolso-rafia-natural",
+   "x": 88.54,
+   "y": 13.02
+  }
+ ],
+ "look-con-actitud": [
+  {
+   "producto": "remera-fearless",
+   "x": 37.5,
+   "y": 33.33
+  },
+  {
+   "producto": "jean-oxford-azul-oscuro",
+   "x": 67.36,
+   "y": 32.81
+  }
+ ],
+ "look-remera-negra": [
+  {
+   "producto": "remera-negra-sin-mangas",
+   "x": 39.58,
+   "y": 33.33
+  },
+  {
+   "producto": "jean-flare-azul",
+   "x": 65.97,
+   "y": 33.67
+  },
+  {
+   "producto": "rinonera-negra",
+   "x": 14.24,
+   "y": 26.56
+  },
+  {
+   "producto": "pulseras-y-relojes",
+   "x": 22.57,
+   "y": 64.24
+  },
+  {
+   "producto": "bolso-tejido-crudo",
+   "x": 89.93,
+   "y": 11.12
+  }
+ ]
+}

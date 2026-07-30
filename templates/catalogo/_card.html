@@ -1,0 +1,50 @@
+{% load humanize_ar %}
+{% comment %} Card de producto. Dos imágenes: el recorte de la prenda y la foto de la percha
+   completa, que aparece al pasar el mouse. El data-categoria lo usa el filtro. {% endcomment %}
+<article class="card" data-categoria="{{ prenda.categoria.slug }}">
+  <a href="{{ prenda.get_absolute_url }}" class="card__foto">
+    {% if not prenda.hay_stock and prenda.tiene_talles %}
+      <span class="card__badge card__badge--agotado">Sin stock</span>
+    {% elif prenda.ultimas_unidades %}
+      <span class="card__badge">Últimas unidades</span>
+    {% endif %}
+
+    {% with foto=prenda.foto_principal hover=prenda.foto_hover %}
+      {% if foto %}
+        <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}"
+             width="900" height="1200" loading="lazy">
+      {% endif %}
+      {% if hover %}
+        <img src="{{ hover.url }}" alt="" aria-hidden="true"
+             width="1440" height="1920" loading="lazy">
+      {% endif %}
+    {% endwith %}
+  </a>
+
+  <div class="card__cat">{{ prenda.categoria.nombre }}</div>
+  <a href="{{ prenda.get_absolute_url }}"><h3 class="card__nombre">{{ prenda.nombre }}</h3></a>
+  <div class="card__precio">${{ prenda.precio|pesos }}</div>
+  <div class="card__cuotas">3 x ${{ prenda.precio|cuota:3 }} sin interés</div>
+
+  <div class="card__form">
+    {% if prenda.necesita_elegir_talle %}
+      {# Hay más de un talle: la elección no se adivina, se manda a la ficha. #}
+      <a href="{{ prenda.get_absolute_url }}" class="btn btn--secundario btn--bloque">
+        {% if prenda.hay_stock %}Elegir talle{% else %}Ver la prenda{% endif %}
+      </a>
+    {% else %}
+      {# Talle único (o sin talles): no hay nada que decidir, se agrega directo. #}
+      <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito>
+        {% csrf_token %}
+        <input type="hidden" name="producto" value="{{ prenda.pk }}">
+        {% if prenda.variante_unica %}
+          <input type="hidden" name="talle" value="{{ prenda.variante_unica.talle.pk }}">
+        {% endif %}
+        <button type="submit" class="btn btn--primario btn--bloque"
+                {% if prenda.tiene_talles and not prenda.hay_stock %}disabled{% endif %}>
+          {% if prenda.tiene_talles and not prenda.hay_stock %}Sin stock{% else %}Agregar{% endif %}
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</article>

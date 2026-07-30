@@ -1,0 +1,70 @@
+{% load static %}<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}{{ negocio.nombre }} — Villa Bosch{% endblock %}</title>
+  <meta name="description" content="{% block descripcion %}Tienda online de CHAO Indumentaria. Sweaters, jeans, remeras y accesorios. Local en {{ negocio.direccion }}, {{ negocio.dias }}.{% endblock %}">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  {# Archivo variable: un solo archivo trae los dos anchos (eje wdth) que usa el sitio. #}
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/chao.css' %}">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}">
+</head>
+<body>
+  <a href="#contenido" class="solo-lectores">Ir al contenido</a>
+
+  <header class="barra">
+    <div class="barra__fila">
+      <a href="{% url 'catalogo:home' %}" class="marca">Chao</a>
+      <nav class="barra__links" aria-label="Secciones">
+        <a href="{% url 'catalogo:home' %}#looks">Looks</a>
+        <a href="{% url 'catalogo:home' %}#catalogo">Catálogo</a>
+        <a href="{% url 'catalogo:home' %}#local">El local</a>
+      </nav>
+      <button class="boton-carrito" data-abrir-carrito aria-label="Ver el carrito">
+        Carrito
+        <span class="boton-carrito__cuenta" data-cuenta data-vacio="{% if carrito.vacio %}1{% else %}0{% endif %}">{{ carrito|length }}</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="contenido">
+    {% block contenido %}{% endblock %}
+  </main>
+
+  <footer class="pie">
+    <div class="pie__fila">
+      <div>
+        <div>{{ negocio.nombre }} · {{ negocio.direccion }}</div>
+        <div>{{ negocio.dias }} de {{ negocio.horario_manana }} y de {{ negocio.horario_tarde }} hs</div>
+      </div>
+      <div>
+        <a href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">@{{ negocio.instagram }}</a>
+        ·
+        <a href="https://wa.me/{{ negocio.whatsapp }}" target="_blank" rel="noopener">{{ negocio.whatsapp_visible }}</a>
+      </div>
+      <a class="operon" href="https://operonhub.com/" target="_blank" rel="noopener">
+        <span class="operon__marca" aria-hidden="true"></span> Operon
+      </a>
+    </div>
+  </footer>
+
+  {# --- Carrito ---------------------------------------------------------- #}
+  <div class="velo" data-velo></div>
+  <aside class="cajon" data-cajon aria-label="Carrito de compras" aria-hidden="true">
+    {% include "carrito/_drawer.html" %}
+  </aside>
+
+  <div class="chicharra" data-chicharra role="status" aria-live="polite"></div>
+
+  {% comment %} Las rutas las resuelve Django, no el JS: si cambia una URL no hay que tocar
+     dos archivos. json_script escapa el contenido. {% endcomment %}
+  {{ urls_carrito|json_script:"chao-urls" }}
+  <script>window.CHAO_URLS = JSON.parse(document.getElementById("chao-urls").textContent);</script>
+  <script src="{% static 'js/chao.js' %}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

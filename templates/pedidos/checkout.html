@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Finalizar compra — {{ negocio.nombre }}{% endblock %}
+
+{% block contenido %}
+<section class="contenido checkout">
+  <div>
+    <p class="sup">Último paso</p>
+    <h1 class="display seccion__titulo">Finalizar compra</h1>
+
+    {% if messages %}
+      {% for mensaje in messages %}
+        <p class="aviso"><span aria-hidden="true">⚠</span> <span>{{ mensaje }}</span></p>
+      {% endfor %}
+    {% endif %}
+
+    {% if faltan_talle %}
+      <p class="aviso">
+        <span aria-hidden="true">⚠</span>
+        <span><strong>Falta elegir el talle</strong> de: {{ faltan_talle|join:", " }}.
+        Volvé al carrito y elegilo para poder seguir.</span>
+      </p>
+    {% endif %}
+
+    <form method="post" action="{% url 'pedidos:pagar' %}">
+      {% csrf_token %}
+
+      <div class="campo">
+        <label for="nombre">Nombre y apellido</label>
+        <input type="text" id="nombre" name="nombre" required autocomplete="name" maxlength="120">
+      </div>
+
+      <div class="campo">
+        <label for="telefono">Teléfono / WhatsApp</label>
+        <input type="tel" id="telefono" name="telefono" required autocomplete="tel"
+               inputmode="tel" placeholder="11 5555-5555" maxlength="40">
+      </div>
+
+      <div class="campo">
+        <label for="email">Email <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <input type="email" id="email" name="email" autocomplete="email">
+      </div>
+
+      <div class="campo">
+        <label for="notas">¿Algo que quieras aclarar?</label>
+        <textarea id="notas" name="notas" rows="3"
+                  placeholder="Por ejemplo: paso a retirarlo el sábado a la mañana."></textarea>
+      </div>
+
+      <button type="submit" class="btn btn--primario btn--bloque" {% if faltan_talle %}disabled{% endif %}>
+        Pagar con Mercado Pago
+      </button>
+
+      <p style="margin-top:0.85rem">
+        <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ 'Hola CHAO! Armé un pedido en la tienda y quería coordinarlo por acá.'|urlencode }}"
+           class="btn btn--secundario btn--bloque" target="_blank" rel="noopener">
+          Prefiero coordinar por WhatsApp
+        </a>
+      </p>
+
+      {% if not mp_activo %}
+        <p class="sandbox">
+          <strong>Mercado Pago sin configurar.</strong> Falta la variable
+          <code>MP_ACCESS_TOKEN</code> en el entorno. El pedido se va a registrar igual
+          y se termina por WhatsApp.
+        </p>
+      {% else %}
+        <p class="sandbox">
+          <strong>Modo de prueba.</strong> El pago corre en el sandbox de Mercado Pago:
+          se paga con tarjetas de test, no se cobra plata real.
+        </p>
+      {% endif %}
+    </form>
+  </div>
+
+  <aside class="resumen">
+    <p class="sup">Tu pedido</p>
+    {% for linea in carrito %}
+      <div class="resumen__linea">
+        <span>
+          {{ linea.cantidad }}× {{ linea.producto.nombre }}
+          {% if linea.talle %}<br><small>Talle {{ linea.talle }}</small>{% endif %}
+        </span>
+        <span>${{ linea.subtotal|pesos }}</span>
+      </div>
+    {% endfor %}
+
+    <div class="resumen__total">
+      <span class="sup">Total</span>
+      <b>${{ carrito.total|pesos }}</b>
+    </div>
+    <p class="cajon__cuotas">o 3 cuotas sin interés de ${{ carrito.total|cuota:3 }}</p>
+
+    <ul class="local__datos" style="margin-bottom:0">
+      <li>
+        <div class="dato__etiqueta">Retiro</div>
+        <div class="dato__valor">{{ negocio.direccion }}</div>
+      </li>
+      <li style="border-bottom:0">
+        <div class="dato__etiqueta">Horario</div>
+        <div class="dato__valor">{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</div>
+      </li>
+    </ul>
+  </aside>
+</section>
+{% endblock %}

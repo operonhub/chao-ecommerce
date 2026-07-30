@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% load static humanize_ar %}
+
+{% block contenido %}
+
+{% comment %} Datos de las prendas para la ficha de los hotspots. json_script escapa el
+   contenido, así que no hay riesgo de romper el HTML con un nombre raro. {% endcomment %}
+{{ prendas_json|json_script:"prendas-data" }}
+
+{% comment %} ===== HERO ============================================================
+   Lectura en Z: la marca arriba a la izquierda, el carrito arriba a la
+   derecha, la foto al centro, el CTA abajo. Hay una sola decisión que tomar
+   acá, así que no se pone nada más. {% endcomment %}
+<section class="contenido hero">
+  <div>
+    <p class="sup">Villa Bosch · Tres de Febrero</p>
+    <h1 class="display hero__titulo">Los looks de CHAO,<br>ahora con <em>precio y talle</em> a la vista.</h1>
+    <p class="hero__bajada">
+      Las mismas prendas que ves en el local, con su talle y su precio. Elegís, pagás
+      y lo retirás por Gaucho Cruz — o lo coordinamos por WhatsApp.
+    </p>
+    <div class="hero__acciones">
+      <a href="#looks" class="btn btn--primario">Comprá el look completo</a>
+      <a href="#catalogo" class="btn btn--secundario">Ver todo el catálogo</a>
+    </div>
+
+    <div class="hero__datos">
+      <div>
+        <div class="dato__valor">{{ negocio.dias }}</div>
+        <div class="dato__etiqueta">{{ negocio.horario_manana }} · {{ negocio.horario_tarde }}</div>
+      </div>
+      <div>
+        <div class="dato__valor">Cuotas sin interés</div>
+        <div class="dato__etiqueta">Todos los días</div>
+      </div>
+      <div>
+        <div class="dato__valor">{{ productos|length }} prendas</div>
+        <div class="dato__etiqueta">En stock ahora</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero__foto">
+    <img src="{% static 'img/looks/look-elegancia-simple.jpg' %}"
+         alt="Sweater tejido crudo, pantalón sastrero y bolso de gamuza en el local de CHAO"
+         width="1440" height="1920" fetchpriority="high">
+    <span class="hero__sello">Temporada en curso</span>
+  </div>
+</section>
+
+{% comment %} ===== LOOKBOOK — el factor sorpresa ==================================
+   CHAO no fotografía prendas sueltas: publica composiciones de percha
+   dentro del local. En vez de pelear con ese material, la tienda lo usa
+   como está y marca cada prenda sobre la foto. Es su propio copy hecho
+   función: "sumale accesorios y lo transformás". {% endcomment %}
+<section class="contenido seccion" id="looks">
+  <div class="seccion__cabeza">
+    <div>
+      <p class="sup">El lookbook</p>
+      <h2 class="display seccion__titulo">Tocá una prenda de la foto</h2>
+    </div>
+    <p class="seccion__nota">
+      Cada punto sobre la foto es una prenda que está en el local. Abrila, elegí tu
+      talle y sumala — o llevate el look entero de una vez.
+    </p>
+  </div>
+
+  {% if hay_precios_a_confirmar %}
+    <p class="aviso">
+      <span aria-hidden="true">⚠</span>
+      <span><strong>Precios de referencia.</strong> CHAO todavía no publicó su lista,
+      así que los valores de esta demo son estimados de mercado y hay que confirmarlos
+      antes de publicar la tienda.</span>
+    </p>
+  {% endif %}
+
+  {% for look in looks %}
+    <article class="look">
+      <div class="look__foto">
+        <img src="{{ look.url }}" alt="{{ look.alt }}" width="1440" height="1920" loading="lazy">
+
+        {% for item in look.items.all %}
+          <button class="hotspot"
+                  style="left: {{ item.x }}%; top: {{ item.y }}%"
+                  data-hotspot="{{ item.producto.pk }}"
+                  data-look="{{ look.pk }}"
+                  aria-expanded="false"
+                  aria-label="Ver {{ item.producto.nombre }}">
+            <span aria-hidden="true">+</span>
+          </button>
+        {% endfor %}
+
+        {% comment %} Una sola ficha por look, reposicionada por JS junto al marcador tocado.
+           Se renderiza en el servidor con todos los datos ya adentro. {% endcomment %}
+        <div class="ficha" data-ficha aria-live="polite">
+          <button class="ficha__cerrar" data-cerrar-ficha aria-label="Cerrar">&times;</button>
+          <p class="ficha__nombre" data-ficha-nombre></p>
+          <p class="ficha__precio" data-ficha-precio></p>
+          <p class="ficha__cuotas" data-ficha-cuotas></p>
+          <div class="talles" data-ficha-talles></div>
+          <button type="button" class="btn btn--primario btn--bloque" data-ficha-agregar>Agregar al carrito</button>
+        </div>
+      </div>
+
+      <div class="look__panel">
+        <p class="sup">Look {{ forloop.counter }} de {{ looks|length }}</p>
+        <h3 class="display look__titulo">{{ look.nombre }}</h3>
+        <p class="look__bajada">{{ look.bajada }}</p>
+
+        <ul class="look__lista">
+          {% for item in look.items.all %}
+            {% with prenda=item.producto foto=item.producto.foto_principal %}
+            <li class="prenda-fila" data-fila="{{ prenda.pk }}">
+              <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}" loading="lazy">
+              <div>
+                <div class="prenda-fila__nombre">{{ prenda.nombre }}</div>
+                <div class="prenda-fila__talles">
+                  {% if prenda.necesita_elegir_talle %}
+                    Talles
+                    {% for v in prenda.talles_disponibles %}{{ v.talle }}{% if not forloop.last %} · {% endif %}{% empty %}sin stock{% endfor %}
+                  {% else %}
+                    Talle único
+                  {% endif %}
+                </div>
+              </div>
+              <div class="prenda-fila__precio">${{ prenda.precio|pesos }}</div>
+            </li>
+            {% endwith %}
+          {% endfor %}
+        </ul>
+
+        <div class="look__total">
+          <span class="sup">Total del look</span>
+          <b>${{ look.total|pesos }}</b>
+        </div>
+
+        <form method="post" action="{% url 'carrito:agregar_look' %}" data-form-carrito>
+          {% csrf_token %}
+          <input type="hidden" name="look" value="{{ look.pk }}">
+          <button type="submit" class="btn btn--secundario btn--bloque">
+            Llevar el look completo ({{ look.items.count }} prendas)
+          </button>
+        </form>
+      </div>
+    </article>
+  {% endfor %}
+</section>
+
+{% comment %} ===== CATÁLOGO =======================================================
+   Lectura en F: filas para barrer con la vista. El filtro por categoría se
+   hace en el cliente porque son 19 prendas — pedirle al server una recarga
+   completa para esconder 15 cards sería peor experiencia. {% endcomment %}
+<section class="contenido seccion" id="catalogo">
+  <div class="seccion__cabeza">
+    <div>
+      <p class="sup">Todo el catálogo</p>
+      <h2 class="display seccion__titulo">{{ productos|length }} prendas en stock</h2>
+    </div>
+    <p class="seccion__nota">Pasá el mouse por una prenda para verla colgada en el local.</p>
+  </div>
+
+  <div class="filtros" role="group" aria-label="Filtrar por categoría">
+    <button class="filtro" data-filtro="todas" aria-pressed="true">Todas</button>
+    {% for categoria in categorias %}
+      <button class="filtro" data-filtro="{{ categoria.slug }}" aria-pressed="false">{{ categoria.nombre }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="grilla">
+    {% for prenda in productos %}
+      {% include "catalogo/_card.html" with prenda=prenda %}
+    {% endfor %}
+  </div>
+</section>
+
+{# ===== EL LOCAL ======================================================= #}
+<section class="contenido seccion" id="local">
+  <div class="local">
+    <div class="local__foto">
+      <img src="{% static 'img/looks/el-local.jpg' %}"
+           alt="Vidriera de CHAO Indumentaria en Gaucho Cruz 5485, Villa Bosch"
+           width="1440" height="1920" loading="lazy">
+    </div>
+    <div>
+      <p class="sup">El local</p>
+      <h2 class="display seccion__titulo">Gaucho Cruz 5485</h2>
+      <p class="seccion__nota">
+        Villa Bosch, {{ negocio.partido }}. Un espacio pensado para probarse tranquila
+        y que te asesoren — la tienda online es para cuando no podés pasar.
+      </p>
+
+      <ul class="local__datos">
+        <li>
+          <div class="dato__etiqueta">Dirección</div>
+          <div class="dato__valor">{{ negocio.direccion }}</div>
+        </li>
+        <li>
+          <div class="dato__etiqueta">Horario</div>
+          <div class="dato__valor">{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</div>
+        </li>
+        <li>
+          <div class="dato__etiqueta">WhatsApp</div>
+          <div class="dato__valor">{{ negocio.whatsapp_visible }}</div>
+        </li>
+      </ul>
+
+      <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ '¡Hola CHAO! Vi la tienda online y quería consultarles.'|urlencode }}"
+         class="btn btn--wsp" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+
+      <iframe class="local__mapa"
+              src="https://www.google.com/maps?q=Gaucho+Cruz+5485,+Villa+Bosch,+Buenos+Aires&output=embed"
+              title="Mapa de CHAO Indumentaria en Gaucho Cruz 5485, Villa Bosch"
+              loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+  </div>
+</section>
+
+{# ===== PREGUNTAS ====================================================== #}
+<section class="contenido seccion">
+  <div class="seccion__cabeza">
+    <div>
+      <p class="sup">Antes de comprar</p>
+      <h2 class="display seccion__titulo">Lo que más nos preguntan</h2>
+    </div>
+  </div>
+
+  <div class="faq">
+    <details open>
+      <summary>¿Cómo sé qué talle me queda?</summary>
+      <p>
+        Los sweaters y remeras vienen en S, M y L con calce holgado; los jeans y pantalones
+        en 36, 38, 40 y 42. Si estás entre dos talles, escribinos por WhatsApp y te decimos
+        cómo calza esa prenda en particular antes de que compres.
+      </p>
+    </details>
+    <details>
+      <summary>¿Puedo cambiar si no me queda?</summary>
+      <p>
+        Sí. Tenés 30 días para cambiar la prenda sin usar y con su etiqueta, en el local de
+        Gaucho Cruz 5485. <em>Plazo a confirmar con CHAO antes de publicar.</em>
+      </p>
+    </details>
+    <details>
+      <summary>¿Hacen envíos?</summary>
+      <p>
+        El retiro en el local está siempre disponible en el horario de atención. Los envíos
+        se coordinan por WhatsApp. <em>La zona de cobertura y el costo los define CHAO —
+        quedan a confirmar.</em>
+      </p>
+    </details>
+    <details>
+      <summary>¿En cuántas cuotas puedo pagar?</summary>
+      <p>
+        En el local hay cuotas sin interés todos los días. En la tienda online el pago es
+        con Mercado Pago, que te muestra los planes de cuotas disponibles según tu tarjeta
+        al momento de pagar.
+      </p>
+    </details>
+  </div>
+</section>
+
+{% comment %} ===== CTA TERMINAL ===================================================
+   Nadie llega al final de la página sin saber qué hacer. {% endcomment %}
+<section class="cierre">
+  <h2 class="display">¿Lo querés ver puesto?</h2>
+  <p>
+    Pasá por el local y probátelo, o escribinos y te mandamos fotos y video de la prenda
+    que te interesa antes de que decidas.
+  </p>
+  <div class="hero__acciones" style="justify-content:center">
+    <a href="#catalogo" class="btn btn--primario">Ver el catálogo</a>
+    <a href="https://wa.me/{{ negocio.whatsapp }}" class="btn btn--secundario" target="_blank" rel="noopener">
+      Escribir por WhatsApp
+    </a>
+  </div>
+</section>
+
+{% endblock %}

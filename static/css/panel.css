@@ -1,0 +1,87 @@
+/* ==========================================================================
+   Panel de la dueña — mismo admin de Django, vestido con la marca de CHAO.
+   Se apoya en el admin porque sale gratis (permisos, auditoría, formularios
+   ya hechos); esto es maquillaje encima, no un panel a mano. Los valores de
+   color están repetidos a mano (no como var(--aqua)) porque el admin no carga
+   chao.css, así que no hay custom properties compartidas con el sitio.
+   ========================================================================== */
+
+/* El admin de Django trae tema claro/oscuro automático con sus propias
+   variables bajo `:root[data-theme="dark"]` / `[data-theme="light"]` — esos
+   selectores pesan más que un `:root` a secas, así que un override en `:root`
+   solo gana en el tema que cargue después. Se repite en los tres para que la
+   marca no dependa de qué tema haya elegido el sistema de la dueña. */
+:root,
+:root[data-theme="dark"],
+:root[data-theme="light"] {
+  --primary: #2f6b70;
+  --primary-fg: #fff;
+  --header-bg: #1a1a1a;
+  --header-color: #fafaf8;
+  --header-link-color: #fafaf8;
+  --header-branding-color: #fafaf8;
+  --breadcrumbs-bg: #24413f;
+  --breadcrumbs-fg: #e8e6e1;
+  --breadcrumbs-link-fg: #fff;
+  --link-fg: #2f6b70;
+  --link-hover-color: #204b4f;
+  --link-selected-fg: #2f6b70;
+  --button-bg: #2f6b70;
+  --button-hover-bg: #204b4f;
+  --default-button-bg: #1a1a1a;
+  --default-button-hover-bg: #000;
+  --selected-bg: #e8f3f3;
+  --selected-row: #f1f8f8;
+  --border-radius: 4px;
+}
+
+#header {
+  background: var(--header-bg);
+}
+
+/* El admin pinta el link de #site-name con var(--accent), no con las
+   variables de header que ya pisamos arriba — se targetea directo. */
+#site-name a:link,
+#site-name a:visited {
+  color: var(--header-color);
+}
+
+#branding h1,
+#branding h1 a:link,
+#branding h1 a:visited {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+div.breadcrumbs {
+  background: #24413f;
+}
+
+/* --- Miniaturas de fotos: más grandes y clickeables para abrir el original,
+   así la dueña puede chequear el recorte sin entrar a editar. --- */
+.field-vista img,
+.field-foto img {
+  border: 1px solid #dcd9d3;
+}
+
+.field-vista a,
+.field-foto a {
+  display: inline-block;
+  line-height: 0;
+}
+
+/* --- Tocar bien en el celular: la dueña carga fotos y precios desde ahí. --- */
+@media (max-width: 767px) {
+  .submit-row a.deletelink,
+  .button,
+  input[type="submit"],
+  input[type="button"],
+  .submit-row input {
+    min-height: 44px;
+  }
+
+  #changelist-filter,
+  .actions {
+    font-size: 1rem;
+  }
+}

@@ -1,0 +1,7 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% comment %}Vestimos el admin de stock con panel.css en TODAS sus páginas (login
+  incluido). No alcanza con Media en ProductoAdmin: eso solo carga en las
+  pantallas de ese modelo, y la dueña también entra por /panel/login/.{% endcomment %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/panel.css' %}">{% endblock %}

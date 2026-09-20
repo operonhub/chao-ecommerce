@@ -8,8 +8,10 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  {# Archivo variable: un solo archivo trae los dos anchos (eje wdth) que usa el sitio. #}
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  {% comment %}Archivo (UI/funcional) + Fraunces (editorial, la marca y los
+    títulos grandes): dos familias, no más, y las dos con eje variable así no se
+    multiplican los archivos.{% endcomment %}
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,400..600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/chao.css' %}">
   <link rel="icon" href="{% static 'img/favicon.svg' %}">
 </head>
@@ -18,7 +20,7 @@
 
   <header class="barra">
     <div class="barra__fila">
-      <a href="{% url 'catalogo:home' %}" class="marca">Chao</a>
+      <a href="{% url 'catalogo:home' %}" class="marca">Chao<em>indumentaria</em></a>
       <nav class="barra__links" aria-label="Secciones">
         <a href="{% url 'catalogo:home' %}#looks">Looks</a>
         <a href="{% url 'catalogo:home' %}#catalogo">Catálogo</a>

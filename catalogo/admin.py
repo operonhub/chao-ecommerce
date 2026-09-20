@@ -17,12 +17,17 @@ admin.site.site_title = "CHAO"
 admin.site.index_title = "Panel de la tienda"
 
 
-def _miniatura(url, alto=60):
+def _miniatura(url, alto=60, agrandable=True):
     if not url:
         return format_html('<span style="color:#999">sin foto</span>')
-    return format_html(
+    img = format_html(
         '<img src="{}" style="height:{}px;width:auto;border-radius:4px;object-fit:cover" />', url, alto
     )
+    if not agrandable:
+        return img
+    # La dueña carga desde el celular: poder tocar la miniatura y ver la foto
+    # entera (sin recortar) evita tener que adivinar si el encuadre quedó bien.
+    return format_html('<a href="{}" target="_blank" rel="noopener">{}</a>', url, img)
 
 
 class ProductoImagenInline(admin.TabularInline):
@@ -31,9 +36,9 @@ class ProductoImagenInline(admin.TabularInline):
     fields = ("vista", "imagen", "ruta_estatica", "alt", "orden")
     readonly_fields = ("vista",)
 
-    @admin.display(description="Vista")
+    @admin.display(description="Vista (tocar para ver entera)")
     def vista(self, obj):
-        return _miniatura(obj.url if obj.pk else "")
+        return _miniatura(obj.url if obj.pk else "", alto=110)
 
 
 class VarianteInline(admin.TabularInline):
@@ -67,11 +72,12 @@ class ProductoAdmin(admin.ModelAdmin):
         ("Precio", {"fields": ("precio", "precio_a_confirmar")}),
         ("Visibilidad", {"fields": ("activo", "destacado", "orden", "slug")}),
     )
+    list_per_page = 50
 
     @admin.display(description="")
     def vista(self, obj):
         foto = obj.foto_principal
-        return _miniatura(foto.url if foto else "")
+        return _miniatura(foto.url if foto else "", alto=70)
 
     @admin.display(description="Stock")
     def stock_total(self, obj):

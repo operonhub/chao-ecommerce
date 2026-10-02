@@ -1,50 +1,69 @@
 {% load humanize_ar %}
-{% comment %} Card de producto. Dos imágenes: el recorte de la prenda y la foto de la percha
-   completa, que aparece al pasar el mouse. El data-categoria lo usa el filtro. {% endcomment %}
+{% comment %}
+  Tarjeta de prenda. Se usa en la portada, el catálogo y "También te puede
+  gustar". Dos fotos (la prenda y la percha completa al pasar el mouse) y los
+  talles como botones de agregar rápido: un toque y va al carrito, sin entrar a
+  la ficha.
+
+  Cartel sobre la foto, por prioridad: sin stock > oferta > etiqueta de la dueña
+  > últimas unidades. Uno solo, para que no compitan.
+{% endcomment %}
 <article class="card" data-categoria="{{ prenda.categoria.slug }}">
-  <a href="{{ prenda.get_absolute_url }}" class="card__foto">
-    {% if not prenda.hay_stock and prenda.tiene_talles %}
+  <a href="{{ prenda.get_absolute_url }}" class="card__foto" aria-label="{{ prenda.nombre }}">
+    {% if prenda.tiene_talles and not prenda.hay_stock %}
       <span class="card__badge card__badge--agotado">Sin stock</span>
+    {% elif prenda.en_oferta %}
+      <span class="card__badge card__badge--oferta">−{{ prenda.descuento_pct }}%</span>
+    {% elif prenda.etiqueta %}
+      <span class="card__badge">{{ prenda.etiqueta }}</span>
     {% elif prenda.ultimas_unidades %}
       <span class="card__badge">Últimas unidades</span>
     {% endif %}
 
     {% with foto=prenda.foto_principal hover=prenda.foto_hover %}
       {% if foto %}
-        <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}"
-             width="900" height="1200" loading="lazy">
+        <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}" width="900" height="1200" loading="lazy">
       {% endif %}
       {% if hover %}
-        <img src="{{ hover.url }}" alt="" aria-hidden="true"
-             width="1440" height="1920" loading="lazy">
+        <img src="{{ hover.url }}" alt="" aria-hidden="true" width="1440" height="1920" loading="lazy">
       {% endif %}
     {% endwith %}
   </a>
 
-  <div class="card__cat">{{ prenda.categoria.nombre }}</div>
-  <a href="{{ prenda.get_absolute_url }}"><h3 class="card__nombre">{{ prenda.nombre }}</h3></a>
-  <div class="card__precio">${{ prenda.precio|pesos }}</div>
-  <div class="card__cuotas">3 x ${{ prenda.precio|cuota:3 }} sin interés</div>
-
-  <div class="card__form">
-    {% if prenda.necesita_elegir_talle %}
-      {# Hay más de un talle: la elección no se adivina, se manda a la ficha. #}
-      <a href="{{ prenda.get_absolute_url }}" class="btn btn--secundario btn--bloque">
-        {% if prenda.hay_stock %}Elegir talle{% else %}Ver la prenda{% endif %}
-      </a>
-    {% else %}
-      {# Talle único (o sin talles): no hay nada que decidir, se agrega directo. #}
-      <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito>
-        {% csrf_token %}
-        <input type="hidden" name="producto" value="{{ prenda.pk }}">
-        {% if prenda.variante_unica %}
-          <input type="hidden" name="talle" value="{{ prenda.variante_unica.talle.pk }}">
-        {% endif %}
-        <button type="submit" class="btn btn--primario btn--bloque"
-                {% if prenda.tiene_talles and not prenda.hay_stock %}disabled{% endif %}>
-          {% if prenda.tiene_talles and not prenda.hay_stock %}Sin stock{% else %}Agregar{% endif %}
-        </button>
-      </form>
-    {% endif %}
+  <div class="card__info">
+    <p class="card__cat">{{ prenda.categoria.nombre }}</p>
+    <h3 class="card__nombre"><a href="{{ prenda.get_absolute_url }}">{{ prenda.nombre }}</a></h3>
+    <p class="card__precio">
+      {% if prenda.en_oferta %}<s class="card__antes">${{ prenda.precio_anterior|pesos }}</s>{% endif %}
+      <span {% if prenda.en_oferta %}class="card__precio--oferta"{% endif %}>${{ prenda.precio|pesos }}</span>
+    </p>
+    <p class="card__cuotas">3 x ${{ prenda.precio|cuota:3 }} sin interés</p>
   </div>
+
+  {% if prenda.tiene_talles and prenda.hay_stock %}
+    <form method="post" action="{% url 'carrito:agregar' %}" class="card__rapido" data-form-carrito>
+      {% csrf_token %}
+      <input type="hidden" name="producto" value="{{ prenda.pk }}">
+      {% if prenda.necesita_elegir_talle %}
+        <span class="card__rapido-lbl">Agregar</span>
+        {% for v in prenda.variantes.all %}
+          <button type="submit" name="talle" value="{{ v.talle.pk }}" class="card__talle"
+                  {% if v.stock <= 0 %}disabled title="Sin stock en {{ v.talle }}"{% endif %}
+                  aria-label="Agregar {{ prenda.nombre }} talle {{ v.talle }}">{{ v.talle }}</button>
+        {% endfor %}
+      {% else %}
+        <input type="hidden" name="talle" value="{{ prenda.variante_unica.talle.pk }}">
+        <button type="submit" class="card__agregar">Agregar al carrito <span aria-hidden="true">+</span></button>
+      {% endif %}
+    </form>
+  {% elif not prenda.tiene_talles %}
+    <form method="post" action="{% url 'carrito:agregar' %}" class="card__rapido" data-form-carrito>
+      {% csrf_token %}
+      <input type="hidden" name="producto" value="{{ prenda.pk }}">
+      <button type="submit" class="card__agregar">Agregar al carrito <span aria-hidden="true">+</span></button>
+    </form>
+  {% else %}
+    <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ '¡Hola CHAO! Quería saber si vuelve a entrar: '|add:prenda.nombre|urlencode }}"
+       class="card__agregar card__agregar--off" target="_blank" rel="noopener">Avisame cuando vuelva</a>
+  {% endif %}
 </article>

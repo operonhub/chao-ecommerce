@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load static humanize_ar %}
+
+{% block titulo %}Looks — {{ negocio.nombre }}{% endblock %}
+
+{% block contenido %}
+{{ prendas_json|json_script:"prendas-data" }}
+
+{% comment %} CHAO no fotografía prendas sueltas: publica composiciones de percha
+   dentro del local. En vez de pelear con ese material, la tienda lo usa
+   como está y marca cada prenda sobre la foto. {% endcomment %}
+<section class="contenido seccion">
+  <div class="seccion__cabeza">
+    <div>
+      <p class="sup">— El lookbook</p>
+      <h1 class="display seccion__titulo">Tocá una prenda de la foto</h1>
+    </div>
+    <p class="seccion__nota">
+      Cada punto sobre la foto es una prenda que está en el local. Abrila, elegí tu
+      talle y sumala — o llevate el look entero de una vez.
+    </p>
+  </div>
+
+  {% for look in looks %}
+    <article class="look" id="look-{{ look.pk }}">
+      <div class="look__foto">
+        <img src="{{ look.url }}" alt="{{ look.alt }}" width="1440" height="1920" loading="lazy">
+
+        {% for item in look.items.all %}
+          <button class="hotspot"
+                  style="left: {{ item.x }}%; top: {{ item.y }}%"
+                  data-hotspot="{{ item.producto.pk }}"
+                  data-look="{{ look.pk }}"
+                  aria-expanded="false"
+                  aria-label="Ver {{ item.producto.nombre }}">
+            <span aria-hidden="true">+</span>
+          </button>
+        {% endfor %}
+
+        <div class="ficha" data-ficha aria-live="polite">
+          <button class="ficha__cerrar" data-cerrar-ficha aria-label="Cerrar">&times;</button>
+          <p class="ficha__nombre" data-ficha-nombre></p>
+          <p class="ficha__precio" data-ficha-precio></p>
+          <p class="ficha__cuotas" data-ficha-cuotas></p>
+          <div class="talles" data-ficha-talles></div>
+          <button type="button" class="btn btn--primario btn--bloque" data-ficha-agregar>Agregar al carrito</button>
+        </div>
+      </div>
+
+      <div class="look__panel">
+        <p class="sup">Look {{ forloop.counter }} de {{ looks|length }}</p>
+        <h2 class="display look__titulo">{{ look.nombre }}</h2>
+        <p class="look__bajada">{{ look.bajada }}</p>
+
+        <ul class="look__lista">
+          {% for item in look.items.all %}
+            {% with prenda=item.producto foto=item.producto.foto_principal %}
+            <li class="prenda-fila" data-fila="{{ prenda.pk }}">
+              <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}" loading="lazy">
+              <div>
+                <div class="prenda-fila__nombre">{{ prenda.nombre }}</div>
+                <div class="prenda-fila__talles">
+                  {% if prenda.necesita_elegir_talle %}
+                    Talles
+                    {% for v in prenda.talles_disponibles %}{{ v.talle }}{% if not forloop.last %} · {% endif %}{% empty %}sin stock{% endfor %}
+                  {% else %}
+                    Talle único
+                  {% endif %}
+                </div>
+              </div>
+              <div class="prenda-fila__precio">${{ prenda.precio|pesos }}</div>
+            </li>
+            {% endwith %}
+          {% endfor %}
+        </ul>
+
+        <div class="look__total">
+          <span class="sup">Total del look</span>
+          <b>${{ look.total|pesos }}</b>
+        </div>
+
+        <form method="post" action="{% url 'carrito:agregar_look' %}" data-form-carrito>
+          {% csrf_token %}
+          <input type="hidden" name="look" value="{{ look.pk }}">
+          <button type="submit" class="btn btn--secundario btn--bloque">
+            Llevar el look completo ({{ look.items.count }} prendas)
+          </button>
+        </form>
+      </div>
+    </article>
+  {% endfor %}
+
+  <p style="text-align:center;margin-top:1rem">
+    <a href="{% url 'catalogo:catalogo' %}" class="cta-ghost">Ver todo el catálogo <span aria-hidden="true">→</span></a>
+  </p>
+</section>
+{% endblock %}

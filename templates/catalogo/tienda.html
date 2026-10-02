@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load static humanize_ar editorial %}
+
+{% block titulo %}{% if categoria_actual %}{{ categoria_actual.nombre }}{% else %}Catálogo{% endif %} — {{ negocio.nombre }}{% endblock %}
+
+{% block contenido %}
+{% comment %}
+  La tienda: se entra desde el menú eligiendo una categoría o "Todo". Cada
+  categoría es su propia URL (se puede compartir y la indexa Google), con un
+  encabezado editorial y una barra de categorías que queda pegada arriba.
+{% endcomment %}
+<header class="contenido tienda-cabeza">
+  <div>
+    <p class="sup">— Temporada {{ portada.temporada }} · {{ productos|length }} prenda{{ productos|length|pluralize }}</p>
+    <h1 class="display tienda-cabeza__titulo">
+      {% if categoria_actual %}{{ categoria_actual.nombre|acento }}{% else %}La <em>colección</em>{% endif %}
+    </h1>
+  </div>
+  <p class="tienda-cabeza__nota">
+    {% if categoria_actual %}Lo que hay hoy en el local, con su talle y su precio.{% else %}Todo lo que hay hoy en el local de Gaucho Cruz, con su talle y su precio.{% endif %}
+  </p>
+</header>
+
+<nav class="tienda-nav" aria-label="Categorías">
+  <div class="contenido tienda-nav__fila">
+    <div class="tienda-nav__cats">
+      <a href="{% url 'catalogo:catalogo' %}" {% if not categoria_actual %}aria-current="page"{% endif %}>Todo<sup>{{ total_activos }}</sup></a>
+      {% for c in categorias %}
+        <a href="{% url 'catalogo:catalogo_categoria' c.slug %}" {% if categoria_actual.slug == c.slug %}aria-current="page"{% endif %}>{{ c.nombre }}<sup>{{ c.n }}</sup></a>
+      {% endfor %}
+      <a href="{% url 'catalogo:looks' %}">Looks</a>
+    </div>
+    <form method="get" class="tienda-orden">
+      <span>Ordenar</span>
+      <select name="orden" onchange="this.form.submit()" aria-label="Ordenar prendas">
+        <option value="" {% if not orden %}selected{% endif %}>Destacadas</option>
+        <option value="nuevo" {% if orden == 'nuevo' %}selected{% endif %}>Lo último</option>
+        <option value="menor-precio" {% if orden == 'menor-precio' %}selected{% endif %}>Menor precio</option>
+        <option value="mayor-precio" {% if orden == 'mayor-precio' %}selected{% endif %}>Mayor precio</option>
+      </select>
+    </form>
+  </div>
+</nav>
+
+<section class="contenido tienda-cuerpo">
+  {% if hay_precios_a_confirmar %}
+    <p class="tienda-aviso" style="margin:0 0 1.75rem">
+      <span aria-hidden="true">⚠</span>
+      <span>Algunos precios son de referencia: CHAO todavía no confirmó toda su lista.</span>
+    </p>
+  {% endif %}
+
+  <div class="grilla">
+    {% for prenda in productos %}
+      {% include "catalogo/_card.html" with prenda=prenda %}
+      {% if look_destacado and forloop.counter == 4 %}
+        <a href="{% url 'catalogo:looks' %}#look-{{ look_destacado.pk }}" class="card-look">
+          <img src="{{ look_destacado.url }}" alt="{{ look_destacado.alt }}" loading="lazy">
+          <span class="card-look__texto">
+            <span class="sup">— El lookbook</span>
+            <span class="card-look__titulo">{{ look_destacado.nombre|acento }}</span>
+            <span class="card-look__cta">Comprá el look completo →</span>
+          </span>
+        </a>
+      {% endif %}
+    {% empty %}
+      <p class="seccion__nota">Por ahora no hay prendas activas en esta categoría.</p>
+    {% endfor %}
+  </div>
+</section>
+
+{# ===== PREGUNTAS ====================================================== #}
+<section class="contenido seccion" id="preguntas">
+  <div class="seccion__cabeza">
+    <div>
+      <p class="sup">— Antes de comprar</p>
+      <h2 class="display seccion__titulo">Lo que más nos <em>preguntan</em></h2>
+    </div>
+  </div>
+
+  <div class="faq">
+    <details open>
+      <summary>¿Cómo sé qué talle me queda?</summary>
+      <p>
+        Los sweaters y remeras vienen en S, M y L con calce holgado; los jeans y pantalones
+        en 36, 38, 40 y 42. Si estás entre dos talles, escribinos por WhatsApp y te decimos
+        cómo calza esa prenda en particular antes de que compres.
+      </p>
+    </details>
+    <details>
+      <summary>¿Puedo cambiar si no me queda?</summary>
+      <p>
+        Sí. Tenés 30 días para cambiar la prenda sin usar y con su etiqueta, en el local de
+        Gaucho Cruz 5485. <em>Plazo a confirmar con CHAO antes de publicar.</em>
+      </p>
+    </details>
+    <details>
+      <summary>¿Hacen envíos?</summary>
+      <p>
+        El retiro en el local está siempre disponible en el horario de atención. Los envíos
+        se coordinan por WhatsApp. <em>La zona de cobertura y el costo los define CHAO —
+        quedan a confirmar.</em>
+      </p>
+    </details>
+    <details>
+      <summary>¿En cuántas cuotas puedo pagar?</summary>
+      <p>
+        En el local hay cuotas sin interés todos los días. En la tienda online el pago es
+        con Mercado Pago, que te muestra los planes de cuotas disponibles según tu tarjeta
+        al momento de pagar.
+      </p>
+    </details>
+  </div>
+</section>
+
+{# ===== EL LOCAL ======================================================= #}
+<section class="contenido seccion" id="local">
+  <div class="local">
+    <div class="local__foto">
+      <img src="{% static 'img/looks/el-local.jpg' %}"
+           alt="Vidriera de CHAO Indumentaria en Gaucho Cruz 5485, Villa Bosch"
+           width="1440" height="1920" loading="lazy">
+    </div>
+    <div>
+      <p class="sup">— El local</p>
+      <h2 class="display seccion__titulo">Gaucho Cruz <em>5485.</em></h2>
+      <p class="seccion__nota">
+        Villa Bosch, {{ negocio.partido }}. Un espacio pensado para probarse tranquila
+        y que te asesoren — la tienda online es para cuando no podés pasar.
+      </p>
+
+      <ul class="local__datos">
+        <li>
+          <div class="dato__etiqueta">Dirección</div>
+          <div class="dato__valor">{{ negocio.direccion }}</div>
+        </li>
+        <li>
+          <div class="dato__etiqueta">Horario</div>
+          <div class="dato__valor">{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</div>
+        </li>
+        <li>
+          <div class="dato__etiqueta">WhatsApp</div>
+          <div class="dato__valor">{{ negocio.whatsapp_visible }}</div>
+        </li>
+      </ul>
+
+      <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ '¡Hola CHAO! Vi la tienda online y quería consultarles.'|urlencode }}"
+         class="btn btn--wsp" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+
+      <iframe class="local__mapa"
+              src="https://www.google.com/maps?q=Gaucho+Cruz+5485,+Villa+Bosch,+Buenos+Aires&output=embed"
+              title="Mapa de CHAO Indumentaria en Gaucho Cruz 5485, Villa Bosch"
+              loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+  </div>
+</section>
+{% endblock %}

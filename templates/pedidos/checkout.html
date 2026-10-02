@@ -5,9 +5,15 @@
 
 {% block contenido %}
 <section class="contenido checkout">
-  <div>
-    <p class="sup">Último paso</p>
-    <h1 class="display seccion__titulo">Finalizar compra</h1>
+  <div class="checkout__form">
+    <ol class="pasos" aria-label="Pasos de la compra">
+      <li class="pasos__hecho">Bolsa</li>
+      <li class="pasos__actual" aria-current="step">Tus datos</li>
+      <li>Pago</li>
+    </ol>
+
+    <h1 class="display checkout__titulo">Finalizar <em>compra</em></h1>
+    <p class="seccion__nota">Con tu nombre y un teléfono alcanza: te escribimos para coordinar el retiro en el local.</p>
 
     {% if messages %}
       {% for mensaje in messages %}
@@ -19,11 +25,11 @@
       <p class="aviso">
         <span aria-hidden="true">⚠</span>
         <span><strong>Falta elegir el talle</strong> de: {{ faltan_talle|join:", " }}.
-        Volvé al carrito y elegilo para poder seguir.</span>
+        Quitala de la bolsa y volvé a agregarla con su talle para poder seguir.</span>
       </p>
     {% endif %}
 
-    <form method="post" action="{% url 'pedidos:pagar' %}">
+    <form method="post" action="{% url 'pedidos:pagar' %}" class="checkout__campos">
       {% csrf_token %}
 
       <div class="campo">
@@ -38,7 +44,7 @@
       </div>
 
       <div class="campo">
-        <label for="email">Email <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <label for="email">Email <span>(opcional)</span></label>
         <input type="email" id="email" name="email" autocomplete="email">
       </div>
 
@@ -48,22 +54,19 @@
                   placeholder="Por ejemplo: paso a retirarlo el sábado a la mañana."></textarea>
       </div>
 
-      <button type="submit" class="btn btn--primario btn--bloque" {% if faltan_talle %}disabled{% endif %}>
+      <button type="submit" class="btn btn--primario btn--bloque checkout__pagar" {% if faltan_talle %}disabled{% endif %}>
         Pagar con Mercado Pago
       </button>
 
-      <p style="margin-top:0.85rem">
-        <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ 'Hola CHAO! Armé un pedido en la tienda y quería coordinarlo por acá.'|urlencode }}"
-           class="btn btn--secundario btn--bloque" target="_blank" rel="noopener">
-          Prefiero coordinar por WhatsApp
-        </a>
-      </p>
+      <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ 'Hola CHAO! Armé un pedido en la tienda y quería coordinarlo por acá.'|urlencode }}"
+         class="btn btn--secundario btn--bloque" target="_blank" rel="noopener">
+        Prefiero coordinar por WhatsApp
+      </a>
 
       {% if not mp_activo %}
         <p class="sandbox">
-          <strong>Mercado Pago sin configurar.</strong> Falta la variable
-          <code>MP_ACCESS_TOKEN</code> en el entorno. El pedido se va a registrar igual
-          y se termina por WhatsApp.
+          <strong>Mercado Pago sin configurar.</strong> El pedido se registra igual y se
+          termina por WhatsApp.
         </p>
       {% else %}
         <p class="sandbox">
@@ -75,32 +78,32 @@
   </div>
 
   <aside class="resumen">
-    <p class="sup">Tu pedido</p>
+    <p class="resumen__titulo">Tu pedido</p>
     {% for linea in carrito %}
-      <div class="resumen__linea">
-        <span>
-          {{ linea.cantidad }}× {{ linea.producto.nombre }}
-          {% if linea.talle %}<br><small>Talle {{ linea.talle }}</small>{% endif %}
+      {% with foto=linea.producto.foto_principal %}
+      <div class="resumen__item">
+        <span class="resumen__foto">
+          {% if foto %}<img src="{{ foto.url }}" alt="" loading="lazy">{% endif %}
+          <span class="resumen__cant">{{ linea.cantidad }}</span>
         </span>
-        <span>${{ linea.subtotal|pesos }}</span>
+        <span class="resumen__nombre">
+          {{ linea.producto.nombre }}
+          {% if linea.talle %}<small>Talle {{ linea.talle }}</small>{% endif %}
+        </span>
+        <span class="resumen__precio">${{ linea.subtotal|pesos }}</span>
       </div>
+      {% endwith %}
     {% endfor %}
 
     <div class="resumen__total">
-      <span class="sup">Total</span>
+      <span>Total</span>
       <b>${{ carrito.total|pesos }}</b>
     </div>
     <p class="cajon__cuotas">o 3 cuotas sin interés de ${{ carrito.total|cuota:3 }}</p>
 
-    <ul class="local__datos" style="margin-bottom:0">
-      <li>
-        <div class="dato__etiqueta">Retiro</div>
-        <div class="dato__valor">{{ negocio.direccion }}</div>
-      </li>
-      <li style="border-bottom:0">
-        <div class="dato__etiqueta">Horario</div>
-        <div class="dato__valor">{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</div>
-      </li>
+    <ul class="resumen__datos">
+      <li><span>Retiro</span>{{ negocio.direccion }}</li>
+      <li><span>Horario</span>{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</li>
     </ul>
   </aside>
 </section>

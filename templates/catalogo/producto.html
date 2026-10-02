@@ -1,104 +1,154 @@
 {% extends "base.html" %}
-{% load static humanize_ar %}
+{% load static humanize_ar editorial %}
 
 {% block titulo %}{{ prenda.nombre }} — {{ negocio.nombre }}{% endblock %}
 {% block descripcion %}{{ prenda.descripcion }} Disponible en CHAO Indumentaria, {{ negocio.direccion }}.{% endblock %}
 
 {% block contenido %}
-<section class="contenido checkout">
-  <div>
-    {% with foto=prenda.foto_principal hover=prenda.foto_hover %}
-      <div class="hero__foto">
-        <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}" width="900" height="1200">
-      </div>
-      {% if hover %}
-        <p class="sup" style="margin-top:1rem">En el local</p>
-        <div class="local__foto" style="aspect-ratio:3/4">
-          <img src="{{ hover.url }}" alt="{{ hover.alt }}" width="1440" height="1920" loading="lazy">
-        </div>
-      {% endif %}
-    {% endwith %}
+<nav class="contenido migas" aria-label="Estás en">
+  <a href="{% url 'catalogo:home' %}">Inicio</a>
+  <span aria-hidden="true">/</span>
+  <a href="{% url 'catalogo:catalogo' %}">Colección</a>
+  <span aria-hidden="true">/</span>
+  <a href="{% url 'catalogo:catalogo_categoria' prenda.categoria.slug %}">{{ prenda.categoria.nombre }}</a>
+</nav>
+
+<section class="contenido detalle">
+  {# ===== Galería ===== #}
+  <div class="detalle__galeria">
+    <div class="detalle__fotos" data-galeria>
+      {% for foto in fotos %}
+        <figure class="detalle__foto {% if forloop.first %}detalle__foto--principal{% endif %}">
+          <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}"
+               width="900" height="1200" {% if forloop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %}>
+        </figure>
+      {% empty %}
+        <figure class="detalle__foto detalle__foto--principal detalle__foto--vacia"><span>Foto en camino</span></figure>
+      {% endfor %}
+    </div>
+    {% if fotos|length > 1 %}
+      <p class="detalle__contador" aria-hidden="true"><span data-galeria-actual>1</span> / {{ fotos|length }}</p>
+    {% endif %}
   </div>
 
-  <div>
-    <p class="sup">
-      <a href="{% url 'catalogo:home' %}#catalogo">Catálogo</a> · {{ prenda.categoria.nombre }}
-    </p>
-    <h1 class="display seccion__titulo">{{ prenda.nombre }}</h1>
-
-    <p class="card__precio" style="font-size:1.9rem;margin:1rem 0 0">${{ prenda.precio|pesos }}</p>
-    <p class="card__cuotas">3 x ${{ prenda.precio|cuota:3 }} sin interés</p>
-
-    {% if prenda.precio_a_confirmar %}
-      <p class="aviso" style="margin-top:1.25rem">
-        <span aria-hidden="true">⚠</span>
-        <span><strong>Precio de referencia.</strong> Estimado de mercado, a confirmar con CHAO.</span>
-      </p>
-    {% endif %}
-
-    <p class="seccion__nota" style="margin:1.5rem 0">{{ prenda.descripcion }}</p>
-
-    <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito>
-      {% csrf_token %}
-      <input type="hidden" name="producto" value="{{ prenda.pk }}">
-
-      {% if prenda.necesita_elegir_talle %}
-        <p class="sup">Elegí tu talle</p>
-        <div class="talles" data-talles-producto>
-          {% for variante in prenda.variantes.all %}
-            <button type="button" class="talle" data-talle="{{ variante.talle.pk }}"
-                    aria-pressed="false" {% if variante.stock <= 0 %}disabled title="Sin stock"{% endif %}>
-              {{ variante.talle }}
-            </button>
-          {% endfor %}
-        </div>
-        <input type="hidden" name="talle" value="" data-talle-elegido>
-
-        {% if prenda.hay_stock %}
-          <button type="submit" class="btn btn--primario btn--bloque" data-agregar-producto disabled>
-            Elegí tu talle
-          </button>
-        {% else %}
-          <button type="button" class="btn btn--primario btn--bloque" disabled>Sin stock por ahora</button>
-        {% endif %}
-      {% else %}
-        {# Una sola variante: el talle viaja resuelto, sin pedirle un clic de más. #}
-        <p class="sup">Talle único</p>
-        {% if prenda.variante_unica %}
-          <input type="hidden" name="talle" value="{{ prenda.variante_unica.talle.pk }}">
-        {% endif %}
-        {% if prenda.tiene_talles and not prenda.hay_stock %}
-          <button type="button" class="btn btn--primario btn--bloque" disabled>Sin stock por ahora</button>
-        {% else %}
-          <button type="submit" class="btn btn--primario btn--bloque">Agregar al carrito</button>
-        {% endif %}
+  {# ===== Info + compra ===== #}
+  <div class="detalle__info">
+    <div class="detalle__info-caja">
+      {% if prenda.en_oferta or prenda.etiqueta or prenda.tiene_talles and not prenda.hay_stock %}
+        <p class="detalle__badges">
+          {% if prenda.tiene_talles and not prenda.hay_stock %}<span class="card__badge card__badge--agotado">Sin stock</span>{% endif %}
+          {% if prenda.en_oferta %}<span class="card__badge card__badge--oferta">−{{ prenda.descuento_pct }}%</span>{% endif %}
+          {% if prenda.etiqueta %}<span class="card__badge">{{ prenda.etiqueta }}</span>{% endif %}
+        </p>
       {% endif %}
-    </form>
 
-    <p style="margin-top:0.85rem">
+      <h1 class="display detalle__nombre">{{ prenda.nombre|acento }}</h1>
+
+      <p class="detalle__precio">
+        {% if prenda.en_oferta %}<s>${{ prenda.precio_anterior|pesos }}</s>{% endif %}
+        <span {% if prenda.en_oferta %}class="detalle__precio--oferta"{% endif %}>${{ prenda.precio|pesos }}</span>
+      </p>
+      <p class="detalle__cuotas">3 cuotas sin interés de <b>${{ prenda.precio|cuota:3 }}</b></p>
+
+      {% if prenda.precio_a_confirmar %}
+        <p class="tienda-aviso"><span aria-hidden="true">⚠</span><span>Precio de referencia: falta que CHAO lo confirme.</span></p>
+      {% endif %}
+
+      <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito class="detalle__compra">
+        {% csrf_token %}
+        <input type="hidden" name="producto" value="{{ prenda.pk }}">
+
+        {% if prenda.necesita_elegir_talle %}
+          <div class="detalle__talles-cabeza">
+            <p class="sup">Talle</p>
+            <a href="#guia-talles" class="detalle__guia">Guía de talles</a>
+          </div>
+          <div class="detalle__talles" data-talles-producto>
+            {% for variante in prenda.variantes.all %}
+              <button type="button" class="talle" data-talle="{{ variante.talle.pk }}" aria-pressed="false"
+                      {% if variante.stock <= 0 %}disabled title="Sin stock"{% endif %}>
+                {{ variante.talle }}
+                {% if variante.stock > 0 and variante.stock <= 2 %}<small>queda{{ variante.stock|pluralize:"n" }} {{ variante.stock }}</small>{% endif %}
+              </button>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="talle" value="" data-talle-elegido>
+          {% if prenda.hay_stock %}
+            <button type="submit" class="btn btn--primario btn--bloque detalle__boton" data-agregar-producto disabled>Elegí tu talle</button>
+          {% else %}
+            <button type="button" class="btn btn--primario btn--bloque detalle__boton" disabled>Sin stock por ahora</button>
+          {% endif %}
+        {% else %}
+          {% if prenda.variante_unica %}<input type="hidden" name="talle" value="{{ prenda.variante_unica.talle.pk }}">{% endif %}
+          {% if prenda.tiene_talles and not prenda.hay_stock %}
+            <button type="button" class="btn btn--primario btn--bloque detalle__boton" disabled>Sin stock por ahora</button>
+          {% else %}
+            <button type="submit" class="btn btn--primario btn--bloque detalle__boton">Agregar a la bolsa</button>
+          {% endif %}
+        {% endif %}
+      </form>
+
       <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ prenda.nombre|add:' — quería consultar por esta prenda.'|urlencode }}"
-         class="btn btn--secundario btn--bloque" target="_blank" rel="noopener">
-        Consultar por WhatsApp
-      </a>
-    </p>
+         class="btn btn--secundario btn--bloque" target="_blank" rel="noopener">Consultar por WhatsApp</a>
 
-    <ul class="local__datos">
-      <li>
-        <div class="dato__etiqueta">Retiro en el local</div>
-        <div class="dato__valor">{{ negocio.direccion }} · {{ negocio.dias }}</div>
-      </li>
-      <li>
-        <div class="dato__etiqueta">Cambios</div>
-        <div class="dato__valor">Prenda sin usar y con etiqueta</div>
-      </li>
-    </ul>
+      <ul class="detalle__beneficios">
+        <li><span aria-hidden="true">✦</span> Retirás en {{ negocio.direccion }}</li>
+        <li><span aria-hidden="true">✦</span> Cuotas sin interés todos los días</li>
+        <li><span aria-hidden="true">✦</span> Pagás con Mercado Pago o en el local</li>
+      </ul>
+
+      <div class="detalle__acordeon">
+        {% if prenda.descripcion %}
+          <details open>
+            <summary>Detalle</summary>
+            <p>{{ prenda.descripcion }}</p>
+          </details>
+        {% endif %}
+        <details id="guia-talles">
+          <summary>Talles y calce</summary>
+          <p>Sweaters y remeras vienen en S, M y L con calce holgado; jeans y pantalones en 36,
+            38, 40 y 42. Si estás entre dos talles, escribinos por WhatsApp y te decimos cómo
+            calza esta prenda en particular.</p>
+        </details>
+        <details>
+          <summary>Retiro y cambios</summary>
+          <p>Retirás en el local de {{ negocio.dias|lower }}, de {{ negocio.horario_manana }} y de
+            {{ negocio.horario_tarde }} hs. Los envíos se coordinan por WhatsApp. Para cambiar,
+            la prenda tiene que estar sin usar y con su etiqueta.
+            <em>Plazos y zona de envío a confirmar con CHAO.</em></p>
+        </details>
+      </div>
+    </div>
   </div>
 </section>
+
+{% if look and del_look %}
+<section class="contenido seccion completa-look">
+  <div class="completa-look__foto">
+    <img src="{{ look.url }}" alt="{{ look.alt }}" loading="lazy">
+  </div>
+  <div class="completa-look__lista">
+    <p class="sup">— Así la combinamos en el local</p>
+    <h2 class="display seccion__titulo">Completá el <em>look</em></h2>
+    <p class="seccion__nota">«{{ look.nombre }}»: {{ look.bajada }}</p>
+    <div class="completa-look__grilla">
+      {% for otra in del_look %}
+        {% include "catalogo/_card.html" with prenda=otra %}
+      {% endfor %}
+    </div>
+    <a href="{% url 'catalogo:looks' %}#look-{{ look.pk }}" class="cta-ghost">Ver el look completo →</a>
+  </div>
+</section>
+{% endif %}
 
 {% if relacionados %}
 <section class="contenido seccion">
   <div class="seccion__cabeza">
-    <h2 class="display seccion__titulo">Más de {{ prenda.categoria.nombre|lower }}</h2>
+    <div>
+      <p class="sup">— {{ prenda.categoria.nombre }}</p>
+      <h2 class="display seccion__titulo">También te puede <em>gustar</em></h2>
+    </div>
+    <a href="{% url 'catalogo:catalogo_categoria' prenda.categoria.slug %}" class="cta-ghost">Ver todo →</a>
   </div>
   <div class="grilla">
     {% for otra in relacionados %}
@@ -107,13 +157,4 @@
   </div>
 </section>
 {% endif %}
-
-<section class="cierre">
-  <h2 class="display">¿Te la reservamos?</h2>
-  <p>Escribinos y te la guardamos hasta que puedas pasar por Gaucho Cruz.</p>
-  <div class="hero__acciones" style="justify-content:center">
-    <a href="{% url 'catalogo:home' %}#catalogo" class="btn btn--primario">Seguir viendo</a>
-    <a href="https://wa.me/{{ negocio.whatsapp }}" class="btn btn--secundario" target="_blank" rel="noopener">WhatsApp</a>
-  </div>
-</section>
 {% endblock %}

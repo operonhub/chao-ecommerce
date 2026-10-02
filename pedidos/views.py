@@ -1,10 +1,10 @@
 """
 Checkout y vuelta de Mercado Pago.
 
-Regla que ordena todo este módulo: **el estado de pago solo lo cambia el webhook**,
-nunca la URL a la que volvió el navegador. La página de resultado le muestra a la
-clienta lo que pasó, pero si dice "aprobado" es porque el webhook ya lo confirmó
-consultando la API. Si no, muestra "estamos confirmando el pago".
+Regla que ordena todo este módulo: **el estado de pago lo cambia el webhook (o la
+dueña a mano desde /gestion/), nunca la URL a la que volvió el navegador**. La
+página de resultado le muestra a la clienta lo que pasó, pero si dice "aprobado" es
+porque ya se confirmó del lado del servidor. Si no, muestra "estamos confirmando".
 """
 
 from __future__ import annotations

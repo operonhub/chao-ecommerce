@@ -2,34 +2,41 @@
 {% comment %} Contenido interno del cajón. El <aside class="cajon"> lo pone base.html; este
    parcial es lo que el servidor devuelve en cada acción y el JS reemplaza. {% endcomment %}
 <div class="cajon__cabeza">
-  <h2 class="cajon__titulo">Tu carrito{% if carrito|length %} ({{ carrito|length }}){% endif %}</h2>
-  <button class="cajon__cerrar" data-cerrar-carrito aria-label="Cerrar el carrito">&times;</button>
+  <h2 class="cajon__titulo">Tu <em>bolsa</em>{% if carrito|length %} <span>({{ carrito|length }})</span>{% endif %}</h2>
+  <button class="cajon__cerrar" data-cerrar-carrito aria-label="Cerrar la bolsa">&times;</button>
 </div>
 
 <div class="cajon__cuerpo">
   {% if carrito.vacio %}
     <div class="cajon__vacio">
-      <p>Todavía no agregaste nada.</p>
-      <p><a href="{% url 'catalogo:home' %}#looks" class="btn btn--secundario" data-cerrar-carrito>Ver los looks</a></p>
+      <p class="cajon__vacio-titulo">Tu bolsa está <em>vacía</em>.</p>
+      <p>Mirá lo que llegó esta temporada o armá un look completo.</p>
+      <a href="{% url 'catalogo:catalogo' %}" class="btn btn--primario btn--bloque">Ver la colección</a>
+      <a href="{% url 'catalogo:looks' %}" class="cta-ghost">Ver looks completos →</a>
     </div>
   {% else %}
     {% for linea in carrito %}
       {% with foto=linea.producto.foto_principal %}
       <div class="linea">
-        <img src="{{ foto.url }}" alt="{{ foto.alt|default:linea.producto.nombre }}" loading="lazy">
-        <div>
-          <p class="linea__nombre">{{ linea.producto.nombre }}</p>
+        <a href="{{ linea.producto.get_absolute_url }}" class="linea__foto">
+          {% if foto %}<img src="{{ foto.url }}" alt="{{ foto.alt|default:linea.producto.nombre }}" loading="lazy">{% endif %}
+        </a>
+        <div class="linea__datos">
+          <div class="linea__fila">
+            <p class="linea__nombre"><a href="{{ linea.producto.get_absolute_url }}">{{ linea.producto.nombre }}</a></p>
+            <span class="linea__subtotal">${{ linea.subtotal|pesos }}</span>
+          </div>
           <p class="linea__meta">
             {% if linea.talle %}
               Talle {{ linea.talle }}
             {% else %}
               {% if linea.producto.necesita_elegir_talle %}
-                <span class="linea__falta-talle">Elegí el talle</span>
+                <span class="linea__falta-talle">Falta elegir el talle</span>
               {% else %}
                 Talle único
               {% endif %}
             {% endif %}
-            · ${{ linea.precio|pesos }}
+            · ${{ linea.precio|pesos }} c/u
           </p>
           <div class="linea__acciones">
             <div class="cantidad">
@@ -40,7 +47,6 @@
                       aria-label="Sumar una unidad">+</button>
             </div>
             <button type="button" class="linea__quitar" data-quitar="{{ linea.clave }}">Quitar</button>
-            <span class="linea__subtotal">${{ linea.subtotal|pesos }}</span>
           </div>
         </div>
       </div>
@@ -55,7 +61,8 @@
     <span>Total</span>
     <b>${{ carrito.total|pesos }}</b>
   </div>
-  <p class="cajon__cuotas">o 3 cuotas sin interés de ${{ carrito.total|cuota:3 }}</p>
+  <p class="cajon__cuotas">o 3 cuotas sin interés de ${{ carrito.total|cuota:3 }} · Retirás en {{ negocio.direccion }}</p>
   <a href="{% url 'pedidos:checkout' %}" class="btn btn--primario btn--bloque">Finalizar compra</a>
+  <button type="button" class="cajon__seguir" data-cerrar-carrito>Seguir comprando</button>
 </div>
 {% endif %}

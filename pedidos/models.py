@@ -6,6 +6,9 @@ después cambia el precio de un sweater desde el admin, los pedidos viejos sigue
 mostrando lo que la clienta realmente pagó.
 """
 
+import re
+from urllib.parse import quote
+
 from django.db import models
 
 from catalogo.models import Producto, Talle
@@ -26,6 +29,10 @@ class Pedido(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.PENDIENTE)
 
+    # Independiente del pago: un pedido pagado puede no haberse retirado todavía,
+    # y uno coordinado por WhatsApp se cobra en el local al entregarlo.
+    entregado = models.BooleanField(default=False)
+
     # Rastro de Mercado Pago. `mp_payment_id` lo completa el webhook, no el navegador.
     mp_preference_id = models.CharField(max_length=80, blank=True)
     mp_payment_id = models.CharField(max_length=80, blank=True)
@@ -44,6 +51,24 @@ class Pedido(models.Model):
         if guardar:
             self.save(update_fields=["total", "actualizado"])
         return self.total
+
+    @property
+    def whatsapp_cliente(self) -> str:
+        """El teléfono de la clienta en formato wa.me (549 + área + número)."""
+        digitos = re.sub(r"\D", "", self.telefono or "")
+        if digitos.startswith("54"):
+            return digitos
+        if digitos.startswith("0"):
+            digitos = digitos[1:]
+        # "11 15 5555-5555": el 15 de celular sobra en el formato internacional.
+        if len(digitos) == 12 and digitos.startswith("1115"):
+            digitos = "11" + digitos[4:]
+        return "549" + digitos if len(digitos) == 10 else digitos
+
+    @property
+    def link_whatsapp_cliente(self) -> str:
+        texto = f"¡Hola {self.nombre}! Te escribimos de CHAO Indumentaria por tu pedido #{self.pk}."
+        return f"https://wa.me/{self.whatsapp_cliente}?text={quote(texto)}"
 
     @property
     def resumen_whatsapp(self) -> str:

@@ -65,6 +65,20 @@ class Producto(models.Model):
     orden = models.PositiveSmallIntegerField(default=0)
     creado = models.DateTimeField(auto_now_add=True)
 
+    # Herramientas de vidriera que maneja la dueña desde /gestion/.
+    etiqueta = models.CharField(
+        max_length=24,
+        blank=True,
+        help_text='Cartel corto sobre la foto: "Nuevo", "Tendencia", "Edición limitada"…',
+    )
+    precio_anterior = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Si está cargado y es mayor que el precio, la prenda se muestra en oferta.",
+    )
+
     class Meta:
         ordering = ["orden", "nombre"]
 
@@ -129,6 +143,20 @@ class Producto(models.Model):
         'últimas unidades' que aparece siempre deja de significar algo."""
         total = sum(v.stock for v in self.variantes.all())
         return 0 < total <= 3
+
+    @property
+    def en_oferta(self):
+        return bool(self.precio_anterior and self.precio_anterior > self.precio)
+
+    @property
+    def descuento_pct(self):
+        if not self.en_oferta:
+            return 0
+        return int(round((1 - self.precio / self.precio_anterior) * 100))
+
+    @property
+    def stock_total(self):
+        return sum(v.stock for v in self.variantes.all())
 
     @property
     def precio_cuota_3(self):
@@ -225,6 +253,47 @@ class Look(models.Model):
     @property
     def total(self):
         return sum(item.producto.precio for item in self.items.select_related("producto"))
+
+
+class Portada(models.Model):
+    """
+    Lo que cambia de temporada en temporada en la home, editable desde /gestion/
+    sin tocar código. Hay una sola fila: `Portada.actual()` la crea si falta.
+    """
+
+    temporada = models.CharField(max_length=40, default="Otoño / 26")
+    frase = models.CharField(max_length=120, default="Ropa para cada versión tuya.")
+    bajada_coleccion = models.CharField(
+        max_length=200,
+        default="Las piezas que acaban de llegar al local. Agregalas directo o pasá a probarlas.",
+    )
+    foto_hero = models.ForeignKey(
+        "Look",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Si no hay ninguna elegida, se usa la primera foto de look activa.",
+    )
+
+    class Meta:
+        verbose_name = "portada"
+        verbose_name_plural = "portada"
+
+    def __str__(self):
+        return f"Portada · {self.temporada}"
+
+    @classmethod
+    def actual(cls):
+        portada, _ = cls.objects.get_or_create(pk=1)
+        return portada
+
+    @property
+    def hero_url(self):
+        if self.foto_hero and self.foto_hero.url:
+            return self.foto_hero.url
+        primero = Look.objects.filter(activo=True).first()
+        return primero.url if primero else ""
 
 
 class LookItem(models.Model):

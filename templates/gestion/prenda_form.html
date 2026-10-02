@@ -1,0 +1,188 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}{% if prenda %}{{ prenda.nombre }}{% else %}Prenda nueva{% endif %}{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup"><a href="{% url 'gestion:prendas' %}">← Prendas</a></p>
+    <h1 class="display g-titulo">{% if prenda %}{{ prenda.nombre }}{% else %}Prenda <em>nueva</em>{% endif %}</h1>
+  </div>
+  {% if prenda and prenda.activo %}
+    <a href="{{ prenda.get_absolute_url }}" class="btn btn--secundario" target="_blank" rel="noopener">Ver en la tienda ↗</a>
+  {% endif %}
+</header>
+
+<form method="post" enctype="multipart/form-data" class="g-ficha" id="form-prenda" novalidate>
+  {% csrf_token %}
+
+  {# ===== Fotos ===== #}
+  <div class="g-ficha__col">
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Fotos</h2>
+      <p class="g-ayuda">La primera es la que se ve en el catálogo; la segunda aparece al pasar el mouse. Las fotos del celular se achican solas.</p>
+
+      <div class="g-fotos" data-fotos>
+        {% for f in fotos %}
+          <figure class="g-foto" data-foto="{{ f.pk }}"
+                  data-url-mover="{% url 'gestion:foto_mover' f.pk %}"
+                  data-url-borrar="{% url 'gestion:foto_borrar' f.pk %}">
+            <img src="{{ f.url }}" alt="">
+            <span class="g-foto__principal">Principal</span>
+            <div class="g-foto__acciones">
+              <button type="button" data-foto-accion="izq" aria-label="Mover a la izquierda" title="Mover a la izquierda">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <button type="button" data-foto-accion="principal" aria-label="Hacer principal" title="Hacer principal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+              </button>
+              <button type="button" data-foto-accion="der" aria-label="Mover a la derecha" title="Mover a la derecha">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+              <button type="button" data-foto-borrar aria-label="Borrar foto" title="Borrar foto">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+          </figure>
+        {% endfor %}
+
+        <label class="g-subir">
+          <input type="file" name="fotos" accept="image/*" multiple data-fotos-input>
+          <span class="g-subir__mas" aria-hidden="true">+</span>
+          <span>Agregar fotos</span>
+          <small>Galería o cámara</small>
+        </label>
+      </div>
+      <div class="g-fotos-nuevas" data-fotos-preview hidden>
+        <p class="g-ayuda">Se suben al guardar:</p>
+        <div data-fotos-preview-grilla></div>
+      </div>
+    </section>
+  </div>
+
+  {# ===== Datos ===== #}
+  <div class="g-ficha__col">
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Datos</h2>
+
+      <label class="g-campo {% if form.nombre.errors %}g-campo--error{% endif %}">
+        <span>Nombre</span>
+        <input type="text" name="nombre" value="{{ form.nombre.value|default_if_none:'' }}" maxlength="120" required
+               placeholder="Ej: Sweater trenzado crudo">
+        {% for e in form.nombre.errors %}<small class="g-error">{{ e }}</small>{% endfor %}
+      </label>
+
+      <div class="g-fila">
+        <label class="g-campo {% if form.categoria.errors %}g-campo--error{% endif %}">
+          <span>Categoría</span>
+          <select name="categoria">
+            <option value="">— Elegí —</option>
+            {% for c in categorias %}
+              <option value="{{ c.pk }}" {% if c.pk|stringformat:'s' == form.categoria.value|stringformat:'s' %}selected{% endif %}>{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+          {% for e in form.categoria.errors %}<small class="g-error">{{ e }}</small>{% endfor %}
+        </label>
+        <label class="g-campo">
+          <span>…o una nueva</span>
+          <input type="text" name="nueva_categoria" value="{{ form.nueva_categoria.value|default_if_none:'' }}" maxlength="60" placeholder="Ej: Vestidos">
+        </label>
+      </div>
+
+      <label class="g-campo">
+        <span>Descripción</span>
+        <textarea name="descripcion" rows="3" placeholder="Tela, calce, con qué combina…">{{ form.descripcion.value|default_if_none:'' }}</textarea>
+      </label>
+    </section>
+
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Precio</h2>
+      <div class="g-fila">
+        <label class="g-campo {% if form.precio.errors %}g-campo--error{% endif %}">
+          <span>Precio</span>
+          <span class="g-pesos"><i>$</i><input type="number" name="precio" min="1" step="1" inputmode="numeric" required
+                 value="{{ form.precio.value|default_if_none:''|floatformat:'0' }}"></span>
+          {% for e in form.precio.errors %}<small class="g-error">{{ e }}</small>{% endfor %}
+        </label>
+        <label class="g-campo {% if form.precio_anterior.errors %}g-campo--error{% endif %}">
+          <span>Precio anterior <em>(para oferta)</em></span>
+          <span class="g-pesos"><i>$</i><input type="number" name="precio_anterior" min="1" step="1" inputmode="numeric"
+                 value="{{ form.precio_anterior.value|default_if_none:''|floatformat:'0' }}" placeholder="Opcional"></span>
+          {% for e in form.precio_anterior.errors %}<small class="g-error">{{ e }}</small>{% endfor %}
+        </label>
+      </div>
+      <label class="g-check">
+        <input type="checkbox" name="precio_a_confirmar" {% if form.precio_a_confirmar.value %}checked{% endif %}>
+        <i aria-hidden="true"></i>
+        <span><b>Precio a confirmar</b> La tienda avisa que es un precio estimado.</span>
+      </label>
+    </section>
+
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Vidriera</h2>
+      <label class="g-campo">
+        <span>Etiqueta sobre la foto <em>(opcional)</em></span>
+        <input type="text" name="etiqueta" value="{{ form.etiqueta.value|default_if_none:'' }}" maxlength="24" data-etiqueta-input
+               placeholder="Ej: Nuevo">
+      </label>
+      <div class="g-sugerencias" aria-label="Etiquetas sugeridas">
+        <button type="button" data-etiqueta="Nuevo">Nuevo</button>
+        <button type="button" data-etiqueta="Tendencia">Tendencia</button>
+        <button type="button" data-etiqueta="Edición limitada">Edición limitada</button>
+        <button type="button" data-etiqueta="Temporada">Temporada</button>
+        <button type="button" data-etiqueta="Favorito del local">Favorito del local</button>
+        <button type="button" data-etiqueta="" class="g-sugerencias__quitar">Sin etiqueta</button>
+      </div>
+
+      <label class="g-check">
+        <input type="checkbox" name="activo" {% if form.activo.value %}checked{% endif %}>
+        <i aria-hidden="true"></i>
+        <span><b>En la tienda</b> Si la apagás, la prenda deja de verse pero no se borra.</span>
+      </label>
+      <label class="g-check">
+        <input type="checkbox" name="destacado" {% if form.destacado.value %}checked{% endif %}>
+        <i aria-hidden="true"></i>
+        <span><b>Destacada</b> Sale en "Lo nuevo" de la portada y primero en el catálogo.</span>
+      </label>
+    </section>
+
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Talles y stock</h2>
+      <p class="g-ayuda">Dejá vacío el talle en que no viene. Con <b>0</b> aparece tachado como "sin stock".</p>
+      <div class="g-talles">
+        {% for fila in filas_talle %}
+          <label class="g-talle {% if fila.stock != '' %}g-talle--on{% endif %}">
+            <span>{{ fila.talle.nombre }}</span>
+            <input type="number" name="stock_{{ fila.talle.pk }}" value="{{ fila.stock }}" min="0" step="1" inputmode="numeric" placeholder="—"
+                   aria-label="Stock talle {{ fila.talle.nombre }}" data-stock-input>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="g-fila g-talle-nuevo">
+        <label class="g-campo">
+          <span>Talle nuevo</span>
+          <input type="text" name="talle_nuevo" maxlength="10" placeholder="Ej: XL, 44, 2">
+        </label>
+        <label class="g-campo">
+          <span>Stock</span>
+          <input type="number" name="talle_nuevo_stock" min="0" step="1" inputmode="numeric" placeholder="0">
+        </label>
+      </div>
+    </section>
+  </div>
+
+  <div class="g-guardar">
+    <button type="submit" name="despues" value="quedarse" class="btn btn--primario">Guardar</button>
+    <button type="submit" name="despues" value="otra" class="btn btn--secundario">Guardar y cargar otra</button>
+  </div>
+</form>
+
+{% if prenda %}
+  <form method="post" action="{% url 'gestion:prenda_borrar' prenda.pk %}" class="g-zona-peligro"
+        data-confirmar="{% if vendida %}Esta prenda tiene pedidos: se va a ocultar de la tienda en vez de borrarse. ¿Seguimos?{% else %}¿Borrar «{{ prenda.nombre }}» para siempre? No se puede deshacer.{% endif %}">
+    {% csrf_token %}
+    <button type="submit">{% if vendida %}Ocultar esta prenda{% else %}Borrar esta prenda{% endif %}</button>
+  </form>
+{% endif %}
+{% endblock %}

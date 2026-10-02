@@ -8,3 +8,4 @@ media/
 tools/hotspots.json.bak
 .DS_Store
 Thumbs.db
+.vercel

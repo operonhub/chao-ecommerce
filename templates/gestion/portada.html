@@ -1,0 +1,95 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Portada{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup">— La primera pantalla de la tienda</p>
+    <h1 class="display g-titulo">Portada</h1>
+  </div>
+  <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="btn btn--secundario">Ver la portada ↗</a>
+</header>
+
+<form method="post" class="g-portada" data-portada>
+  {% csrf_token %}
+
+  <div class="g-portada__form">
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Textos</h2>
+      <label class="g-campo {% if form.temporada.errors %}g-campo--error{% endif %}">
+        <span>Temporada</span>
+        <input type="text" name="temporada" value="{{ form.temporada.value|default_if_none:'' }}" maxlength="40"
+               placeholder="Otoño / 26" data-preview="temporada" required>
+        <small class="g-ayuda">Aparece en la etiqueta vertical del inicio y en "Lo nuevo".</small>
+      </label>
+      <label class="g-campo {% if form.frase.errors %}g-campo--error{% endif %}">
+        <span>Frase de la portada</span>
+        <input type="text" name="frase" value="{{ form.frase.value|default_if_none:'' }}" maxlength="120"
+               data-preview="frase" required>
+      </label>
+      <label class="g-campo">
+        <span>Bajada de "Lo nuevo"</span>
+        <textarea name="bajada_coleccion" rows="2" maxlength="200" data-preview="bajada">{{ form.bajada_coleccion.value|default_if_none:'' }}</textarea>
+      </label>
+    </section>
+
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Foto principal</h2>
+      <p class="g-ayuda">Elegí una de tus fotos de looks. Para sumar fotos nuevas de looks, usá el <a href="{% url 'admin:catalogo_look_add' %}">panel avanzado</a>.</p>
+      <div class="g-looks">
+        {% for look in looks %}
+          <label class="g-look">
+            <input type="radio" name="foto_hero" value="{{ look.pk }}" data-preview-foto="{{ look.url }}"
+                   {% if look.pk|stringformat:'s' == form.foto_hero.value|stringformat:'s' %}checked{% elif not form.foto_hero.value and forloop.first %}checked{% endif %}>
+            <img src="{{ look.url }}" alt="{{ look.nombre }}" loading="lazy">
+            <span>{{ look.nombre }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="g-bloque">
+      <div class="g-bloque__cabeza">
+        <h2 class="g-bloque__titulo">En "Lo nuevo" ({{ destacadas|length }}/6)</h2>
+        <a href="{% url 'gestion:prendas' %}?ver=destacadas" class="cta-ghost">Elegir →</a>
+      </div>
+      <p class="g-ayuda">Son las prendas marcadas como <b>destacadas</b>. Si hay menos de 6, se completa con las primeras del catálogo.</p>
+      <div class="g-mini-grilla">
+        {% for p in destacadas|slice:":6" %}
+          {% with foto=p.foto_principal %}
+          <a href="{% url 'gestion:prenda_editar' p.pk %}">
+            {% if foto %}<img src="{{ foto.url }}" alt="" loading="lazy">{% endif %}
+            <span>{{ p.nombre }}</span>
+          </a>
+          {% endwith %}
+        {% empty %}
+          <p class="g-vacio">Todavía no marcaste ninguna.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="g-guardar">
+      <button type="submit" class="btn btn--primario">Guardar portada</button>
+    </div>
+  </div>
+
+  <aside class="g-portada__preview" aria-label="Vista previa">
+    <p class="sup">Vista previa</p>
+    <div class="g-preview">
+      <div class="g-preview__texto">
+        <p class="g-preview__eyebrow">Villa Bosch · Tres de Febrero</p>
+        <p class="g-preview__titulo">Chao<br><em>Indumentaria</em></p>
+        <p class="g-preview__frase" data-preview-out="frase">{{ portada.frase }}</p>
+        <span class="g-preview__btn">Ver colección →</span>
+      </div>
+      <div class="g-preview__foto">
+        <img src="{{ portada.hero_url }}" alt="" data-preview-out-foto>
+        <span class="g-preview__vertical">— Temporada <span data-preview-out="temporada">{{ portada.temporada }}</span></span>
+      </div>
+    </div>
+    <p class="g-preview__bajada"><b>Lo nuevo:</b> <span data-preview-out="bajada">{{ portada.bajada_coleccion }}</span></p>
+  </aside>
+</form>
+{% endblock %}

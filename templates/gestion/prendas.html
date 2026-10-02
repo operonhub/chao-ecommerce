@@ -1,0 +1,95 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Prendas{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup">— Catálogo</p>
+    <h1 class="display g-titulo">Tus <em>prendas</em></h1>
+  </div>
+  <a href="{% url 'gestion:prenda_nueva' %}" class="btn btn--primario">+ Cargar prenda</a>
+</header>
+
+<form method="get" class="g-filtros">
+  <label class="g-buscar">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+    <input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre o etiqueta" aria-label="Buscar prendas">
+  </label>
+  <select name="cat" aria-label="Categoría" onchange="this.form.submit()">
+    <option value="">Todas las categorías</option>
+    {% for c in categorias %}
+      <option value="{{ c.slug }}" {% if c.slug == cat %}selected{% endif %}>{{ c.nombre }}</option>
+    {% endfor %}
+  </select>
+  <input type="hidden" name="ver" value="{{ ver }}">
+</form>
+
+<nav class="g-chips" aria-label="Filtrar">
+  <a href="?{{ base_filtros }}" {% if not ver %}aria-current="true"{% endif %}>Todas</a>
+  <a href="?{{ base_filtros }}&ver=visibles" {% if ver == 'visibles' %}aria-current="true"{% endif %}>En la tienda</a>
+  <a href="?{{ base_filtros }}&ver=ocultas" {% if ver == 'ocultas' %}aria-current="true"{% endif %}>Ocultas</a>
+  <a href="?{{ base_filtros }}&ver=destacadas" {% if ver == 'destacadas' %}aria-current="true"{% endif %}>Destacadas</a>
+  <a href="?{{ base_filtros }}&ver=oferta" {% if ver == 'oferta' %}aria-current="true"{% endif %}>En oferta</a>
+  <a href="?{{ base_filtros }}&ver=sin-stock" {% if ver == 'sin-stock' %}aria-current="true"{% endif %}>Sin stock</a>
+  <a href="?{{ base_filtros }}&ver=a-confirmar" {% if ver == 'a-confirmar' %}aria-current="true"{% endif %}>Precio a confirmar</a>
+</nav>
+
+<p class="g-conteo">{{ prendas|length }} prenda{{ prendas|length|pluralize }}</p>
+
+<div class="g-grilla">
+  {% for p in prendas %}
+    {% with foto=p.foto_principal %}
+    <article class="g-prenda {% if not p.activo %}g-prenda--oculta{% endif %}" data-prenda="{{ p.pk }}"
+             data-url-toggle="{% url 'gestion:prenda_toggle' p.pk %}"
+             data-url-precio="{% url 'gestion:prenda_precio' p.pk %}">
+      <a href="{% url 'gestion:prenda_editar' p.pk %}" class="g-prenda__foto">
+        {% if foto %}<img src="{{ foto.url }}" alt="" loading="lazy">{% else %}<span class="g-prenda__sinfoto">Sin foto</span>{% endif %}
+        <span class="g-prenda__badges">
+          {% if not p.activo %}<span class="g-badge g-badge--oscuro">Oculta</span>{% endif %}
+          {% if p.etiqueta %}<span class="g-badge">{{ p.etiqueta }}</span>{% endif %}
+          {% if p.en_oferta %}<span class="g-badge g-badge--bordo">−{{ p.descuento_pct }}%</span>{% endif %}
+        </span>
+      </a>
+
+      <div class="g-prenda__cuerpo">
+        <p class="g-prenda__cat">{{ p.categoria.nombre }}</p>
+        <a href="{% url 'gestion:prenda_editar' p.pk %}" class="g-prenda__nombre">{{ p.nombre }}</a>
+
+        <label class="g-precio">
+          <span>$</span>
+          <input type="text" inputmode="numeric" value="{{ p.precio|pesos }}" data-precio-input
+                 aria-label="Precio de {{ p.nombre }}">
+          <span class="g-precio__ok" aria-hidden="true">✓</span>
+        </label>
+        {% if p.en_oferta %}<p class="g-prenda__antes">Antes ${{ p.precio_anterior|pesos }}</p>{% endif %}
+
+        <p class="g-prenda__stock">
+          {% for v in p.variantes.all %}
+            <span class="{% if v.stock == 0 %}cero{% elif v.stock <= 2 %}poco{% endif %}">{{ v.talle }} <b>{{ v.stock }}</b></span>
+          {% empty %}
+            <span class="sin">Sin talles cargados</span>
+          {% endfor %}
+        </p>
+
+        <div class="g-switches">
+          <button type="button" class="g-switch" data-toggle-campo="activo" aria-pressed="{{ p.activo|yesno:'true,false' }}">
+            <i aria-hidden="true"></i>En la tienda
+          </button>
+          <button type="button" class="g-switch" data-toggle-campo="destacado" aria-pressed="{{ p.destacado|yesno:'true,false' }}">
+            <i aria-hidden="true"></i>Destacada
+          </button>
+          <button type="button" class="g-switch" data-toggle-campo="precio_a_confirmar" aria-pressed="{{ p.precio_a_confirmar|yesno:'true,false' }}">
+            <i aria-hidden="true"></i>Precio a confirmar
+          </button>
+        </div>
+      </div>
+    </article>
+    {% endwith %}
+  {% empty %}
+    <p class="g-vacio">No hay prendas con ese filtro. <a href="{% url 'gestion:prendas' %}">Ver todas</a></p>
+  {% endfor %}
+</div>
+{% csrf_token %}
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Pedidos{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup">— Ventas</p>
+    <h1 class="display g-titulo">Pedidos</h1>
+  </div>
+</header>
+
+<nav class="g-chips" aria-label="Filtrar pedidos">
+  <a href="?" {% if not ver %}aria-current="true"{% endif %}>Todos</a>
+  <a href="?ver=pendiente" {% if ver == 'pendiente' %}aria-current="true"{% endif %}>Pendientes de pago</a>
+  <a href="?ver=sin-entregar" {% if ver == 'sin-entregar' %}aria-current="true"{% endif %}>Pagados sin entregar</a>
+  <a href="?ver=pagado" {% if ver == 'pagado' %}aria-current="true"{% endif %}>Pagados</a>
+  <a href="?ver=cancelado" {% if ver == 'cancelado' %}aria-current="true"{% endif %}>Cancelados</a>
+</nav>
+
+<div class="g-pedidos">
+  {% for p in pedidos %}
+    <article class="g-pedido {% if p.entregado %}g-pedido--entregado{% endif %}" id="pedido-{{ p.pk }}"
+             data-pedido="{{ p.pk }}" data-url="{% url 'gestion:pedido_actualizar' p.pk %}">
+      <header class="g-pedido__cabeza">
+        <div>
+          <p class="g-pedido__num">Pedido #{{ p.pk }} · {{ p.creado|date:"j \d\e F, H:i" }}</p>
+          <h2 class="g-pedido__nombre">{{ p.nombre }}</h2>
+          <p class="g-pedido__contacto">{{ p.telefono }}{% if p.email %} · {{ p.email }}{% endif %}</p>
+        </div>
+        <span class="g-estado g-estado--{{ p.estado }}" data-estado-badge>{{ p.get_estado_display }}</span>
+      </header>
+
+      <ul class="g-pedido__items">
+        {% for it in p.items.all %}
+          {% with foto=it.producto.foto_principal %}
+          <li>
+            {% if foto %}<img src="{{ foto.url }}" alt="" loading="lazy">{% else %}<span class="g-pedido__sinfoto"></span>{% endif %}
+            <span>{{ it.cantidad }}× {{ it.producto.nombre }}{% if it.talle %} <em>· talle {{ it.talle }}</em>{% endif %}</span>
+            <b>${{ it.subtotal|pesos }}</b>
+          </li>
+          {% endwith %}
+        {% endfor %}
+      </ul>
+
+      {% if p.notas %}<p class="g-pedido__notas">“{{ p.notas }}”</p>{% endif %}
+
+      <footer class="g-pedido__pie">
+        <p class="g-pedido__total">Total <b>${{ p.total|pesos }}</b></p>
+        <div class="g-pedido__acciones">
+          <label class="g-select-chico">
+            <span class="solo-lectores">Estado del pago</span>
+            <select data-pedido-estado>
+              {% for valor, nombre in estados %}
+                <option value="{{ valor }}" {% if valor == p.estado %}selected{% endif %}>{{ nombre }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="button" class="g-switch" data-pedido-entregado aria-pressed="{{ p.entregado|yesno:'true,false' }}">
+            <i aria-hidden="true"></i>Entregado
+          </button>
+          <a class="btn btn--wsp g-btn-chico" target="_blank" rel="noopener" href="{{ p.link_whatsapp_cliente }}">
+            WhatsApp
+          </a>
+        </div>
+      </footer>
+    </article>
+  {% empty %}
+    <p class="g-vacio">No hay pedidos con ese filtro.</p>
+  {% endfor %}
+</div>
+{% csrf_token %}
+{% endblock %}

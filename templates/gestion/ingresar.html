@@ -1,0 +1,34 @@
+{% extends "gestion/base.html" %}
+
+{% block titulo %}Ingresar{% endblock %}
+
+{% block cuerpo %}
+<main class="g-ingreso">
+  <div class="g-ingreso__caja">
+    <span class="marca__disco g-ingreso__disco" aria-hidden="true"><span>CHAO</span><em>Indumentaria</em></span>
+    <p class="sup">— Panel de la tienda</p>
+    <h1 class="display g-ingreso__titulo">Mi <em>tienda</em></h1>
+    <p class="g-ingreso__bajada">Prendas, precios, tendencias y pedidos. Todo lo que cambies acá se ve en la web al instante.</p>
+
+    {% if form.errors %}
+      <p class="g-aviso g-aviso--error">El usuario o la contraseña no coinciden. Probá de nuevo.</p>
+    {% endif %}
+
+    <form method="post" class="g-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <label class="g-campo">
+        <span>Usuario</span>
+        <input type="text" name="username" autocomplete="username" autocapitalize="none" required autofocus>
+      </label>
+      <label class="g-campo">
+        <span>Contraseña</span>
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="btn btn--primario btn--bloque">Entrar</button>
+    </form>
+
+    <a href="{% url 'catalogo:home' %}" class="cta-ghost g-ingreso__volver">← Volver a la tienda</a>
+  </div>
+</main>
+{% endblock %}

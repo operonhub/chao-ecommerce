@@ -117,8 +117,20 @@
     const form = e.target.closest("[data-form-carrito]");
     if (!form) return;
     e.preventDefault();
-    accionCarrito(form.action, new FormData(form));
-    avisar(form.querySelector('[name="look"]') ? "Agregamos el look completo." : "Agregamos la prenda al carrito.");
+    const datos = new FormData(form);
+    // Los talles de la tarjeta son varios botones submit del mismo form: el
+    // talle elegido viaja en el botón que se tocó, no en un campo del form.
+    const boton = e.submitter;
+    if (boton && boton.name && !datos.has(boton.name)) datos.append(boton.name, boton.value);
+    accionCarrito(form.action, datos);
+    const talle = boton && boton.name === "talle" && boton.textContent.trim();
+    avisar(
+      form.querySelector('[name="look"]')
+        ? "Agregamos el look completo."
+        : talle && talle.length <= 4
+          ? `Agregamos talle ${talle} al carrito.`
+          : "Agregamos la prenda al carrito."
+    );
   });
 
   /* --- LOOKBOOK: hotspots ------------------------------------------------
@@ -286,25 +298,53 @@
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (cajon && cajon.dataset.abierto) cerrarCajon();
+    if (menuPanel && menuPanel.dataset.abierto) cerrarMenu();
     cerrarFichas();
   });
 
   // Si cambia el ancho, la ficha abierta queda mal ubicada.
   window.addEventListener("resize", cerrarFichas, { passive: true });
 
-  /* --- Filtro de categorías --------------------------------------------- */
-  // En el cliente porque son ~20 prendas: recargar la página entera para
-  // esconder 15 cards sería peor experiencia que filtrarlas acá.
-  const filtros = $$("[data-filtro]");
-  filtros.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const cat = btn.dataset.filtro;
-      filtros.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
-      $$(".card").forEach((card) => {
-        card.hidden = cat !== "todas" && card.dataset.categoria !== cat;
-      });
+  /* --- Menú ("tres puntos") ----------------------------------------------
+     Categorías reales con su propia URL (ver catalogo/views.py::catalogo),
+     no un filtro que esconde cards: el panel solo abre/cierra. */
+  const menuPanel = $("[data-menu-panel]");
+  const veloMenu = $("[data-velo-menu]");
+  const menuTrigger = $("[data-abrir-menu]");
+
+  function abrirMenu() {
+    if (!menuPanel) return;
+    menuPanel.dataset.abierto = "1";
+    menuPanel.setAttribute("aria-hidden", "false");
+    if (veloMenu) veloMenu.dataset.abierto = "1";
+    if (menuTrigger) menuTrigger.setAttribute("aria-expanded", "true");
+  }
+
+  function cerrarMenu() {
+    if (!menuPanel) return;
+    delete menuPanel.dataset.abierto;
+    menuPanel.setAttribute("aria-hidden", "true");
+    if (veloMenu) delete veloMenu.dataset.abierto;
+    if (menuTrigger) menuTrigger.setAttribute("aria-expanded", "false");
+  }
+
+  if (menuTrigger) {
+    menuTrigger.addEventListener("click", () => {
+      if (menuPanel && menuPanel.dataset.abierto) cerrarMenu();
+      else abrirMenu();
     });
-  });
+  }
+  if (veloMenu) veloMenu.addEventListener("click", cerrarMenu);
+  $$("[data-cerrar-menu]").forEach((b) => b.addEventListener("click", cerrarMenu));
+
+  /* --- Alto del header ---------------------------------------------------
+     La barra de categorías del catálogo se pega justo debajo del header
+     sticky; el alto real varía según la pantalla, así que se mide. */
+  const barra = $(".barra");
+  const medirBarra = () =>
+    barra && document.documentElement.style.setProperty("--alto-barra", `${barra.offsetHeight}px`);
+  medirBarra();
+  window.addEventListener("resize", medirBarra, { passive: true });
 
   /* --- Selector de talle en la página de producto ------------------------ */
   const tallesProducto = $("[data-talles-producto]");
@@ -319,10 +359,24 @@
         if (oculto) oculto.value = btn.dataset.talle;
         if (boton) {
           boton.disabled = false;
-          boton.textContent = "Agregar al carrito";
+          boton.textContent = `Agregar talle ${btn.firstChild.textContent.trim()} a la bolsa`;
         }
       });
     });
+  }
+
+  /* --- Galería de la ficha: contador en el carrusel del celular ----------- */
+  const galeria = $("[data-galeria]");
+  const galeriaActual = $("[data-galeria-actual]");
+  if (galeria && galeriaActual) {
+    galeria.addEventListener(
+      "scroll",
+      () => {
+        const i = Math.round(galeria.scrollLeft / galeria.clientWidth);
+        galeriaActual.textContent = String(i + 1);
+      },
+      { passive: true }
+    );
   }
 
   sincronizarContador();

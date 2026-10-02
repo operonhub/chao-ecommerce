@@ -8,48 +8,132 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  {% comment %}Archivo (UI/funcional) + Fraunces (editorial, la marca y los
-    títulos grandes): dos familias, no más, y las dos con eje variable así no se
-    multiplican los archivos.{% endcomment %}
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,400..600&display=swap" rel="stylesheet">
+  {% comment %}Cormorant Garamond (editorial: marca y títulos grandes, con
+    itálica para los acentos) + Jost (funcional: nav, botones, etiquetas en
+    mayúscula). El mismo lenguaje tipográfico del mockup de Claude Design que
+    Tomás eligió, ahora sobre el sitio real.{% endcomment %}
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/chao.css' %}">
   <link rel="icon" href="{% static 'img/favicon.svg' %}">
 </head>
-<body>
+<body class="{% block bodyclass %}{% endblock %}">
   <a href="#contenido" class="solo-lectores">Ir al contenido</a>
+
+  {% comment %} Barra de anuncio: solo datos reales del local (cuotas pintadas en
+    la vitrina, retiro en Gaucho Cruz, WhatsApp). Nada de "envío gratis". {% endcomment %}
+  <p class="anuncio">
+    <span>Cuotas sin interés todos los días</span>
+    <span class="anuncio__sep" aria-hidden="true">✦</span>
+    <span>Retiro en Gaucho Cruz 5485, Villa Bosch</span>
+    <span class="anuncio__sep" aria-hidden="true">✦</span>
+    <span>Te asesoramos por WhatsApp</span>
+  </p>
 
   <header class="barra">
     <div class="barra__fila">
-      <a href="{% url 'catalogo:home' %}" class="marca">Chao<em>indumentaria</em></a>
-      <nav class="barra__links" aria-label="Secciones">
-        <a href="{% url 'catalogo:home' %}#looks">Looks</a>
-        <a href="{% url 'catalogo:home' %}#catalogo">Catálogo</a>
-        <a href="{% url 'catalogo:home' %}#local">El local</a>
-      </nav>
-      <button class="boton-carrito" data-abrir-carrito aria-label="Ver el carrito">
-        Carrito
-        <span class="boton-carrito__cuenta" data-cuenta data-vacio="{% if carrito.vacio %}1{% else %}0{% endif %}">{{ carrito|length }}</span>
-      </button>
+      <div class="barra__izq">
+        <button class="menu-trigger" data-abrir-menu aria-haspopup="true" aria-expanded="false" aria-label="Abrir menú">
+          <span class="menu-trigger__puntos" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="menu-trigger__lbl">Menú</span>
+        </button>
+        <nav class="barra__links" aria-label="Accesos">
+          <a href="{% url 'catalogo:catalogo' %}">Colección</a>
+          <a href="{% url 'catalogo:looks' %}">Looks</a>
+        </nav>
+      </div>
+
+      <a href="{% url 'catalogo:home' %}" class="marca" aria-label="CHAO Indumentaria, inicio">
+        <span class="marca__disco" aria-hidden="true">
+          <span>CHAO</span>
+          <em>Indumentaria</em>
+        </span>
+        <span class="marca__palabra" aria-hidden="true">Chao Indumentaria</span>
+      </a>
+
+      <div class="barra__der">
+        <a href="https://wa.me/{{ negocio.whatsapp }}" class="barra__wsp" target="_blank" rel="noopener" aria-label="Escribir por WhatsApp">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.4L3.5 20.5l1.5-4.3a8.5 8.5 0 1 1 15.5-4.6z"/></svg>
+        </a>
+        <button class="boton-carrito" data-abrir-carrito aria-label="Ver el carrito">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 8h13l-1 12.5h-11z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>
+          <span class="boton-carrito__lbl">Bolsa</span>
+          <span class="boton-carrito__cuenta" data-cuenta data-vacio="{% if carrito.vacio %}1{% else %}0{% endif %}">{{ carrito|length }}</span>
+        </button>
+      </div>
     </div>
   </header>
+
+  {% comment %} El menú: categorías reales de la base, no una lista hardcodeada
+    — si la dueña crea una categoría nueva desde el panel, aparece sola. {% endcomment %}
+  <div class="velo velo--menu" data-velo-menu></div>
+  <nav class="menu-panel" data-menu-panel aria-hidden="true" aria-label="Menú principal">
+    <div class="menu-panel__cabeza">
+      <span class="sup">— Temporada {{ portada.temporada }}</span>
+      <button type="button" class="menu-panel__cerrar" data-cerrar-menu aria-label="Cerrar menú">&times;</button>
+    </div>
+
+    <p class="menu-panel__grupo">Tienda</p>
+    <a href="{% url 'catalogo:catalogo' %}" class="menu-panel__item menu-panel__item--todo">Toda la colección</a>
+    {% for c in menu_categorias %}
+      <a href="{% url 'catalogo:catalogo_categoria' c.slug %}" class="menu-panel__item">{{ c.nombre }}</a>
+    {% endfor %}
+
+    <p class="menu-panel__grupo">Inspiración</p>
+    <a href="{% url 'catalogo:looks' %}" class="menu-panel__item">Looks completos</a>
+    <a href="{% url 'catalogo:home' %}#coleccion" class="menu-panel__item">Lo nuevo</a>
+    <a href="{% url 'catalogo:catalogo' %}#local" class="menu-panel__item">El local</a>
+
+    <div class="menu-panel__pie">
+      <p>{{ negocio.direccion }}<br>{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }}</p>
+      <p>
+        <a href="https://wa.me/{{ negocio.whatsapp }}" target="_blank" rel="noopener">WhatsApp {{ negocio.whatsapp_visible }}</a><br>
+        <a href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">@{{ negocio.instagram }}</a>
+      </p>
+    </div>
+  </nav>
 
   <main id="contenido">
     {% block contenido %}{% endblock %}
   </main>
 
   <footer class="pie">
-    <div class="pie__fila">
-      <div>
-        <div>{{ negocio.nombre }} · {{ negocio.direccion }}</div>
-        <div>{{ negocio.dias }} de {{ negocio.horario_manana }} y de {{ negocio.horario_tarde }} hs</div>
+    <div class="contenido pie__grid">
+      <div class="pie__marca">
+        <span class="marca__disco" aria-hidden="true"><span>CHAO</span><em>Indumentaria</em></span>
+        <p class="pie__frase">{{ portada.frase }}</p>
       </div>
       <div>
-        <a href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">@{{ negocio.instagram }}</a>
-        ·
-        <a href="https://wa.me/{{ negocio.whatsapp }}" target="_blank" rel="noopener">{{ negocio.whatsapp_visible }}</a>
+        <p class="pie__titulo">Tienda</p>
+        <ul>
+          <li><a href="{% url 'catalogo:catalogo' %}">Toda la colección</a></li>
+          {% for c in menu_categorias %}<li><a href="{% url 'catalogo:catalogo_categoria' c.slug %}">{{ c.nombre }}</a></li>{% endfor %}
+          <li><a href="{% url 'catalogo:looks' %}">Looks</a></li>
+        </ul>
       </div>
+      <div>
+        <p class="pie__titulo">Ayuda</p>
+        <ul>
+          <li><a href="{% url 'catalogo:catalogo' %}#preguntas">Talles y calce</a></li>
+          <li><a href="{% url 'catalogo:catalogo' %}#preguntas">Cambios</a></li>
+          <li><a href="{% url 'catalogo:catalogo' %}#preguntas">Retiro y envíos</a></li>
+          <li><a href="https://wa.me/{{ negocio.whatsapp }}" target="_blank" rel="noopener">Escribinos</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="pie__titulo">Visitanos</p>
+        <ul>
+          <li>{{ negocio.direccion }}</li>
+          <li>{{ negocio.dias }}</li>
+          <li>{{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</li>
+          <li><a href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">@{{ negocio.instagram }}</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="pie__palabra" aria-hidden="true">Chao <em>Indumentaria</em></p>
+    <div class="contenido pie__base">
+      <span>© {% now "Y" %} CHAO Indumentaria · Villa Bosch, Tres de Febrero</span>
       <a class="operon" href="https://operonhub.com/" target="_blank" rel="noopener">
-        <span class="operon__marca" aria-hidden="true"></span> Operon
+        <span class="operon__marca" aria-hidden="true"></span> Hecho por Operon
       </a>
     </div>
   </footer>

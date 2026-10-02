@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "catalogo",
     "carrito",
     "pedidos",
+    "gestion",
 ]
 
 MIDDLEWARE = [
@@ -79,6 +80,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "carrito.context_processors.carrito",
                 "catalogo.context_processors.datos_negocio",
+                "catalogo.context_processors.menu_categorias",
             ],
         },
     },
@@ -116,6 +118,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # carpeta se borra en cada deploy (ver README).
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", BASE_DIR / "media"))
+SERVIR_MEDIA = env_bool("SERVIR_MEDIA", False)
+
+# El panel de la dueña (/gestion/) tiene su propio login.
+LOGIN_URL = "gestion:ingresar"
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

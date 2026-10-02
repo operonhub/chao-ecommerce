@@ -4,62 +4,62 @@
 {% block titulo %}Tu pedido — {{ negocio.nombre }}{% endblock %}
 
 {% block contenido %}
-<section class="contenido seccion" style="max-width:720px">
+<section class="contenido resultado">
   {% if not pedido %}
+    <div class="resultado__icono resultado__icono--error" aria-hidden="true">?</div>
     <p class="sup">Pedido</p>
-    <h1 class="display seccion__titulo">No encontramos ese pedido</h1>
+    <h1 class="display seccion__titulo">No encontramos <em>ese pedido</em></h1>
     <p class="seccion__nota">
       Puede que el link esté incompleto. Escribinos por WhatsApp y lo buscamos juntas.
     </p>
-    <p style="margin-top:2rem">
-      <a href="https://wa.me/{{ negocio.whatsapp }}" class="btn btn--wsp" target="_blank" rel="noopener">
-        Escribir por WhatsApp
-      </a>
-    </p>
+    <div class="resultado__acciones">
+      <a href="https://wa.me/{{ negocio.whatsapp }}" class="btn btn--wsp" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+    </div>
 
   {% else %}
-    <p class="sup">Pedido #{{ pedido.pk }}</p>
-
     {% if pedido.estado == 'pagado' %}
-      <h1 class="display seccion__titulo">¡Listo, {{ pedido.nombre|truncatewords:1 }}!</h1>
+      <div class="resultado__icono" aria-hidden="true">✓</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">¡Listo, <em>{{ pedido.nombre|truncatewords:1|cut:"…" }}</em>!</h1>
       <p class="seccion__nota">
         Recibimos tu pago. Te escribimos por WhatsApp al {{ pedido.telefono }} para
         coordinar cuándo pasás a retirarlo por {{ negocio.direccion }}.
       </p>
     {% elif pedido.estado == 'rechazado' %}
-      <h1 class="display seccion__titulo">El pago no pasó</h1>
+      <div class="resultado__icono resultado__icono--error" aria-hidden="true">!</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">El pago <em>no pasó</em></h1>
       <p class="seccion__nota">
         La tarjeta rechazó la operación. Tu pedido quedó guardado: podés intentar con
         otro medio de pago o coordinarlo con nosotras por WhatsApp.
       </p>
     {% else %}
-      {# Ojo: acá no se afirma que el pago entró. El estado real lo pone el webhook. #}
-      <h1 class="display seccion__titulo">Estamos confirmando el pago</h1>
+      {# Ojo: acá no se afirma que el pago entró. El estado real lo confirma el servidor. #}
+      <div class="resultado__icono resultado__icono--espera" aria-hidden="true">…</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">Estamos confirmando <em>el pago</em></h1>
       <p class="seccion__nota">
         Ya tenemos tu pedido. Mercado Pago tarda unos minutos en confirmarnos la
         operación; en cuanto llegue, te escribimos al {{ pedido.telefono }}.
       </p>
     {% endif %}
 
-    <div class="resumen" style="margin-top:2rem;position:static">
-      <p class="sup">Lo que pediste</p>
+    <div class="resumen">
+      <p class="resumen__titulo">Lo que pediste</p>
       {% for item in pedido.items.all %}
         <div class="resumen__linea">
-          <span>
-            {{ item.cantidad }}× {{ item.producto.nombre }}
-            {% if item.talle %}<br><small>Talle {{ item.talle }}</small>{% endif %}
-          </span>
+          <span>{{ item.cantidad }}× {{ item.producto.nombre }}{% if item.talle %} · talle {{ item.talle }}{% endif %}</span>
           <span>${{ item.subtotal|pesos }}</span>
         </div>
       {% endfor %}
       <div class="resumen__total">
-        <span class="sup">Total</span>
+        <span>Total</span>
         <b>${{ pedido.total|pesos }}</b>
       </div>
     </div>
 
-    <div class="hero__acciones" style="margin-top:2rem">
-      <a href="{% url 'catalogo:home' %}#catalogo" class="btn btn--primario">Seguir viendo</a>
+    <div class="resultado__acciones">
+      <a href="{% url 'catalogo:catalogo' %}" class="btn btn--primario">Seguir viendo</a>
       <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ pedido.resumen_whatsapp|urlencode }}"
          class="btn btn--secundario" target="_blank" rel="noopener">Consultar por WhatsApp</a>
     </div>

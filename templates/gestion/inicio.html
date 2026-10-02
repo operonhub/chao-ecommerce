@@ -1,0 +1,107 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Inicio{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup">— {% now "l j \d\e F" %}</p>
+    <h1 class="display g-titulo">Hola{% if user.first_name %}, <em>{{ user.first_name }}</em>{% endif %}.</h1>
+  </div>
+  <a href="{% url 'gestion:prenda_nueva' %}" class="btn btn--primario">+ Cargar prenda</a>
+</header>
+
+<section class="g-kpis">
+  <a href="{% url 'gestion:pedidos' %}?ver=pagado" class="g-kpi">
+    <span class="g-kpi__lbl">Vendido · últimos 30 días</span>
+    <span class="g-kpi__num">${{ vendido_30|pesos }}</span>
+    <span class="g-kpi__sub">{{ n_vendidos_30 }} pedido{{ n_vendidos_30|pluralize }} pagado{{ n_vendidos_30|pluralize }}</span>
+  </a>
+  <a href="{% url 'gestion:pedidos' %}?ver=pendiente" class="g-kpi {% if n_pendientes %}g-kpi--alerta{% endif %}">
+    <span class="g-kpi__lbl">Pendientes de pago</span>
+    <span class="g-kpi__num">{{ n_pendientes }}</span>
+    <span class="g-kpi__sub">Escribiles por WhatsApp</span>
+  </a>
+  <a href="{% url 'gestion:pedidos' %}?ver=sin-entregar" class="g-kpi {% if n_sin_entregar %}g-kpi--alerta{% endif %}">
+    <span class="g-kpi__lbl">Pagados sin entregar</span>
+    <span class="g-kpi__num">{{ n_sin_entregar }}</span>
+    <span class="g-kpi__sub">Para preparar en el local</span>
+  </a>
+  <a href="{% url 'gestion:prendas' %}?ver=visibles" class="g-kpi">
+    <span class="g-kpi__lbl">Prendas en la tienda</span>
+    <span class="g-kpi__num">{{ n_activas }}</span>
+    <span class="g-kpi__sub">{{ n_destacadas }} destacada{{ n_destacadas|pluralize }} · {{ n_ocultas }} oculta{{ n_ocultas|pluralize }}</span>
+  </a>
+</section>
+
+<div class="g-dos">
+  <section class="g-bloque">
+    <h2 class="g-bloque__titulo">Para mirar hoy</h2>
+    <ul class="g-alertas">
+      {% if sin_stock %}
+        <li>
+          <span class="g-punto g-punto--rojo" aria-hidden="true"></span>
+          <div>
+            <b>{{ sin_stock|length }} prenda{{ sin_stock|pluralize }} sin stock</b>
+            <span>{% for p in sin_stock|slice:":3" %}{{ p.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if sin_stock|length > 3 %}…{% endif %}</span>
+          </div>
+          <a href="{% url 'gestion:prendas' %}?ver=sin-stock">Ver</a>
+        </li>
+      {% endif %}
+      {% if pocas %}
+        <li>
+          <span class="g-punto g-punto--ambar" aria-hidden="true"></span>
+          <div>
+            <b>{{ pocas|length }} con pocas unidades</b>
+            <span>{% for p in pocas|slice:":3" %}{{ p.nombre }} ({{ p.stock_total }}){% if not forloop.last %}, {% endif %}{% endfor %}{% if pocas|length > 3 %}…{% endif %}</span>
+          </div>
+          <a href="{% url 'gestion:prendas' %}">Ver</a>
+        </li>
+      {% endif %}
+      {% if n_a_confirmar %}
+        <li>
+          <span class="g-punto g-punto--ambar" aria-hidden="true"></span>
+          <div>
+            <b>{{ n_a_confirmar }} precio{{ n_a_confirmar|pluralize }} a confirmar</b>
+            <span>La tienda avisa que son estimados hasta que los confirmes.</span>
+          </div>
+          <a href="{% url 'gestion:prendas' %}?ver=a-confirmar">Ver</a>
+        </li>
+      {% endif %}
+      {% if not sin_stock and not pocas and not n_a_confirmar %}
+        <li>
+          <span class="g-punto g-punto--verde" aria-hidden="true"></span>
+          <div><b>Todo en orden</b><span>No hay nada urgente en el catálogo.</span></div>
+        </li>
+      {% endif %}
+    </ul>
+
+    <div class="g-atajos">
+      <a href="{% url 'gestion:portada' %}" class="g-atajo">
+        <b>Cambiar la portada</b><span>Temporada, frase y foto principal</span>
+      </a>
+      <a href="{% url 'gestion:prendas' %}?ver=destacadas" class="g-atajo">
+        <b>Elegir destacadas</b><span>Las que salen en "Lo nuevo"</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="g-bloque">
+    <div class="g-bloque__cabeza">
+      <h2 class="g-bloque__titulo">Últimos pedidos</h2>
+      <a href="{% url 'gestion:pedidos' %}" class="cta-ghost">Ver todos →</a>
+    </div>
+    {% for p in recientes %}
+      <a href="{% url 'gestion:pedidos' %}#pedido-{{ p.pk }}" class="g-pedido-mini">
+        <span class="g-estado g-estado--{{ p.estado }}">{{ p.get_estado_display }}</span>
+        <span class="g-pedido-mini__nombre">#{{ p.pk }} · {{ p.nombre }}</span>
+        <span class="g-pedido-mini__total">${{ p.total|pesos }}</span>
+        <span class="g-pedido-mini__fecha">{{ p.creado|date:"j/n H:i" }}</span>
+      </a>
+    {% empty %}
+      <p class="g-vacio">Todavía no entró ningún pedido por la web.</p>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

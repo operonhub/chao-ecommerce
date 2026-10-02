@@ -1,0 +1,94 @@
+{% load static %}<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block titulo %}Mi tienda{% endblock %} — CHAO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/chao.css' %}">
+  <link rel="stylesheet" href="{% static 'css/gestion.css' %}">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}">
+</head>
+<body class="g">
+  {% block cuerpo %}
+  <aside class="g-lado" aria-label="Menú del panel">
+    <a href="{% url 'gestion:inicio' %}" class="g-marca">
+      <span class="marca__disco" aria-hidden="true"><span>CHAO</span><em>Indumentaria</em></span>
+      <span class="g-marca__texto">Mi <em>tienda</em></span>
+    </a>
+
+    <nav class="g-nav">
+      <a href="{% url 'gestion:inicio' %}" {% if seccion == 'inicio' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+        Inicio
+      </a>
+      <a href="{% url 'gestion:prendas' %}" {% if seccion == 'prendas' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a2 2 0 0 1 2 2c0 1-1 1.5-2 2v1l8 5.5a1 1 0 0 1-.6 1.8H4.6a1 1 0 0 1-.6-1.8L12 9"/></svg>
+        Prendas
+      </a>
+      <a href="{% url 'gestion:pedidos' %}" {% if seccion == 'pedidos' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        Pedidos
+      </a>
+      <a href="{% url 'gestion:portada' %}" {% if seccion == 'portada' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 15l5-4 4 3 3-2 6 4"/></svg>
+        Portada
+      </a>
+    </nav>
+
+    <div class="g-lado__pie">
+      <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener">Ver la tienda ↗</a>
+      <a href="{% url 'admin:index' %}">Panel avanzado</a>
+      <form method="post" action="{% url 'gestion:salir' %}">
+        {% csrf_token %}
+        <button type="submit">Salir</button>
+      </form>
+    </div>
+  </aside>
+
+  <div class="g-main">
+    <header class="g-top">
+      <a href="{% url 'gestion:inicio' %}" class="g-marca g-marca--chica">
+        <span class="marca__disco" aria-hidden="true"><span>CHAO</span><em>Indumentaria</em></span>
+        <span class="g-marca__texto">Mi <em>tienda</em></span>
+      </a>
+      <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="g-top__ver">Ver tienda ↗</a>
+    </header>
+
+    {% if messages %}
+      <div class="g-avisos" role="status">
+        {% for m in messages %}
+          <p class="g-aviso g-aviso--{{ m.tags }}">{{ m }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <main class="g-contenido">
+      {% block contenido %}{% endblock %}
+    </main>
+  </div>
+
+  <nav class="g-tabs" aria-label="Secciones">
+    <a href="{% url 'gestion:inicio' %}" {% if seccion == 'inicio' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Inicio
+    </a>
+    <a href="{% url 'gestion:prendas' %}" {% if seccion == 'prendas' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a2 2 0 0 1 2 2c0 1-1 1.5-2 2v1l8 5.5a1 1 0 0 1-.6 1.8H4.6a1 1 0 0 1-.6-1.8L12 9"/></svg>Prendas
+    </a>
+    <a href="{% url 'gestion:prenda_nueva' %}" class="g-tabs__mas" aria-label="Cargar prenda nueva">+</a>
+    <a href="{% url 'gestion:pedidos' %}" {% if seccion == 'pedidos' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>Pedidos
+    </a>
+    <a href="{% url 'gestion:portada' %}" {% if seccion == 'portada' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 15l5-4 4 3 3-2 6 4"/></svg>Portada
+    </a>
+  </nav>
+  {% endblock %}
+
+  <div class="g-toast" data-toast role="status" aria-live="polite"></div>
+  <script src="{% static 'js/gestion.js' %}" defer></script>
+</body>
+</html>

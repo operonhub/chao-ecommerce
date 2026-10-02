@@ -8,9 +8,13 @@ deploy: vive en el .env local o en las variables del hosting. Es idempotente;
 correrlo de nuevo con otra clave la cambia.
 """
 
+import hashlib
+import hmac
 import os
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand
 
 
@@ -33,6 +37,13 @@ class Command(BaseCommand):
         nombre = (os.getenv("GESTION_NOMBRE") or "").strip()
         if nombre:
             persona.first_name = nombre
-        persona.set_password(clave)
+        # Salt derivado (no al azar): en Vercel cada instancia recrea la usuaria
+        # en su propia SQLite, y con salt al azar cada una tendría un hash
+        # distinto. Django firma la sesión con ese hash, así que la sesión de una
+        # instancia no valía en la otra y el panel pedía login a cada rato.
+        salt = hmac.new(
+            settings.SECRET_KEY.encode(), f"gestion:{usuario}".encode(), hashlib.sha256
+        ).hexdigest()[:24]
+        persona.password = make_password(clave, salt=salt)
         persona.save()
         self.stdout.write(f"Usuaria «{usuario}» {'creada' if creada else 'actualizada'}.")

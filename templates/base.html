@@ -17,6 +17,7 @@
   <link rel="icon" href="{% static 'img/favicon.svg' %}">
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
+  {% block intro %}{% endblock %}
   <a href="#contenido" class="solo-lectores">Ir al contenido</a>
 
   {% comment %} Barra de anuncio: solo datos reales del local (cuotas pintadas en

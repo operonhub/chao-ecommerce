@@ -525,25 +525,41 @@ button {
 }
 
 /* --- Hero ----------------------------------------------------------------- */
-/* Lectura en Z: marca arriba a la izquierda, carrito arriba a la derecha, la
-   foto al centro y el CTA abajo. Hay una sola decisión, no hace falta más.
-   Es una diapositiva: `align-content: center` centra el único renglón del
-   grid dentro de los 100% de alto que le da `.slide`. */
+/* Portada a sangre: el texto a la izquierda y la foto ocupando toda la mitad
+   derecha, de arriba abajo. La foto recorta con object-fit en vez de empujar
+   el layout, así que la diapositiva entra entera en cualquier alto de
+   pantalla — antes la foto 3:4 era más alta que una notebook y aparecía una
+   barra de scroll adentro del hero. */
 .hero {
-  position: relative;
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
-  align-content: center;
-  gap: clamp(1.5rem, 4vw, 4rem);
-  align-items: center;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   height: 100%;
-  padding-block: clamp(1.5rem, 4vh, 3rem);
-  padding-right: clamp(2rem, 5vw, 3.5rem);
+}
+
+.hero__texto {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  padding: clamp(1.25rem, 4vh, 3rem) clamp(1.5rem, 5vw, 5.5rem) var(--reserva-control);
 }
 
 .hero__titulo {
-  font-size: clamp(2.8rem, 7vw, 5.6rem);
-  font-weight: 300;
+  font-size: clamp(2.8rem, min(7.2vw, 12.5vh), 6.4rem);
+  margin-top: clamp(0.75rem, 2vh, 1.25rem);
+}
+
+/* Cada renglón recorta su propio texto: la palabra sube "desde adentro" de la
+   línea, como un titular que se compone. */
+.hero__renglon {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.1em; /* que el recorte no se coma los descendentes de la itálica */
+  margin-bottom: -0.1em;
+}
+
+.hero__renglon > * {
+  display: inline-block;
 }
 
 .hero__titulo em {
@@ -556,49 +572,59 @@ button {
   font-family: var(--serif);
   font-style: italic;
   font-weight: 300;
-  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  font-size: clamp(1.15rem, 1.8vw, 1.5rem);
   color: var(--tinta-suave);
-  margin: 1rem 0 0;
+  margin: clamp(0.6rem, 2vh, 1.1rem) 0 0;
 }
 
 .hero__bajada {
-  font-size: clamp(0.95rem, 1.3vw, 1.05rem);
+  font-size: clamp(0.92rem, 1.2vw, 1.02rem);
   color: var(--tinta-suave);
-  max-width: 46ch;
-  margin: 1.1rem 0 2rem;
+  max-width: 44ch;
+  margin: clamp(0.6rem, 2vh, 1rem) 0 clamp(1.25rem, 3.5vh, 2rem);
 }
 
 .hero__acciones {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .hero__datos {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.75rem;
-  margin-top: 2.75rem;
-  padding-top: 1.75rem;
+  gap: 1.25rem 2.75rem;
+  margin: clamp(1.5rem, 4.5vh, 3rem) 0 0;
+  padding-top: clamp(1rem, 2.5vh, 1.5rem);
   border-top: 1px solid var(--linea);
 }
 
+.hero__datos dd {
+  margin: 0;
+}
+
+.hero__datos dt {
+  margin-bottom: 0.3rem;
+  color: var(--sage-deep);
+}
+
 .dato__valor {
-  font-variation-settings: "wdth" 112;
-  font-weight: 700;
-  font-size: 1.05rem;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 .dato__etiqueta {
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--tinta-suave);
+  color: var(--tinta-mute);
 }
 
 .hero__foto {
   position: relative;
-  aspect-ratio: 3 / 4;
+  min-height: 0;
   overflow: hidden;
   background: var(--superficie);
 }
@@ -607,51 +633,137 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 50% 35%;
 }
 
 /* El sello de aqua sobre la foto: el color de marca en el único lugar donde no
-   compite con un CTA. */
+   compite con un CTA. Abajo a la derecha, lejos del control de diapositivas. */
 .hero__sello {
   position: absolute;
-  left: 0;
+  right: 0;
   bottom: 0;
   background: var(--aqua);
   color: var(--tinta);
-  padding: 0.7rem 1.1rem;
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-/* Etiqueta vertical en el borde del hero: el mismo gesto editorial de pestañas
-   verticales que tenía el mockup, pero con el dato real (zona oeste del
-   conurbano) en vez de "porteño" — CHAO está en Tres de Febrero, no en CABA. */
-.hero__vertical {
-  position: absolute;
-  right: clamp(0.5rem, 1.5vw, 1.25rem);
-  top: 50%;
-  transform: translateY(-50%);
-  writing-mode: vertical-rl;
-  display: flex;
-  gap: 1.1rem;
-  align-items: center;
-  font-family: var(--sans);
-  font-size: 0.62rem;
+  padding: 0.75rem 1.2rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--tinta-suave);
-  line-height: 1.6;
 }
 
-.hero__vertical .acento {
-  color: var(--sage-deep);
-}
-
-@media (max-width: 1100px) {
-  .hero__vertical {
+/* En una notebook baja (≈700px de alto) el bloque de horario/cuotas no entra
+   sin apretar el titular; esos datos ya están en la barra de anuncio. */
+@media (max-height: 780px) {
+  .hero__datos {
     display: none;
+  }
+}
+
+/* --- Entrada de las diapositivas -------------------------------------------
+   Lo marcado con .entra sube y aparece cuando su diapositiva se activa,
+   escalonado por --d. Arranca mientras la cortina se retira (--base-entrada),
+   así el contenido "llega" detrás de la tela en vez de estar ya quieto.
+   Se anima `translate` y no `transform` para no pisar los hover que usan
+   transform (botones, fotos). */
+:root {
+  --entrada: 2.45s; /* el hero espera a que se abra el telón de la intro */
+}
+
+.sin-intro,
+.intro-saltada {
+  --entrada: 0.1s;
+}
+
+.slide {
+  --base-entrada: 0.42s;
+}
+
+.hero {
+  --base-entrada: var(--entrada);
+}
+
+.stage.navegado .hero {
+  --base-entrada: 0.42s;
+}
+
+.slide.activa .entra {
+  animation: entra 0.9s var(--curva) both;
+  animation-delay: calc(var(--base-entrada) + var(--d, 0) * 90ms);
+}
+
+.slide.activa .hero__renglon > .entra {
+  animation-name: renglon;
+  animation-duration: 1.15s;
+}
+
+/* Las fotos grandes se descubren como una persiana, y adentro la imagen se
+   "asienta" (viene un poco más cerca y se acomoda). */
+.slide.activa .revela {
+  animation: revela-der 1.25s cubic-bezier(0.7, 0, 0.2, 1) both;
+  animation-delay: calc(var(--base-entrada) - 0.15s);
+}
+
+.slide.activa .nosotras__foto.revela {
+  animation-name: revela-izq;
+}
+
+.slide.activa .revela img {
+  animation: asienta 1.9s var(--curva) both;
+  animation-delay: calc(var(--base-entrada) - 0.15s);
+}
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes renglon {
+  from {
+    translate: 0 108%;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+@keyframes revela-der {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes revela-izq {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes asienta {
+  from {
+    scale: 1.16;
+  }
+  to {
+    scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide.activa .entra,
+  .slide.activa .revela,
+  .slide.activa .revela img {
+    animation: none !important;
   }
 }
 
@@ -693,6 +805,9 @@ body.pagina-slides .pie {
 }
 
 .stage {
+  /* Lo que cada diapositiva deja libre abajo para el control (pastilla de
+     44px + su margen). Ningún texto ni botón queda debajo del control. */
+  --reserva-control: clamp(4.5rem, 11vh, 5.75rem);
   position: relative;
   height: 100%;
   overflow: hidden;
@@ -706,7 +821,16 @@ body.pagina-slides .pie {
   height: 100%;
   opacity: 0;
   pointer-events: none;
-  overflow-y: auto; /* red de seguridad: si algo no entra en el alto, scrollea esa diapositiva sola */
+  /* Red de seguridad: si en una pantalla rarísima algo no entra, esa
+     diapositiva scrollea sola — pero sin mostrar la barra, que en el hero se
+     veía como una raya gris al costado de la foto. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.slide::-webkit-scrollbar {
+  display: none;
 }
 
 .slide.activa {
@@ -723,7 +847,7 @@ body.pagina-slides .pie {
   inset: 0;
   z-index: 42;
   pointer-events: none;
-  transform: translate3d(-101%, 0, 0);
+  transform: translate3d(-112%, 0, 0);
   will-change: transform;
   background:
     linear-gradient(
@@ -786,11 +910,11 @@ body.pagina-slides .pie {
 }
 
 .cortina.desde-derecha {
-  transform: translate3d(101%, 0, 0);
+  transform: translate3d(112%, 0, 0);
 }
 
 .cortina.desde-izquierda {
-  transform: translate3d(-101%, 0, 0);
+  transform: translate3d(-112%, 0, 0);
 }
 
 .cortina.cubriendo {
@@ -799,139 +923,170 @@ body.pagina-slides .pie {
 }
 
 .cortina.sale-izquierda {
-  transform: translate3d(-101%, 0, 0);
+  transform: translate3d(-112%, 0, 0);
   transition: transform 720ms cubic-bezier(0.55, 0.15, 0.4, 1);
 }
 
 .cortina.sale-derecha {
-  transform: translate3d(101%, 0, 0);
+  transform: translate3d(112%, 0, 0);
   transition: transform 720ms cubic-bezier(0.55, 0.15, 0.4, 1);
 }
 
-/* --- Flechas + indicador ---------------------------------------------------- */
-.slide-flecha {
+/* --- Control de diapositivas -------------------------------------------------
+   Una sola pastilla abajo al centro: anterior · puntos · "02 / 06 Nosotras" ·
+   siguiente. Antes las flechas flotaban en los bordes y caían encima de las
+   fotos y de las tarjetas; agrupadas se leen como un solo control y cada
+   diapositiva le deja su lugar abajo (--reserva-control). */
+.slide-control {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 35;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--pildora);
-  background: rgba(250, 246, 238, 0.6);
-  backdrop-filter: blur(8px);
-  display: grid;
-  place-items: center;
-  color: var(--tinta);
-  border: 0.5px solid var(--linea);
-  transition: background 0.25s ease, opacity 0.3s;
-}
-
-.slide-flecha:hover {
-  background: var(--tinta);
-  color: var(--fondo);
-  border-color: transparent;
-}
-
-.slide-flecha--izq {
-  left: 22px;
-}
-
-.slide-flecha--der {
-  right: 22px;
-}
-
-.slide-flecha:disabled {
-  opacity: 0.25;
-  cursor: not-allowed;
-}
-
-.slide-indicador {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: max(env(safe-area-inset-bottom), 20px);
+  left: 50%;
+  bottom: max(env(safe-area-inset-bottom), clamp(0.75rem, 2.2vh, 1.25rem));
+  transform: translateX(-50%);
   z-index: 35;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
+  gap: 0.5rem;
+  padding: 0.25rem;
+  border-radius: var(--pildora);
+  background: rgba(250, 246, 238, 0.8);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 0.5px solid var(--linea);
+  box-shadow: 0 10px 30px rgba(36, 27, 22, 0.08);
+  white-space: nowrap;
+  transition: background 0.4s ease, border-color 0.4s ease;
+}
+
+.slide-control__flecha {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: var(--pildora);
+  background: transparent;
+  color: var(--tinta);
+  display: grid;
+  place-items: center;
+  transition: background 0.25s ease, color 0.25s ease, opacity 0.3s;
+}
+
+.slide-control__flecha:hover:not(:disabled) {
+  background: var(--tinta);
+  color: var(--fondo);
+}
+
+.slide-control__flecha:disabled {
+  opacity: 0.22;
+  cursor: default;
 }
 
 .slide-puntos {
   display: flex;
-  gap: 10px;
   align-items: center;
 }
 
+/* El botón es más grande que el punto que se ve: 6px no se acierta con el dedo. */
 .slide-punto {
+  width: 16px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  display: grid;
+  place-items: center;
+  transition: width 0.4s var(--curva);
+}
+
+.slide-punto::before {
+  content: "";
   width: 6px;
   height: 6px;
   border-radius: var(--pildora);
   background: rgba(36, 27, 22, 0.22);
-  border: 0;
-  padding: 0;
-  transition: width 0.35s ease, background 0.25s ease;
+  transition: width 0.4s var(--curva), background 0.25s ease;
+}
+
+.slide-punto:hover::before {
+  background: rgba(36, 27, 22, 0.5);
 }
 
 .slide-punto.activo {
-  width: 24px;
+  width: 32px;
+}
+
+.slide-punto.activo::before {
+  width: 22px;
   background: var(--tinta);
 }
 
 .slide-contador {
+  margin: 0 0.35rem 0 0.25rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
   font-variant-numeric: tabular-nums;
-  font-size: 0.68rem;
-  letter-spacing: 0.2em;
-  color: var(--tinta-suave);
-  min-width: 48px;
-  text-align: left;
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--tinta-mute);
 }
 
 .slide-contador .actual {
   color: var(--tinta);
-  font-weight: 500;
 }
 
-/* La diapositiva de contacto es oscura: flechas, puntos y contador se invierten. */
-.stage.con-fondo-oscuro .slide-flecha {
-  background: rgba(242, 234, 220, 0.12);
+.slide-contador__nombre {
+  margin-left: 0.3rem;
+  padding-left: 0.65rem;
+  border-left: 1px solid var(--linea);
+  min-width: 5.6em;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--tinta);
+}
+
+/* La diapositiva de contacto es oscura: el control se invierte. */
+.stage.con-fondo-oscuro .slide-control {
+  background: rgba(36, 27, 22, 0.6);
+  border-color: rgba(242, 234, 220, 0.16);
+  box-shadow: none;
+}
+
+.stage.con-fondo-oscuro .slide-control__flecha {
   color: var(--fondo);
-  border-color: rgba(242, 234, 220, 0.18);
 }
 
-.stage.con-fondo-oscuro .slide-flecha:hover {
+.stage.con-fondo-oscuro .slide-control__flecha:hover:not(:disabled) {
   background: var(--fondo);
   color: var(--tinta);
 }
 
-.stage.con-fondo-oscuro .slide-punto {
+.stage.con-fondo-oscuro .slide-punto::before {
   background: rgba(242, 234, 220, 0.28);
 }
 
-.stage.con-fondo-oscuro .slide-punto.activo {
+.stage.con-fondo-oscuro .slide-punto.activo::before {
   background: var(--fondo);
 }
 
 .stage.con-fondo-oscuro .slide-contador {
-  color: rgba(242, 234, 220, 0.55);
+  color: rgba(242, 234, 220, 0.5);
 }
 
-.stage.con-fondo-oscuro .slide-contador .actual {
+.stage.con-fondo-oscuro .slide-contador .actual,
+.stage.con-fondo-oscuro .slide-contador__nombre {
   color: var(--fondo);
 }
 
-@media (max-width: 640px) {
-  .slide-flecha {
-    width: 38px;
-    height: 38px;
-  }
+.stage.con-fondo-oscuro .slide-contador__nombre {
+  border-color: rgba(242, 234, 220, 0.2);
+}
 
-  .slide-flecha--izq {
-    left: 10px;
-  }
-
-  .slide-flecha--der {
-    right: 10px;
+@media (max-width: 420px) {
+  .slide-contador__nombre {
+    display: none;
   }
 }
 
@@ -2163,18 +2318,18 @@ body.pagina-slides .pie {
 
 /* --- Nosotras -------------------------------------------------------------- */
 /* El gesto del mockup: foto con un sello circular superpuesto + copy con firma.
-   El sello dice un dato real (el barrio), no una fecha de fundación inventada. */
+   El sello dice un dato real (el barrio), no una fecha de fundación inventada.
+   Foto a sangre a la izquierda — el espejo del hero, que la tiene a la derecha. */
 .nosotras {
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
-  gap: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   background: var(--fondo-hueso);
   height: 100%;
 }
 
 .nosotras__foto {
   position: relative;
-  height: 100%;
+  min-height: 0;
   overflow: hidden;
   background: var(--superficie);
 }
@@ -2194,43 +2349,72 @@ body.pagina-slides .pie {
   border-radius: 50%;
   border: 0.5px solid rgba(250, 246, 238, 0.6);
   background: rgba(36, 27, 22, 0.25);
-  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   color: var(--fondo-hueso);
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 0.85rem;
-  line-height: 1.25;
-  padding: 0.5rem;
+  font-size: 0.95rem;
+  line-height: 1.15;
+  animation: girar-sello 24s linear infinite;
+}
+
+.nosotras__sello small {
+  margin-top: 0.35rem;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.55rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+/* Un balanceo mínimo, como un cartel colgado — no una rueda girando. */
+@keyframes girar-sello {
+  0%,
+  100% {
+    rotate: -4deg;
+  }
+  50% {
+    rotate: 4deg;
+  }
 }
 
 .nosotras__copy {
-  padding: clamp(2.5rem, 6vw, 6rem);
+  min-height: 0;
+  padding: clamp(1.5rem, 5vh, 4rem) clamp(1.5rem, 6vw, 6rem) var(--reserva-control);
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
 .nosotras__titulo {
-  font-size: clamp(2.4rem, 5vw, 4.2rem);
-  margin: 1.25rem 0 1.75rem;
+  font-size: clamp(2.4rem, min(5vw, 9.5vh), 4.6rem);
+  margin: clamp(0.75rem, 2.5vh, 1.25rem) 0 clamp(1rem, 3.5vh, 1.75rem);
 }
 
 .nosotras__cuerpo {
   color: var(--tinta-suave);
-  max-width: 52ch;
-  font-size: clamp(0.95rem, 1.2vw, 1.05rem);
+  max-width: 50ch;
+  font-size: clamp(0.92rem, min(1.2vw, 2.2vh), 1.05rem);
   line-height: 1.7;
 }
 
+.nosotras__cuerpo p {
+  margin: 0;
+}
+
 .nosotras__cuerpo p + p {
-  margin-top: 1.1em;
+  margin-top: 1em;
 }
 
 .nosotras__firma {
-  margin-top: 2.5rem;
+  margin-top: clamp(1.25rem, 4.5vh, 2.5rem);
   display: flex;
   align-items: center;
   gap: 0.85rem;
@@ -2249,11 +2433,164 @@ body.pagina-slides .pie {
 @media (max-width: 880px) {
   .nosotras {
     grid-template-columns: 1fr;
-    grid-template-rows: 38% 62%;
+    grid-template-rows: minmax(0, 36%) minmax(0, 1fr);
   }
 
   .nosotras__copy {
-    padding: 1.5rem 1.5rem 0;
+    justify-content: flex-start;
+    padding: 1.5rem var(--paso) var(--reserva-control);
+  }
+
+  .nosotras__sello {
+    width: 84px;
+    height: 84px;
+    font-size: 0.8rem;
+  }
+}
+
+/* En el celular el segundo párrafo dice lo mismo que el primero con más
+   palabras: en una diapositiva sin scroll, se queda el primero. */
+@media (max-width: 560px) {
+  .nosotras__cuerpo p + p,
+  .nosotras__firma {
+    display: none;
+  }
+}
+
+/* --- Colección (diapositiva 3) ---------------------------------------------
+   Reusa .grilla/.card tal cual (el mismo grid con balanceo que tiene la
+   tienda completa) para que una prenda se vea igual en todos lados. Acá la
+   tarjeta va limpia — foto, nombre y precio — y el agregar rápido queda para
+   la tienda: en una diapositiva de alto fijo los botones de talle eran los
+   que la hacían desbordar. */
+.col {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(1rem, 3vh, 1.75rem);
+  padding-top: clamp(1rem, 3.5vh, 2rem);
+  padding-bottom: var(--reserva-control);
+}
+
+.col-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  flex-wrap: wrap;
+}
+
+.col-titulo {
+  font-size: clamp(2.2rem, min(4.6vw, 8.5vh), 3.8rem);
+  margin: 0.5rem 0 0;
+}
+
+.col-head__der {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
+  text-align: right;
+}
+
+.col-head__der .seccion__nota {
+  margin: 0;
+  max-width: 38ch;
+}
+
+.cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tinta);
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid currentColor;
+  transition: color 0.2s, gap 0.3s var(--curva);
+}
+
+.cta-ghost:hover {
+  color: var(--bordo);
+  gap: 0.8rem;
+}
+
+/* El alto de la grilla lo pone lo que sobra de la diapositiva: si no alcanza,
+   las fotos se recortan (object-fit) en vez de empujar todo hacia abajo. */
+.col-grid {
+  flex: 0 1 auto;
+  min-height: 0;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.col .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.col .card__foto {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.col .card__rapido,
+.col .card__cuotas,
+.col .card > .card__agregar {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .col-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .col-grid .card:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+/* Celular: las seis prendas en un carrusel horizontal (se desliza con el
+   dedo; slides.js no cambia de diapositiva si el gesto arranca acá). */
+@media (max-width: 620px) {
+  .col {
+    justify-content: flex-start;
+  }
+
+  .col-head__der {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .col-head__der .seccion__nota {
+    display: none;
+  }
+
+  .col-grid {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--paso);
+    margin-inline: calc(var(--paso) * -1);
+    padding-inline: var(--paso);
+    scrollbar-width: none;
+  }
+
+  .col-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .col-grid .card,
+  .col-grid .card:nth-child(n + 4) {
+    display: flex;
+    flex: 0 0 62%;
+    scroll-snap-align: start;
   }
 }
 
@@ -2263,67 +2600,6 @@ body.pagina-slides .pie {
    número real) y cuotas sin interés (pintado en la vitrina). Nada de "envíos
    a todo el país en 48–72hs" ni "cambios sin letra chica" — eso no está
    confirmado con CHAO todavía (ver FAQ). */
-/* --- Colección (diapositiva 3) ---------------------------------------------
-   Reusa .grilla/.card tal cual (el mismo grid con balanceo que tiene la
-   tienda completa) para que una prenda se vea igual en todos lados. */
-.col {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: clamp(1rem, 2.5vh, 1.75rem);
-  padding-block: clamp(1rem, 4vh, 2rem);
-}
-
-.col-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.col-titulo {
-  font-size: clamp(2rem, 4.4vw, 3.4rem);
-  margin: 0.5rem 0 0;
-}
-
-.col-grid {
-  grid-template-columns: repeat(6, 1fr);
-}
-
-.cta-ghost {
-  align-self: center;
-  font-family: var(--sans);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--tinta-suave);
-  padding: 0.5rem 0;
-  transition: color 0.2s;
-}
-
-.cta-ghost:hover {
-  color: var(--bordo);
-}
-
-@media (max-width: 980px) {
-  .col-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 620px) {
-  .col-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .col-grid .card:nth-child(n + 5) {
-    display: none;
-  }
-}
-
 .porque {
   height: 100%;
   display: flex;
@@ -2331,16 +2607,16 @@ body.pagina-slides .pie {
   justify-content: center;
   text-align: center;
   background: var(--fondo-hueso);
-  padding-inline: var(--paso);
+  padding: clamp(1rem, 3vh, 2rem) var(--paso) var(--reserva-control);
 }
 
 .porque__cabeza {
   max-width: 640px;
-  margin: 0 auto clamp(2.5rem, 5vw, 4rem);
+  margin: 0 auto clamp(1.75rem, 6vh, 4rem);
 }
 
 .porque__titulo {
-  font-size: clamp(2.2rem, 4.4vw, 3.4rem);
+  font-size: clamp(2.2rem, min(4.6vw, 8.5vh), 3.8rem);
   margin: 1rem 0 0.75rem;
 }
 
@@ -2358,6 +2634,7 @@ body.pagina-slides .pie {
   grid-template-columns: repeat(3, 1fr);
   gap: clamp(1.5rem, 3vw, 3.5rem);
   max-width: 1100px;
+  width: 100%;
   margin-inline: auto;
 }
 
@@ -2365,27 +2642,34 @@ body.pagina-slides .pie {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1.5rem 1rem 0;
+  padding: clamp(1rem, 3vh, 1.75rem) 1rem 0;
   border-top: 1px solid var(--linea);
 }
 
 .porque__icono {
+  flex-shrink: 0;
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--fondo-hueso);
+  background: var(--fondo);
   border: 1px solid var(--linea);
   display: grid;
   place-items: center;
   color: var(--sage-deep);
-  margin-bottom: 1.35rem;
+  margin-bottom: clamp(0.85rem, 2.5vh, 1.35rem);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.porque__item:hover .porque__icono {
+  background: var(--aqua);
+  color: var(--tinta);
 }
 
 .porque__item h3 {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 1.35rem;
-  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+  margin: 0 0 0.45rem;
 }
 
 .porque__item p {
@@ -2393,42 +2677,72 @@ body.pagina-slides .pie {
   font-size: 0.9rem;
   line-height: 1.6;
   max-width: 30ch;
-  margin: 0;
+  margin: 0 auto;
 }
 
+/* Celular: cada razón en un renglón (ícono al costado), así entran las tres
+   sin scroll. */
 @media (max-width: 760px) {
+  .porque {
+    text-align: left;
+  }
+
+  .porque__cabeza {
+    margin: 0 0 clamp(0.75rem, 3vh, 1.75rem);
+  }
+
   .porque__grid {
     grid-template-columns: 1fr;
-    max-width: 420px;
-    gap: 0.25rem;
+    gap: 0;
   }
 
   .porque__item {
-    padding: 1.25rem 0 0;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: clamp(0.7rem, 2vh, 1rem) 0;
+  }
+
+  .porque__icono {
+    width: 44px;
+    height: 44px;
+    margin: 0;
+  }
+
+  .porque__item h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .porque__item p {
+    margin: 0;
+    font-size: 0.86rem;
   }
 }
 
 /* --- Instagram -------------------------------------------------------------- */
-/* Mismo gesto que el mockup (copy + grilla de fotos), sin los números de
+/* Mismo gesto que el mockup (copy + fotos), sin los números de
    seguidoras/posteos inventados — esos no están confirmados, así que no se
-   muestran. Las fotos son las mismas del lookbook, reusadas como vidriera. */
+   muestran. Tres fotos verticales escalonadas, como una tira de posteos. */
 .ig {
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 1.1fr;
-  align-items: stretch;
-  gap: clamp(1.5rem, 3vw, 3rem);
-  padding-block: clamp(1.5rem, 4vw, 3rem);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  padding-top: clamp(1rem, 3vh, 2rem);
+  padding-bottom: var(--reserva-control);
 }
 
 .ig__copy {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
 }
 
 .ig__titulo {
-  font-size: clamp(2.2rem, 4.6vw, 3.6rem);
+  font-size: clamp(2.2rem, min(4.6vw, 8.5vh), 3.8rem);
   margin: 1rem 0 1.25rem;
 }
 
@@ -2438,6 +2752,7 @@ body.pagina-slides .pie {
   font-size: clamp(1.1rem, 1.6vw, 1.3rem);
   color: var(--tinta-suave);
   margin: 0 0 1.75rem;
+  max-width: 34ch;
 }
 
 .ig__handle b {
@@ -2451,42 +2766,84 @@ body.pagina-slides .pie {
 
 .ig__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.6rem, 1.2vw, 1rem);
+  align-items: start;
+  /* Que las fotos (3:4 + escalón) nunca pasen el alto disponible: con tres
+     columnas, el ancho total ≈ 3 × ¾ × (alto libre − escalón). */
+  max-width: calc((100dvh - 16rem) * 2.25);
+  justify-self: end;
+  width: 100%;
 }
 
 .ig__tile {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 3 / 4;
   overflow: hidden;
-  transition: transform 0.4s ease;
+  background: var(--superficie);
+  transition: scale 0.4s var(--curva);
+}
+
+.ig__tile:nth-child(2) {
+  margin-top: clamp(1.5rem, 5vh, 3rem);
+}
+
+.ig__tile:nth-child(3) {
+  margin-top: clamp(0.75rem, 2.5vh, 1.5rem);
 }
 
 .ig__tile:hover {
-  transform: scale(0.985);
+  scale: 0.98;
 }
 
 .ig__tile img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: scale 0.9s var(--curva);
+}
+
+.ig__tile:hover img {
+  scale: 1.06;
+}
+
+.ig__tile::after {
+  content: "";
+  position: absolute;
+  inset: 50% 0 0;
+  background: linear-gradient(transparent, rgba(36, 27, 22, 0.45));
+  pointer-events: none;
 }
 
 .ig__tile .cap {
   position: absolute;
+  z-index: 1;
   left: 0.85rem;
   bottom: 0.7rem;
   right: 0.85rem;
   font-family: var(--serif);
   font-style: italic;
   color: #fff;
-  font-size: 0.85rem;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  font-size: 0.95rem;
+  line-height: 1.2;
 }
 
 @media (max-width: 880px) {
   .ig {
     grid-template-columns: 1fr;
+    align-content: center;
+    gap: 1.5rem;
+  }
+
+  .ig__grid {
+    justify-self: stretch;
+    max-width: none;
+  }
+
+  .ig__tile .cap {
+    font-size: 0.78rem;
+    left: 0.5rem;
+    right: 0.5rem;
   }
 }
 
@@ -2544,8 +2901,7 @@ body.pagina-slides .pie {
   background: var(--tinta);
   color: var(--fondo);
   text-align: center;
-  padding: clamp(1.5rem, 7vw, 5.5rem) var(--paso);
-  overflow-y: auto;
+  padding: clamp(1rem, 4vh, 3rem) var(--paso) var(--reserva-control);
 }
 
 .cierre__eyebrow {
@@ -2554,8 +2910,8 @@ body.pagina-slides .pie {
 }
 
 .cierre .display {
-  font-size: clamp(2.6rem, 6vw, 4.6rem);
-  margin-bottom: 1.25rem;
+  font-size: clamp(2.6rem, min(6vw, 11vh), 5rem);
+  margin-bottom: clamp(0.75rem, 2.5vh, 1.25rem);
 }
 
 .cierre .display em {
@@ -2568,7 +2924,7 @@ body.pagina-slides .pie {
   font-style: italic;
   font-size: clamp(1.05rem, 1.4vw, 1.25rem);
   max-width: 48ch;
-  margin: 0 auto 2rem;
+  margin: 0 auto clamp(1.25rem, 3.5vh, 2rem);
 }
 
 .cierre .btn--primario {
@@ -2577,7 +2933,7 @@ body.pagina-slides .pie {
 }
 
 .cierre__meta {
-  margin-top: 2.75rem;
+  margin-top: clamp(1.5rem, 5vh, 2.75rem);
   display: flex;
   gap: 2.5rem 3rem;
   justify-content: center;
@@ -3353,10 +3709,345 @@ body.pagina-slides .pie {
 }
 
 /* ==========================================================================
+   INTRO de marca (home, una vez por sesión)
+   --------------------------------------------------------------------------
+   Telón oscuro → el disco aqua de CHAO se dibuja con una onda → "CHAO" letra
+   por letra → la frase de la temporada → el telón se abre en dos hojas y el
+   disco vuela hasta el logo del header (eso último lo hace static/js/intro.js).
+
+   Línea de tiempo (s):  0.15 disco · 0.45 letras · 1.1 línea · 1.25 frase ·
+   2.1 se van los textos · 2.35 se abre el telón · 3.45 fin.
+   Todo el tiempo está acá, en CSS: si el JS no carga la intro igual se abre
+   y desaparece sola (sin el vuelo del disco).
+   ========================================================================== */
+.intro {
+  display: none;
+}
+
+.intro-activa .intro {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  cursor: pointer;
+  animation: intro-fin 0s linear 3.45s forwards;
+}
+
+.intro--saltando {
+  opacity: 0;
+  transition: opacity 0.42s ease;
+}
+
+@keyframes intro-fin {
+  to {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+/* Mientras dura la intro, el disco del header espera: el de la intro aterriza
+   justo encima. Con delay y no con JS, así reaparece igual si el JS falla. */
+.intro-activa .barra .marca__disco {
+  animation: aparece-tarde 0s linear 3.45s both;
+}
+
+@keyframes aparece-tarde {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- Las dos hojas del telón ---------------------------------------------- */
+.intro__telon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc(50% + 1px);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.2) 0px,
+      rgba(255, 255, 255, 0.03) 26px,
+      rgba(0, 0, 0, 0.1) 52px,
+      rgba(255, 255, 255, 0.025) 80px,
+      rgba(0, 0, 0, 0.2) 110px
+    ),
+    linear-gradient(180deg, #2e241e 0%, var(--tinta) 55%, #1a1310 100%);
+  animation-duration: 1.05s;
+  animation-timing-function: cubic-bezier(0.7, 0, 0.2, 1);
+  animation-delay: 2.35s;
+  animation-fill-mode: forwards;
+  will-change: transform;
+}
+
+.intro__telon--izq {
+  left: 0;
+  transform-origin: left top;
+  box-shadow: inset -40px 0 50px -30px rgba(0, 0, 0, 0.55);
+  animation-name: telon-izq;
+}
+
+.intro__telon--der {
+  right: 0;
+  transform-origin: right top;
+  box-shadow: inset 40px 0 50px -30px rgba(0, 0, 0, 0.55);
+  animation-name: telon-der;
+}
+
+/* La tela se arrastra: el borde de abajo va un poco atrás del de arriba. */
+@keyframes telon-izq {
+  0% {
+    transform: translateX(0) skewX(0deg);
+  }
+  55% {
+    transform: translateX(-62%) skewX(2.5deg);
+  }
+  100% {
+    transform: translateX(-102%) skewX(0deg);
+  }
+}
+
+@keyframes telon-der {
+  0% {
+    transform: translateX(0) skewX(0deg);
+  }
+  55% {
+    transform: translateX(62%) skewX(-2.5deg);
+  }
+  100% {
+    transform: translateX(102%) skewX(0deg);
+  }
+}
+
+/* --- Escena central --------------------------------------------------------- */
+.intro__escena {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 3vh, 1.5rem);
+  padding: 2rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.intro__sello {
+  --dd: clamp(124px, 21vmin, 184px);
+  position: relative;
+  width: var(--dd);
+  height: var(--dd);
+  margin-bottom: 0.5rem;
+}
+
+/* Mismas proporciones que el disco del header (38px, textos de .62/.5rem):
+   así cuando aterriza encima no se nota el cambio. */
+.intro__disco {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--aqua);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  animation: disco-entra 1.1s var(--curva) 0.15s both;
+}
+
+.intro:not(.intro--js) .intro__disco {
+  animation:
+    disco-entra 1.1s var(--curva) 0.15s both,
+    intro-sale 0.5s ease 2.35s forwards;
+}
+
+.intro__chao {
+  display: flex;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: calc(var(--dd) * 0.261);
+  letter-spacing: 0.14em;
+  margin-right: -0.14em; /* el tracking del último carácter descentra la palabra */
+}
+
+.intro__chao i {
+  font-style: normal;
+  display: inline-block;
+  animation: letra 0.7s var(--curva) both;
+}
+
+.intro__chao i:nth-child(1) { animation-delay: 0.45s; }
+.intro__chao i:nth-child(2) { animation-delay: 0.52s; }
+.intro__chao i:nth-child(3) { animation-delay: 0.59s; }
+.intro__chao i:nth-child(4) { animation-delay: 0.66s; }
+
+.intro__disco em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 300;
+  /* Un pelo más chica que la proporción del header: a este tamaño
+     "Indumentaria" se salía del círculo y el clip-path la cortaba. */
+  font-size: calc(var(--dd) * 0.18);
+  margin-top: calc(var(--dd) * -0.01);
+  animation: aparece 0.6s ease 0.85s both;
+}
+
+.intro__onda {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--aqua);
+  animation: onda 1.8s cubic-bezier(0.2, 0.6, 0.3, 1) 0.45s both;
+}
+
+.intro__onda--2 {
+  animation-delay: 0.75s;
+}
+
+.intro__linea {
+  width: 56px;
+  height: 1px;
+  background: rgba(242, 234, 220, 0.35);
+  animation:
+    linea 0.8s var(--curva) 1.1s both,
+    intro-sale 0.35s ease 2.1s forwards;
+}
+
+.intro__frase {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(1.5rem, 3.6vw, 2.4rem);
+  line-height: 1.15;
+  color: var(--fondo);
+  animation:
+    frase 1s var(--curva) 1.25s both,
+    intro-sale 0.35s ease 2.1s forwards;
+}
+
+.intro__lugar {
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(242, 234, 220, 0.55);
+  animation:
+    aparece 0.8s ease 1.5s both,
+    intro-sale 0.35s ease 2.1s forwards;
+}
+
+.intro__saltar {
+  position: absolute;
+  z-index: 3;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(1rem, 3vh, 2rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: var(--pildora);
+  border: 1px solid rgba(242, 234, 220, 0.22);
+  background: transparent;
+  color: rgba(242, 234, 220, 0.7);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transition: background 0.25s, color 0.25s;
+  animation:
+    aparece 0.6s ease 0.9s both,
+    intro-sale 0.3s ease 2.1s forwards;
+}
+
+.intro__saltar:hover,
+.intro__saltar:focus-visible {
+  background: var(--fondo);
+  color: var(--tinta);
+}
+
+@keyframes disco-entra {
+  from {
+    transform: scale(0.5) rotate(-30deg);
+    clip-path: circle(0% at 50% 50%);
+  }
+  to {
+    transform: none;
+    clip-path: circle(71% at 50% 50%);
+  }
+}
+
+@keyframes letra {
+  from {
+    opacity: 0;
+    translate: 0 0.55em;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes aparece {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes onda {
+  from {
+    opacity: 0.8;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 2.4;
+  }
+}
+
+@keyframes linea {
+  from {
+    scale: 0 1;
+  }
+  to {
+    scale: 1 1;
+  }
+}
+
+@keyframes frase {
+  from {
+    opacity: 0;
+    letter-spacing: 0.14em;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0;
+    filter: blur(0);
+  }
+}
+
+@keyframes intro-sale {
+  to {
+    opacity: 0;
+    translate: 0 -10px;
+  }
+}
+
+/* ==========================================================================
    Mobile. Regla del hero: el H1 y el CTA van ANTES de la foto en el stack.
    ========================================================================== */
 @media (max-width: 900px) {
-  .hero,
   .look,
   .local,
   .checkout {
@@ -3366,8 +4057,40 @@ body.pagina-slides .pie {
   /* .nosotras y .ig ya tienen su propio breakpoint a 880px, más angosto que
      este porque son 2 columnas más chicas que .hero/.local. */
 
-  .hero__foto {
-    order: 2;
+  /* Hero en una columna: texto arriba (H1 y CTA antes que la foto) y la foto
+     llenando lo que queda hasta abajo, recortada — nunca empuja el layout. */
+  .hero {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .hero__texto {
+    justify-content: flex-start;
+    padding: 1.25rem var(--paso) 1.25rem;
+  }
+
+  .hero__titulo {
+    font-size: clamp(2.6rem, min(13vw, 8vh), 4rem);
+  }
+
+  /* Los dos botones en una fila: apilados se comían la mitad de la foto. */
+  .hero__acciones {
+    flex-wrap: nowrap;
+  }
+
+  .hero__acciones .btn {
+    flex: 1 1 0;
+    padding-inline: 0.75rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  .hero__sello {
+    right: auto;
+    left: 0;
+    top: 0;
+    bottom: auto;
   }
 
   /* En una columna, alternar el orden desordena la lectura: la foto siempre
@@ -3393,20 +4116,10 @@ body.pagina-slides .pie {
     min-height: 44px;
   }
 
-  /* La home no scrollea: en una columna, la foto a aspect-ratio completo no
-     entra junto con el texto en el alto de la pantalla. Se le pone un techo
-     y el aviso de cuotas/stock se esconde — ya está repetido en "Por qué". */
-  .hero__foto {
-    aspect-ratio: auto;
-    max-height: 38vh;
-  }
-
+  /* Horario y cuotas ya están en "Por qué" y en Contacto: en el celular la
+     foto vale más que repetirlos. */
   .hero__datos {
     display: none;
-  }
-
-  .hero__bajada {
-    margin-bottom: 1.25rem;
   }
 
   /* 44px es el mínimo táctil real; en desktop 40 alcanza porque hay puntero. */

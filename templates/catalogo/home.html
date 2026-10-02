@@ -3,76 +3,123 @@
 
 {% block bodyclass %}pagina-slides{% endblock %}
 
+{% block intro %}
+{% comment %}
+  Intro de marca ("splash"): telón oscuro, el disco de CHAO se dibuja, aparece
+  la frase de la temporada y el telón se abre mientras el disco vuela a su lugar
+  en el header. Una sola vez por sesión, se saltea con un toque o una tecla y
+  no se muestra con "reducir movimiento". La secuencia de entrada es CSS puro;
+  la salida la maneja static/js/intro.js. Si el JS no carga, el CSS la oculta
+  solo a los pocos segundos — nunca puede quedar tapando la tienda.
+{% endcomment %}
+<script>
+  try {
+    if (sessionStorage.getItem("chao-intro") || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("sin-intro");
+    } else {
+      document.documentElement.classList.add("intro-activa");
+      window.__chaoIntroT0 = performance.now();
+    }
+  } catch (e) {
+    document.documentElement.classList.add("sin-intro");
+  }
+</script>
+<div class="intro" data-intro>
+  <div class="intro__telon intro__telon--izq" aria-hidden="true"></div>
+  <div class="intro__telon intro__telon--der" aria-hidden="true"></div>
+
+  <div class="intro__escena" aria-hidden="true">
+    <span class="intro__sello">
+      <span class="intro__onda"></span>
+      <span class="intro__onda intro__onda--2"></span>
+      <span class="intro__disco" data-intro-disco>
+        <span class="intro__chao"><i>C</i><i>H</i><i>A</i><i>O</i></span>
+        <em>Indumentaria</em>
+      </span>
+    </span>
+    <span class="intro__linea"></span>
+    <span class="intro__frase">{{ portada.frase }}</span>
+    <span class="intro__lugar">Villa Bosch · Temporada {{ portada.temporada }}</span>
+  </div>
+
+  <button type="button" class="intro__saltar" data-intro-saltar>Entrar <span aria-hidden="true">→</span></button>
+</div>
+{% endblock %}
+
 {% block contenido %}
 {% comment %}
   La home es la presentación de 6 diapositivas con cortina (ver
   static/js/slides.js). El catálogo completo, el lookbook con hotspots y "El
   local" con mapa viven en sus propias páginas — acá solo van los destacados
   y un pantallazo honesto de la marca.
+
+  Cada diapositiva tiene que entrar entera en el alto de la pantalla (también
+  en una notebook de 700px de alto): nada de scroll interno. Las piezas con
+  clase "entra" suben al aparecer la diapositiva, escalonadas por --d.
 {% endcomment %}
 
 <div class="stage" data-stage>
   <div class="cortina" data-cortina></div>
 
   {# ===== 1. HERO ======================================================= #}
-  <section class="slide hero contenido activa" data-slide="hero">
-    <div>
-      <p class="sup">Villa Bosch · Tres de Febrero</p>
-      <h1 class="display hero__titulo">Chao<br><em>Indumentaria</em></h1>
-      <p class="hero__tag">{{ portada.frase }}</p>
-      <p class="hero__bajada">
+  <section class="slide hero activa" data-slide="hero" data-titulo="Inicio">
+    <div class="hero__texto">
+      <p class="sup entra" style="--d:0">Villa Bosch · Tres de Febrero</p>
+      <h1 class="display hero__titulo">
+        <span class="hero__renglon"><span class="entra" style="--d:1">Chao</span></span>
+        <span class="hero__renglon"><em class="entra" style="--d:2">Indumentaria</em></span>
+      </h1>
+      <p class="hero__tag entra" style="--d:3">{{ portada.frase }}</p>
+      <p class="hero__bajada entra" style="--d:4">
         Las mismas prendas que ves en el local, con su talle y su precio. Elegís, pagás
         y lo retirás por Gaucho Cruz — o lo coordinamos por WhatsApp.
       </p>
-      <div class="hero__acciones">
+      <div class="hero__acciones entra" style="--d:5">
         <button type="button" class="btn btn--primario" data-ir-slide="coleccion">Ver colección <span aria-hidden="true">→</span></button>
-        <button type="button" class="btn btn--secundario" data-ir-slide="nosotras">Conocenos <span aria-hidden="true">↓</span></button>
+        <a href="{% url 'catalogo:catalogo' %}" class="btn btn--secundario">Toda la tienda</a>
       </div>
 
-      <div class="hero__datos">
+      <dl class="hero__datos entra" style="--d:6">
         <div>
-          <div class="dato__valor">{{ negocio.dias }}</div>
-          <div class="dato__etiqueta">{{ negocio.horario_manana }} · {{ negocio.horario_tarde }}</div>
+          <dt class="dato__etiqueta">Horario</dt>
+          <dd class="dato__valor">{{ negocio.dias }}</dd>
+          <dd class="dato__etiqueta">{{ negocio.horario_manana }} · {{ negocio.horario_tarde }}</dd>
         </div>
         <div>
-          <div class="dato__valor">Cuotas sin interés</div>
-          <div class="dato__etiqueta">Todos los días</div>
+          <dt class="dato__etiqueta">Pagos</dt>
+          <dd class="dato__valor">Cuotas sin interés</dd>
+          <dd class="dato__etiqueta">Todos los días</dd>
         </div>
-      </div>
+      </dl>
     </div>
 
-    <div class="hero__foto">
+    <div class="hero__foto revela">
       <img src="{% if portada.hero_url %}{{ portada.hero_url }}{% else %}{% static 'img/looks/look-elegancia-simple.jpg' %}{% endif %}"
            alt="{% if portada.foto_hero %}{{ portada.foto_hero.alt }}{% else %}Prendas en la percha del local de CHAO{% endif %}"
            width="1440" height="1920" fetchpriority="high">
       <span class="hero__sello">Temporada {{ portada.temporada }}</span>
     </div>
-
-    <div class="hero__vertical">
-      <span class="acento">— Temporada {{ portada.temporada }}</span>
-      <span>Villa Bosch · Zona Oeste GBA</span>
-    </div>
   </section>
 
   {# ===== 2. NOSOTRAS ==================================================== #}
-  <section class="slide nosotras" data-slide="nosotras">
-    <div class="nosotras__foto">
+  <section class="slide nosotras" data-slide="nosotras" data-titulo="Nosotras">
+    <div class="nosotras__foto revela">
       <img src="{% static 'img/looks/el-local.jpg' %}"
            alt="Vidriera de CHAO Indumentaria en Gaucho Cruz 5485, Villa Bosch"
            width="1440" height="1920" loading="lazy">
-      <div class="nosotras__sello">Villa<br>Bosch<br><small style="font-family:var(--sans);font-style:normal;font-size:0.55rem;letter-spacing:.18em;text-transform:uppercase;opacity:.75">Zona Oeste</small></div>
+      <div class="nosotras__sello">Villa<br>Bosch<small>Zona Oeste</small></div>
     </div>
     <div class="nosotras__copy">
-      <p class="sup">— Nosotras</p>
-      <h2 class="display nosotras__titulo">Con espíritu <em>de barrio.</em></h2>
-      <div class="nosotras__cuerpo">
+      <p class="sup entra" style="--d:0">— Nosotras</p>
+      <h2 class="display nosotras__titulo entra" style="--d:1">Con espíritu <em>de barrio.</em></h2>
+      <div class="nosotras__cuerpo entra" style="--d:2">
         <p>Somos una tienda de indumentaria en Villa Bosch. Creemos que vestirse bien es
           una forma de expresarse, y estamos acá para acompañarte en eso.</p>
         <p>Por eso armamos esta tienda online: para que veas el talle y el precio de cada
           prenda antes de venir, y decidas con toda la información — lo mismo que
           encontrás si pasás por el local.</p>
       </div>
-      <div class="nosotras__firma">
+      <div class="nosotras__firma entra" style="--d:3">
         <span class="linea-firma"></span>
         <span>Chao Indumentaria</span>
       </div>
@@ -80,100 +127,104 @@
   </section>
 
   {# ===== 3. COLECCIÓN =================================================== #}
-  <section class="slide col contenido" data-slide="coleccion">
+  <section class="slide col contenido" data-slide="coleccion" data-titulo="Colección">
     <div class="col-head">
-      <div>
+      <div class="entra" style="--d:0">
         <p class="sup">— {{ portada.temporada }}</p>
         <h2 class="display col-titulo">Lo <em>nuevo.</em></h2>
       </div>
-      <p class="seccion__nota">{{ portada.bajada_coleccion }}</p>
+      <div class="col-head__der entra" style="--d:1">
+        <p class="seccion__nota">{{ portada.bajada_coleccion }}</p>
+        <a href="{% url 'catalogo:catalogo' %}" class="cta-ghost">Ver todo el catálogo <span aria-hidden="true">→</span></a>
+      </div>
     </div>
-    <div class="grilla col-grid">
+    <div class="grilla col-grid entra" style="--d:2" data-sin-swipe>
       {% for prenda in destacados %}
         {% include "catalogo/_card.html" with prenda=prenda %}
       {% endfor %}
     </div>
-    <a href="{% url 'catalogo:catalogo' %}" class="cta-ghost">Ver todo el catálogo <span aria-hidden="true">→</span></a>
   </section>
 
   {# ===== 4. POR QUÉ ===================================================== #}
-  <section class="slide porque" data-slide="porque">
+  <section class="slide porque" data-slide="porque" data-titulo="Por qué">
     <div class="porque__cabeza">
-      <p class="sup">— Por qué elegirnos</p>
-      <h2 class="display porque__titulo">Cuidamos los <em>detalles.</em></h2>
-      <p class="porque__sub">Las cosas simples, bien hechas. Eso es lo que más nos importa.</p>
+      <p class="sup entra" style="--d:0">— Por qué elegirnos</p>
+      <h2 class="display porque__titulo entra" style="--d:1">Cuidamos los <em>detalles.</em></h2>
+      <p class="porque__sub entra" style="--d:2">Las cosas simples, bien hechas. Eso es lo que más nos importa.</p>
     </div>
     <div class="porque__grid">
-      <div class="porque__item">
+      <div class="porque__item entra" style="--d:3">
         <div class="porque__icono" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 4h16v5H4z"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/>
           </svg>
         </div>
-        <h3>Retiro en el local</h3>
-        <p>Reservá por WhatsApp y retirá en Gaucho Cruz 5485. Los envíos se coordinan caso a caso.</p>
+        <div>
+          <h3>Retiro en el local</h3>
+          <p>Reservá por WhatsApp y retirá en Gaucho Cruz 5485. Los envíos se coordinan caso a caso.</p>
+        </div>
       </div>
-      <div class="porque__item">
+      <div class="porque__item entra" style="--d:4">
         <div class="porque__icono" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 11.5a8.5 8.5 0 1 1-3.6-6.95L21 4l-1.45 3.6A8.5 8.5 0 0 1 21 11.5z"/>
             <circle cx="8" cy="12" r=".7" fill="currentColor"/><circle cx="12" cy="12" r=".7" fill="currentColor"/><circle cx="16" cy="12" r=".7" fill="currentColor"/>
           </svg>
         </div>
-        <h3>Te asesoramos antes</h3>
-        <p>¿Entre dos talles o dudando de un color? Escribinos por WhatsApp y te ayudamos a elegir.</p>
+        <div>
+          <h3>Te asesoramos antes</h3>
+          <p>¿Entre dos talles o dudando de un color? Escribinos por WhatsApp y te ayudamos a elegir.</p>
+        </div>
       </div>
-      <div class="porque__item">
+      <div class="porque__item entra" style="--d:5">
         <div class="porque__icono" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="5" width="20" height="14" rx="1.5"/><path d="M2 9h20"/><path d="M6 15h4"/>
           </svg>
         </div>
-        <h3>Cuotas sin interés</h3>
-        <p>Todos los días, tal como está pintado en la vitrina del local.</p>
+        <div>
+          <h3>Cuotas sin interés</h3>
+          <p>Todos los días, tal como está pintado en la vitrina del local.</p>
+        </div>
       </div>
     </div>
   </section>
 
   {# ===== 5. INSTAGRAM ==================================================== #}
-  <section class="slide ig contenido" data-slide="instagram">
+  <section class="slide ig contenido" data-slide="instagram" data-titulo="Instagram">
     <div class="ig__copy">
-      <p class="sup">— Seguinos</p>
-      <h2 class="display ig__titulo">El día a día,<br><em>en vivo.</em></h2>
-      <p class="ig__handle">Subimos los nuevos ingresos y los looks de la semana en <b>@{{ negocio.instagram }}</b></p>
-      <a href="{{ negocio.instagram_url }}" class="btn btn--primario" target="_blank" rel="noopener">Seguinos en Instagram</a>
+      <p class="sup entra" style="--d:0">— Seguinos</p>
+      <h2 class="display ig__titulo entra" style="--d:1">El día a día,<br><em>en vivo.</em></h2>
+      <p class="ig__handle entra" style="--d:2">Subimos los nuevos ingresos y los looks de la semana en <b>@{{ negocio.instagram }}</b></p>
+      <a href="{{ negocio.instagram_url }}" class="btn btn--primario entra" style="--d:3" target="_blank" rel="noopener">Seguinos en Instagram</a>
     </div>
     <div class="ig__grid">
-      <a class="ig__tile" href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
+      <a class="ig__tile entra" style="--d:2" href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
         <img src="{% static 'img/looks/look-del-dia.jpg' %}" alt="Look del día" loading="lazy">
         <span class="cap">Look del día</span>
       </a>
-      <a class="ig__tile" href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
+      <a class="ig__tile entra" style="--d:3" href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
         <img src="{% static 'img/looks/look-con-actitud.jpg' %}" alt="Look con actitud" loading="lazy">
         <span class="cap">Look con actitud</span>
       </a>
-      <a class="ig__tile" href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
+      <a class="ig__tile entra" style="--d:4" href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
         <img src="{% static 'img/looks/look-basicos-sweaters.jpg' %}" alt="Básicos que no pueden faltar" loading="lazy">
         <span class="cap">Básicos que no pueden faltar</span>
-      </a>
-      <a class="ig__tile" href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
-        <img src="{% static 'img/looks/look-remera-negra.jpg' %}" alt="Elegancia y comodidad" loading="lazy">
-        <span class="cap">Elegancia y comodidad</span>
       </a>
     </div>
   </section>
 
   {# ===== 6. CONTACTO ===================================================== #}
-  <section class="slide cierre" data-slide="contacto" data-oscura="1" id="contacto">
-    <p class="sup cierre__eyebrow">— Contacto</p>
-    <h2 class="display">Pasá por<br>el <em>local.</em></h2>
-    <p>
+  <section class="slide cierre" data-slide="contacto" data-titulo="Contacto" data-oscura="1" id="contacto">
+    <p class="sup cierre__eyebrow entra" style="--d:0">— Contacto</p>
+    <h2 class="display entra" style="--d:1">Pasá por<br>el <em>local.</em></h2>
+    <p class="entra" style="--d:2">
       O escribinos por WhatsApp y te ayudamos a elegir. Atendemos de {{ negocio.dias|lower }}.
     </p>
     <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ '¡Hola CHAO! Vi la tienda online y quería consultarles.'|urlencode }}"
-       class="btn btn--primario" target="_blank" rel="noopener">Escribinos por WhatsApp</a>
+       class="btn btn--primario entra" style="--d:3" target="_blank" rel="noopener">Escribinos por WhatsApp</a>
 
-    <div class="cierre__meta">
+    <div class="cierre__meta entra" style="--d:4">
       <a href="{{ negocio.instagram_url }}" target="_blank" rel="noopener">
         <span class="dato__etiqueta">Instagram</span>
         <span class="cierre__meta-valor">@{{ negocio.instagram }}</span>
@@ -189,20 +240,25 @@
     </div>
   </section>
 
-  <button type="button" class="slide-flecha slide-flecha--izq" data-slide-prev aria-label="Diapositiva anterior">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-  </button>
-  <button type="button" class="slide-flecha slide-flecha--der" data-slide-next aria-label="Diapositiva siguiente">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-  </button>
-
-  <div class="slide-indicador">
+  {% comment %}Un solo control abajo al centro (flechas + puntos + dónde estás),
+    en vez de flechas sueltas en los bordes que caían encima de las fotos.{% endcomment %}
+  <nav class="slide-control" aria-label="Diapositivas">
+    <button type="button" class="slide-control__flecha" data-slide-prev aria-label="Diapositiva anterior">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
     <div class="slide-puntos" data-slide-puntos></div>
-    <div class="slide-contador"><span class="actual" data-slide-actual>01</span> / 06</div>
-  </div>
+    <p class="slide-contador" aria-live="polite">
+      <span class="actual" data-slide-actual>01</span><span class="slide-contador__total">/ 06</span>
+      <span class="slide-contador__nombre" data-slide-nombre>Inicio</span>
+    </p>
+    <button type="button" class="slide-control__flecha" data-slide-next aria-label="Diapositiva siguiente">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </nav>
 </div>
 {% endblock %}
 
 {% block scripts %}
+  <script src="{% static 'js/intro.js' %}" defer></script>
   <script src="{% static 'js/slides.js' %}" defer></script>
 {% endblock %}

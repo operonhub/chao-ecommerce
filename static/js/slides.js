@@ -26,6 +26,7 @@
   const btnNext = stage.querySelector("[data-slide-next]");
   const puntosWrap = stage.querySelector("[data-slide-puntos]");
   const contador = stage.querySelector("[data-slide-actual]");
+  const nombreActual = stage.querySelector("[data-slide-nombre]");
 
   const COVER_MS = 720;
   const HOLD_MS = 60;
@@ -49,6 +50,7 @@
     slides.forEach((s, i) => s.classList.toggle("activa", i === idx));
     puntos.forEach((p, i) => p.classList.toggle("activo", i === idx));
     if (contador) contador.textContent = String(idx + 1).padStart(2, "0");
+    if (nombreActual) nombreActual.textContent = slides[idx].dataset.titulo || "";
     if (btnPrev) btnPrev.disabled = idx === 0;
     if (btnNext) btnNext.disabled = idx === total - 1;
     stage.classList.toggle("con-fondo-oscuro", slides[idx].dataset.oscura === "1");
@@ -58,6 +60,9 @@
   function ir(destino, { instantaneo = false } = {}) {
     if (destino === idx || destino < 0 || destino >= total || animando) return;
     const dir = destino > idx ? "next" : "prev";
+    // Después del primer cambio, el hero ya no espera a que termine la intro
+    // para animar su entrada (ver --base-entrada en chao.css).
+    stage.classList.add("navegado");
 
     if (instantaneo || !cortina) {
       idx = destino;
@@ -106,16 +111,20 @@
   });
 
   document.addEventListener("keydown", (e) => {
+    // Mientras está abierto el menú o la bolsa, las flechas son de ellos.
+    if (document.querySelector("[data-abierto]")) return;
+    if (e.target.closest?.("input, select, textarea")) return;
     if (e.key === "ArrowRight") siguiente();
     if (e.key === "ArrowLeft") anterior();
   });
 
-  // Swipe táctil.
+  // Swipe táctil. El carrusel de prendas en el celular scrollea de costado
+  // por su cuenta ([data-sin-swipe]): ahí deslizar no cambia de diapositiva.
   let touchX = null;
   stage.addEventListener(
     "touchstart",
     (e) => {
-      touchX = e.touches[0].clientX;
+      touchX = e.target.closest("[data-sin-swipe]") ? null : e.touches[0].clientX;
     },
     { passive: true }
   );
@@ -135,7 +144,17 @@
   // Deep link: /#nosotras entra directo en esa diapositiva, sin cortina.
   const hash = location.hash.replace("#", "");
   const destinoInicial = nombres.indexOf(hash);
-  if (destinoInicial >= 0) ir(destinoInicial, { instantaneo: true });
+  if (destinoInicial >= 0) {
+    stage.classList.add("navegado");
+    ir(destinoInicial, { instantaneo: true });
+  }
+
+  // Ya estando en la home, los links del menú a "/#contacto" solo cambian el
+  // hash (no recargan): se escucha el cambio y se va con cortina.
+  window.addEventListener("hashchange", () => {
+    const destino = nombres.indexOf(location.hash.replace("#", ""));
+    if (destino >= 0) ir(destino);
+  });
 
   pintar();
 })();

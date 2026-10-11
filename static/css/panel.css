@@ -1,67 +1,673 @@
 /* ==========================================================================
-   Panel de la dueña — mismo admin de Django, vestido con la marca de CHAO.
-   Se apoya en el admin porque sale gratis (permisos, auditoría, formularios
-   ya hechos); esto es maquillaje encima, no un panel a mano. Los valores de
-   color están repetidos a mano (no como var(--aqua)) porque el admin no carga
-   chao.css, así que no hay custom properties compartidas con el sitio.
+   Panel avanzado (/panel/) — el admin de Django vestido como "Mi tienda".
+   --------------------------------------------------------------------------
+   Mismo lenguaje que /gestion/: fondo crema, tarjetas hueso redondeadas,
+   Cormorant para títulos y Jost para el resto, botones pastilla. Se apoya en
+   el admin porque sale gratis (permisos, historial, formularios); esto es
+   piel encima, no un panel a mano.
+
+   Los colores están escritos a mano (no var(--aqua)) porque el admin no carga
+   chao.css. Las variables del admin se pisan en :root y en los dos temas: los
+   selectores [data-theme] pesan más que :root a secas, y la marca no tiene que
+   depender del modo oscuro del sistema de la dueña (por eso además se esconde
+   el botón de tema).
    ========================================================================== */
 
-/* El admin de Django trae tema claro/oscuro automático con sus propias
-   variables bajo `:root[data-theme="dark"]` / `[data-theme="light"]` — esos
-   selectores pesan más que un `:root` a secas, así que un override en `:root`
-   solo gana en el tema que cargue después. Se repite en los tres para que la
-   marca no dependa de qué tema haya elegido el sistema de la dueña. */
 :root,
 :root[data-theme="dark"],
 :root[data-theme="light"] {
-  --primary: #2f6b70;
+  --cp-fondo: #f2eadc;
+  --cp-hueso: #fffcf6;
+  --cp-tinta: #241b16;
+  --cp-tinta-suave: #4a3a30;
+  --cp-mute: #8a7c6e;
+  --cp-linea: rgba(36, 27, 22, 0.14);
+  --cp-aqua: #b1cfd1;
+  --cp-sage: #2f6b70;
+  --cp-bordo: #6f2a33;
+  --cp-radio: 16px;
+  --cp-campo: 12px;
+  --cp-serif: "Cormorant Garamond", serif;
+  --cp-sans: "Jost", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  color-scheme: light;
+
+  --font-family-primary: var(--cp-sans);
+  --body-bg: var(--cp-fondo);
+  --body-fg: var(--cp-tinta);
+  --body-quiet-color: var(--cp-mute);
+  --body-medium-color: var(--cp-tinta-suave);
+  --body-loud-color: var(--cp-tinta);
+
+  --primary: var(--cp-tinta);
   --primary-fg: #fff;
-  --header-bg: #1a1a1a;
-  --header-color: #fafaf8;
-  --header-link-color: #fafaf8;
-  --header-branding-color: #fafaf8;
-  --breadcrumbs-bg: #24413f;
-  --breadcrumbs-fg: #e8e6e1;
-  --breadcrumbs-link-fg: #fff;
-  --link-fg: #2f6b70;
+  --secondary: var(--cp-tinta);
+  --accent: var(--cp-sage);
+
+  --header-bg: rgba(242, 234, 220, 0.94);
+  --header-color: var(--cp-tinta);
+  --header-link-color: var(--cp-tinta);
+  --header-branding-color: var(--cp-tinta);
+
+  --breadcrumbs-bg: transparent;
+  --breadcrumbs-fg: var(--cp-mute);
+  --breadcrumbs-link-fg: var(--cp-tinta-suave);
+
+  --link-fg: var(--cp-sage);
   --link-hover-color: #204b4f;
-  --link-selected-fg: #2f6b70;
-  --button-bg: #2f6b70;
-  --button-hover-bg: #204b4f;
-  --default-button-bg: #1a1a1a;
+  --link-selected-fg: var(--cp-sage);
+
+  --hairline-color: var(--cp-linea);
+  --border-color: var(--cp-linea);
+  --darkened-bg: #f6efe3;
+  --selected-bg: #e8f1ef;
+  --selected-row: #f1f6f3;
+
+  --error-fg: var(--cp-bordo);
+  --message-success-bg: #e3f1e9;
+  --message-warning-bg: #fdf1dc;
+  --message-error-bg: #f6e3e3;
+
+  --button-fg: #fff;
+  --button-bg: var(--cp-tinta);
+  --button-hover-bg: #000;
+  --default-button-bg: var(--cp-tinta);
   --default-button-hover-bg: #000;
-  --selected-bg: #e8f3f3;
-  --selected-row: #f1f8f8;
-  --border-radius: 4px;
+  --close-button-bg: #8a7c6e;
+  --close-button-hover-bg: #4a3a30;
+  --delete-button-bg: var(--cp-bordo);
+  --delete-button-hover-bg: #521e25;
+
+  --object-tools-fg: var(--cp-tinta);
+  --object-tools-bg: transparent;
+  --object-tools-hover-bg: var(--cp-tinta);
+
+  --border-radius: var(--cp-campo);
 }
 
+html,
+body {
+  background: var(--cp-fondo);
+  color: var(--cp-tinta);
+  font-family: var(--cp-sans);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* El tema queda fijo en claro, como "Mi tienda". */
+.theme-toggle {
+  display: none !important;
+}
+
+strong,
+b,
+th {
+  font-weight: 500;
+}
+
+/* --- Encabezado ------------------------------------------------------------- */
 #header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  padding: 0.75rem clamp(1rem, 3vw, 2.5rem);
   background: var(--header-bg);
-}
-
-/* El admin pinta el link de #site-name con var(--accent), no con las
-   variables de header que ya pisamos arriba — se targetea directo. */
-#site-name a:link,
-#site-name a:visited {
-  color: var(--header-color);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--cp-linea);
+  color: var(--cp-tinta);
 }
 
 #branding h1,
-#branding h1 a:link,
-#branding h1 a:visited {
-  font-weight: 700;
-  letter-spacing: 0.02em;
+#site-name {
+  margin: 0;
+  font-weight: 400;
 }
 
-div.breadcrumbs {
-  background: #24413f;
+.cp-marca,
+.cp-marca:link,
+.cp-marca:visited {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--cp-tinta) !important;
+  text-decoration: none;
+}
+
+.cp-disco {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--cp-aqua);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  color: #fff;
+}
+
+.cp-disco span {
+  font-family: var(--cp-sans);
+  font-weight: 500;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+}
+
+.cp-disco em {
+  font-family: var(--cp-serif);
+  font-style: italic;
+  font-weight: 300;
+  font-size: 0.5rem;
+  margin-top: -1px;
+}
+
+.cp-marca__texto {
+  font-family: var(--cp-serif);
+  font-size: 1.45rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.cp-marca__texto em {
+  font-style: italic;
+  color: var(--cp-bordo);
+}
+
+#user-tools {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cp-mute);
+}
+
+#user-tools strong {
+  color: var(--cp-tinta);
+}
+
+#user-tools a,
+#user-tools button,
+#logout-form button {
+  color: var(--cp-tinta-suave) !important;
+  border-bottom: 0 !important;
+  text-decoration: none;
+  font-family: var(--cp-sans);
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+#user-tools a:hover,
+#logout-form button:hover {
+  color: var(--cp-sage) !important;
+}
+
+#user-tools .cp-volver {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: var(--cp-tinta);
+  color: var(--cp-fondo) !important;
+}
+
+#user-tools .cp-volver:hover {
+  background: #000;
+  color: #fff !important;
+}
+
+/* --- Migas -------------------------------------------------------------------- */
+div.breadcrumbs,
+nav.breadcrumbs {
+  padding: 1rem clamp(1rem, 3vw, 2.5rem) 0;
+  background: transparent;
+  color: var(--cp-mute);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+div.breadcrumbs a {
+  color: var(--cp-tinta-suave);
+}
+
+/* --- Contenido ------------------------------------------------------------------ */
+#content {
+  padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 4rem;
+}
+
+#content h1 {
+  margin: 0.25rem 0 1.5rem;
+  font-family: var(--cp-serif);
+  font-weight: 300;
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--cp-tinta);
+}
+
+#content h2,
+#content h3 {
+  font-family: var(--cp-serif);
+  font-weight: 400;
+}
+
+/* Tarjetas: módulos del inicio, filtros, fieldsets, acciones recientes */
+.module,
+#changelist-filter,
+#recent-actions-module,
+fieldset.module {
+  background: var(--cp-hueso);
+  border: 1px solid var(--cp-linea);
+  border-radius: var(--cp-radio);
+  overflow: hidden;
+  box-shadow: none;
+  margin-bottom: 1.25rem;
+}
+
+.module caption,
+.module h2,
+.inline-group h2,
+fieldset.module > h2,
+#changelist-filter h2 {
+  padding: 1.1rem 1.25rem 0.6rem;
+  background: transparent;
+  color: var(--cp-tinta);
+  font-family: var(--cp-serif);
+  font-size: 1.45rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+}
+
+.module caption a,
+.module h2 a {
+  color: var(--cp-tinta);
+}
+
+#changelist-filter h3 {
+  margin: 1rem 1.25rem 0.4rem;
+  font-family: var(--cp-sans);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cp-tinta-suave);
+}
+
+#changelist-filter ul {
+  margin: 0 1.25rem 0.75rem;
+  padding: 0;
+  border-bottom: 1px solid var(--cp-linea);
+}
+
+#changelist-filter li.selected a {
+  color: var(--cp-sage);
+  font-weight: 500;
+}
+
+/* Inicio del panel: módulos como en "Mi tienda" */
+.dashboard .module table {
+  width: 100%;
+}
+
+.dashboard .module th,
+.dashboard .module td {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--cp-linea);
+  font-size: 0.98rem;
+}
+
+.dashboard .module th a {
+  color: var(--cp-tinta);
+  font-weight: 500;
+}
+
+.dashboard .module th a:hover {
+  color: var(--cp-sage);
+}
+
+#recent-actions-module h2 {
+  margin: 0;
+}
+
+#recent-actions-module h3 {
+  margin: 0.5rem 1.25rem;
+  font-family: var(--cp-sans);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cp-mute);
+}
+
+#recent-actions-module p,
+#recent-actions-module ul {
+  margin: 0 1.25rem 1.1rem;
+}
+
+/* "Agregar" / "Modificar" como en el panel: link chico sin íconos de colores */
+a.addlink,
+a.changelink,
+a.viewlink,
+a.inlineviewlink {
+  padding-left: 0;
+  background-image: none !important;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cp-sage);
+}
+
+a.addlink::before {
+  content: "+ ";
+}
+
+a.changelink::before {
+  content: "✎ ";
+}
+
+/* --- Tablas (listados) ------------------------------------------------------------- */
+#changelist .results,
+#changelist table,
+.module table {
+  border-radius: 0;
+}
+
+thead th,
+.module thead th,
+#result_list thead th {
+  background: var(--cp-fondo);
+  border-bottom: 1px solid var(--cp-linea);
+  color: var(--cp-tinta-suave);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+thead th a:link,
+thead th a:visited {
+  color: var(--cp-tinta-suave);
+}
+
+#result_list tbody tr {
+  background: var(--cp-hueso);
+}
+
+#result_list tbody tr:nth-child(even) {
+  background: #fbf6ec;
+}
+
+#result_list tbody tr:hover {
+  background: var(--selected-row);
+}
+
+#result_list td,
+#result_list th {
+  padding: 0.75rem 0.85rem;
+  border-top: 1px solid var(--cp-linea);
+  vertical-align: middle;
+  font-size: 0.95rem;
+}
+
+#result_list th a {
+  font-weight: 500;
+}
+
+#changelist #toolbar {
+  margin-bottom: 1rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+#changelist .actions {
+  padding: 0.75rem 1rem;
+  background: var(--cp-hueso);
+  border: 1px solid var(--cp-linea);
+  border-radius: var(--cp-campo);
+  margin-bottom: 0.75rem;
+}
+
+.paginator {
+  padding: 1rem 0;
+  border-top: 0;
+  color: var(--cp-mute);
+}
+
+/* Botones de arriba a la derecha ("Agregar producto") */
+.object-tools a:link,
+.object-tools a:visited {
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  background: var(--cp-tinta);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+}
+
+.object-tools a:hover {
+  background: #000;
+}
+
+.object-tools a.addlink {
+  background-image: none;
+  padding-right: 1.1rem;
+}
+
+/* --- Formularios ------------------------------------------------------------------ */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="url"],
+input[type="number"],
+input[type="tel"],
+input[type="search"],
+textarea,
+select,
+.vTextField {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--cp-linea);
+  border-radius: var(--cp-campo);
+  background: #fff;
+  color: var(--cp-tinta);
+  font-family: var(--cp-sans);
+  font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--cp-sage);
+  box-shadow: 0 0 0 3px rgba(47, 107, 112, 0.15);
+}
+
+.aligned label,
+.form-row label {
+  color: var(--cp-tinta-suave);
+  font-weight: 500;
+}
+
+.form-row {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--cp-linea);
+}
+
+.help,
+p.help,
+form .help,
+div.help {
+  color: var(--cp-mute);
+  font-size: 0.82rem;
+}
+
+fieldset.collapse summary,
+fieldset .collapse-toggle {
+  font-family: var(--cp-serif);
+  font-size: 1.25rem;
+}
+
+/* Botones (guardar, buscar, acciones) en pastilla */
+.button,
+input[type="submit"],
+input[type="button"],
+.submit-row input,
+a.button,
+button.button {
+  padding: 0.7rem 1.3rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cp-tinta);
+  color: #fff;
+  font-family: var(--cp-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover,
+.submit-row input:hover {
+  background: #000;
+}
+
+.button.default,
+input[type="submit"].default,
+.submit-row input.default {
+  background: var(--cp-sage);
+}
+
+.button.default:hover,
+.submit-row input.default:hover {
+  background: #204b4f;
+}
+
+.submit-row {
+  padding: 1rem 1.25rem;
+  background: var(--cp-hueso);
+  border: 1px solid var(--cp-linea);
+  border-radius: var(--cp-radio);
+}
+
+.submit-row a.deletelink {
+  border-radius: 999px;
+  padding: 0.7rem 1.3rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* --- Avisos ------------------------------------------------------------------- */
+ul.messagelist li {
+  border-radius: var(--cp-campo);
+  margin: 0 clamp(1rem, 3vw, 2.5rem) 0.5rem;
+  padding: 0.85rem 1.1rem 0.85rem 2.6rem;
+  background-position: 0.9rem center;
+  color: var(--cp-tinta);
+  font-size: 0.92rem;
+}
+
+.errornote {
+  border-radius: var(--cp-campo);
+  border: 1px solid rgba(111, 42, 51, 0.3);
+  background: #f6e3e3;
+  color: var(--cp-bordo);
+}
+
+/* --- Barra lateral de modelos (cuando el admin la muestra) --------------------- */
+#nav-sidebar {
+  background: var(--cp-fondo);
+  border-right: 1px solid var(--cp-linea);
+}
+
+#nav-sidebar .module {
+  border-radius: var(--cp-campo);
+}
+
+#nav-sidebar .current-model {
+  background: var(--selected-bg);
+}
+
+.toggle-nav-sidebar {
+  background: var(--cp-fondo);
+  border-color: var(--cp-linea);
+  color: var(--cp-tinta-suave);
+}
+
+/* --- Ingreso (/panel/login/): la misma tarjeta que "Mi tienda" --------------- */
+body.login {
+  background: var(--cp-fondo);
+}
+
+.login #container {
+  margin-top: 8vh;
+  max-width: 420px;
+  border: 1px solid var(--cp-linea);
+  border-radius: 20px;
+  background: var(--cp-hueso);
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(36, 27, 22, 0.08);
+}
+
+.login #header {
+  position: static;
+  justify-content: center;
+  padding: 1.75rem 1.5rem 0.5rem;
+  background: transparent;
+  border: 0;
+}
+
+.login #content {
+  padding: 1rem 1.75rem 2rem;
+}
+
+.login .form-row {
+  padding: 0.5rem 0;
+  border: 0;
+}
+
+.login .form-row label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.login .form-row input {
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  font-size: 1rem;
+}
+
+.login .submit-row {
+  padding: 1rem 0 0;
+  background: transparent;
+  border: 0;
+}
+
+.login .submit-row input {
+  width: 100%;
+  min-height: 48px;
 }
 
 /* --- Miniaturas de fotos: más grandes y clickeables para abrir el original,
    así la dueña puede chequear el recorte sin entrar a editar. --- */
 .field-vista img,
 .field-foto img {
-  border: 1px solid #dcd9d3;
+  border: 1px solid var(--cp-linea);
+  border-radius: 8px;
 }
 
 .field-vista a,
@@ -84,4 +690,73 @@ div.breadcrumbs {
   .actions {
     font-size: 1rem;
   }
+
+  #header {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .cp-marca__texto {
+    font-size: 1.2rem;
+  }
+}
+
+/* Filas del inicio del mismo tono que la tarjeta; columna lateral sin fondo. */
+.dashboard .module tr,
+.dashboard .module th,
+.dashboard .module td {
+  background: transparent;
+}
+
+#content-related {
+  background: transparent;
+}
+
+#content-related .module {
+  background: var(--cp-hueso);
+}
+
+/* Nombres del listado en tinta (el link por defecto quedaba desteñido). */
+#result_list th a:link,
+#result_list th a:visited,
+#result_list td a:link,
+#result_list td a:visited {
+  color: var(--cp-tinta);
+  font-weight: 500;
+}
+
+#result_list th a:hover {
+  color: var(--cp-sage);
+}
+
+/* Buscar / Ejecutar: pastillas como el resto. */
+#changelist #toolbar form input[type="submit"],
+#changelist .actions button,
+#changelist-search input[type="submit"] {
+  min-height: 0;
+  padding: 0.55rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cp-tinta);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#changelist #toolbar form input[type="text"],
+#changelist-search input[type="text"] {
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+}
+
+#changelist-filter > h2,
+#changelist-filter > details > summary {
+  font-family: var(--cp-serif);
+  font-size: 1.35rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--cp-tinta);
 }

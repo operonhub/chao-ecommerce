@@ -14,7 +14,7 @@ from .models import Categoria, Look, LookItem, Producto, ProductoImagen, Talle, 
 
 admin.site.site_header = "CHAO Indumentaria"
 admin.site.site_title = "CHAO"
-admin.site.index_title = "Panel de la tienda"
+admin.site.index_title = "Panel avanzado"
 
 
 def _miniatura(url, alto=60, agrandable=True):

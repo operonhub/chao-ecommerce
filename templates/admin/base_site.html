@@ -2,6 +2,28 @@
 {% load static %}
 
 {% comment %}Vestimos el admin de stock con panel.css en TODAS sus páginas (login
-  incluido). No alcanza con Media en ProductoAdmin: eso solo carga en las
+  incluido): el mismo lenguaje que "Mi tienda" (/gestion/) — crema, Cormorant +
+  Jost, tarjetas redondeadas — para que el panel avanzado no parezca otro
+  sistema. No alcanza con Media en ProductoAdmin: eso solo carga en las
   pantallas de ese modelo, y la dueña también entra por /panel/login/.{% endcomment %}
-{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/panel.css' %}">{% endblock %}
+{% block extrastyle %}{{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/panel.css' %}">
+<link rel="icon" href="{% static 'img/favicon.svg' %}">
+{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}" class="cp-marca">
+    <span class="cp-disco" aria-hidden="true"><span>CHAO</span><em>Indumentaria</em></span>
+    <span class="cp-marca__texto">Panel <em>avanzado</em></span>
+  </a>
+</div>
+{% endblock %}
+
+{% block userlinks %}
+  <a href="{% url 'gestion:inicio' %}" class="cp-volver">← Mi tienda</a>
+  {{ block.super }}
+{% endblock %}

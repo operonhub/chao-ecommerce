@@ -82,6 +82,10 @@ def inicio(request):
         "vendido_30": pagados_mes.aggregate(t=Sum("total"))["t"] or 0,
         "n_vendidos_30": pagados_mes.count(),
         "recientes": Pedido.objects.prefetch_related("items__producto", "items__talle")[:5],
+        # Lo que falta para cobrar online: se avisa arriba de todo en el Inicio.
+        "falta_mp": not ConexionMP.actual(),
+        "falta_transferencia": not Cobros.actual().transferencia_lista,
+        "app_mp": mercadopago.app_configurada(),
     }
     return render(request, "gestion/inicio.html", contexto)
 

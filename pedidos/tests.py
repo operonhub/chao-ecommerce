@@ -219,6 +219,21 @@ class ConexionTests(Base):
         self.duena = get_user_model().objects.create_user("duena-test", is_staff=True)
         self.client.force_login(self.duena)
 
+    def test_inicio_avisa_que_falta_conectar(self):
+        r = self.client.get(reverse("gestion:inicio"))
+        self.assertContains(r, "Conectá Mercado Pago")
+        ConexionMP.objects.create(mp_user_id="1", access_token="a", public_key="p",
+                                  vence=timezone.now() + timedelta(days=100))
+        r = self.client.get(reverse("gestion:inicio"))
+        self.assertNotContains(r, "Conectá Mercado Pago")
+
+    def test_cobros_muestra_cuenta_conectada(self):
+        ConexionMP.objects.create(mp_user_id="1", apodo="CHAOIND", access_token="a", public_key="p",
+                                  vence=timezone.now() + timedelta(days=100))
+        r = self.client.get(reverse("gestion:cobros"))
+        self.assertContains(r, "CHAOIND")
+        self.assertNotContains(r, "access_token")
+
     def test_boton_conectar_lleva_a_mercadopago_con_state(self):
         r = self.client.get(reverse("gestion:mp_conectar"))
         self.assertEqual(r.status_code, 302)

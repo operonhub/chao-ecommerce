@@ -12,6 +12,23 @@
   <a href="{% url 'gestion:prenda_nueva' %}" class="btn btn--primario">+ Cargar prenda</a>
 </header>
 
+{% if falta_mp or falta_transferencia %}
+  <a href="{% url 'gestion:cobros' %}" class="g-bloque g-pendiente">
+    <span class="g-pendiente__icono" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+    </span>
+    <span class="g-pendiente__texto">
+      <b>{% if falta_mp %}Conectá Mercado Pago para cobrar con tarjeta{% else %}Cargá tu alias para cobrar por transferencia{% endif %}</b>
+      <small>
+        {% if falta_mp and not app_mp %}El botón se habilita cuando Operon termine de configurar la app.
+        {% elif falta_mp %}Es un botón: te lleva a Mercado Pago, aceptás y listo.{% endif %}
+        {% if falta_transferencia %}{% if falta_mp %} · {% endif %}Sin alias no se ofrece transferencia.{% endif %}
+      </small>
+    </span>
+    <span aria-hidden="true">→</span>
+  </a>
+{% endif %}
+
 <section class="g-kpis">
   <a href="{% url 'gestion:pedidos' %}?ver=pagado" class="g-kpi">
     <span class="g-kpi__lbl">Vendido · últimos 30 días</span>
@@ -94,7 +111,7 @@
     </div>
     {% for p in recientes %}
       <a href="{% url 'gestion:pedidos' %}#pedido-{{ p.pk }}" class="g-pedido-mini">
-        <span class="g-estado g-estado--{{ p.estado }}">{{ p.get_estado_display }}</span>
+        <span class="g-estado g-estado--{{ p.estado }}{% if p.estado == 'pendiente' and p.metodo_pago != 'mercadopago' %} g-estado--esperando{% endif %}">{{ p.descripcion_estado }}</span>
         <span class="g-pedido-mini__nombre">#{{ p.pk }} · {{ p.nombre }}</span>
         <span class="g-pedido-mini__total">${{ p.total|pesos }}</span>
         <span class="g-pedido-mini__fecha">{{ p.creado|date:"j/n H:i" }}</span>

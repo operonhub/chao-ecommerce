@@ -2061,3 +2061,40 @@
   background: #fdf1dc;
   color: var(--g-ambar);
 }
+
+/* Aviso en el Inicio: lo que falta para cobrar online. */
+.g-pendiente {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  border-color: rgba(168, 107, 18, 0.35);
+  background: #fdf6e8;
+  color: var(--tinta);
+}
+
+.g-pendiente__icono {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fbe9c8;
+  color: var(--g-ambar);
+}
+
+.g-pendiente__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.g-pendiente__texto b {
+  font-weight: 500;
+}
+
+.g-pendiente__texto small {
+  color: var(--tinta-suave);
+  font-size: 0.84rem;
+}

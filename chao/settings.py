@@ -8,6 +8,7 @@ credencial escrita acá.
 
 from pathlib import Path
 import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -88,14 +89,37 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "chao.wsgi.application"
 
-# En local, SQLite sin configurar nada. En Render, DATABASE_URL apunta a Postgres.
+# En local, SQLite sin configurar nada. En producción, Postgres: DATABASE_URL si
+# está, o si no POSTGRES_URL, que es la que carga la integración de Supabase en
+# Vercel (apunta al pooler en modo transacción, puerto 6543).
+def _url_base():
+    url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or ""
+    if not url:
+        return f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+    # Supabase agrega ?supa=base-pooler.x, que psycopg no entiende.
+    partes = urlsplit(url)
+    query = urlencode([(k, v) for k, v in parse_qsl(partes.query) if k != "supa"])
+    return urlunsplit(partes._replace(query=query))
+
+
+_url_db = _url_base()
+_por_pooler = ":6543/" in _url_db
+
 DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-        conn_health_checks=True,
+    "default": dj_database_url.parse(
+        _url_db,
+        # Detrás del pooler cada pedido toma una conexión prestada y la devuelve:
+        # no tiene sentido mantenerla abierta (y en serverless, menos).
+        conn_max_age=0 if _por_pooler else 600,
+        conn_health_checks=not _por_pooler,
     )
 }
+
+if _por_pooler:
+    # En modo transacción la conexión física cambia entre consultas: ni cursores
+    # del lado del servidor ni sentencias preparadas sobreviven a eso.
+    DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
+    DATABASES["default"].setdefault("OPTIONS", {})["prepare_threshold"] = None
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -127,6 +151,14 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
+
+# Con Supabase configurado (lo carga la integración de Vercel), las fotos que sube
+# la dueña van a Supabase Storage en vez del disco, que en Vercel se borra.
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "media")
+if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+    STORAGES["default"] = {"BACKEND": "chao.almacenamiento.SupabaseStorage"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

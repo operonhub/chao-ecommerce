@@ -145,27 +145,38 @@ class StockTests(Base):
 
 @override_settings(MP_ACCESS_TOKEN="TEST-token", MP_PUBLIC_KEY="TEST-public", MP_WEBHOOK_SECRET="")
 class PagoTests(Base):
+    @staticmethod
+    def orden(estado="processed", detalle="accredited", monto="50000.00", ref="1"):
+        return {"id": "ORD01TEST", "status": estado, "status_detail": detalle, "total_amount": monto,
+                "external_reference": ref,
+                "transactions": {"payments": [{"id": "PAY01", "amount": monto, "status": estado,
+                                               "status_detail": detalle}]}}
+
     def test_monto_lo_pone_el_servidor(self):
         p = self.pedido()
         with mock.patch("pedidos.services.mercadopago.requests.post",
-                        return_value=respuesta(201, {"id": 99, "status": "approved", "status_detail": "accredited",
-                                                     "transaction_amount": 50000, "currency_id": "ARS"})) as post:
+                        return_value=respuesta(201, self.orden(ref=str(p.pk)))) as post:
             r = self.client.post(reverse("pedidos:procesar", args=[p.codigo]),
-                                 json.dumps({"token": "tok", "payment_method_id": "visa", "installments": 1,
-                                             "transaction_amount": 1, "payer": {"email": "ana@example.com"}}),
+                                 json.dumps({"token": "tok", "payment_method_id": "visa", "installments": 3,
+                                             "payment_type_id": "credit_card", "transaction_amount": 1,
+                                             "payer": {"email": "ana@example.com"}}),
                                  content_type="application/json")
+        self.assertTrue(post.call_args.args[0].endswith("/v1/orders"))
         enviado = post.call_args.kwargs["json"]
-        self.assertEqual(enviado["transaction_amount"], 50000.0)  # no el 1 que mandó el navegador
+        self.assertEqual(enviado["total_amount"], "50000.00")  # no el 1 que mandó el navegador
+        pago = enviado["transactions"]["payments"][0]
+        self.assertEqual(pago["amount"], "50000.00")
+        self.assertEqual(pago["payment_method"], {"id": "visa", "type": "credit_card", "token": "tok", "installments": 3})
         self.assertIn("X-Idempotency-Key", post.call_args.kwargs["headers"])
         self.assertEqual(r.json()["estado"], "pagado")
         p.refresh_from_db()
         self.assertEqual(p.estado, Pedido.Estado.PAGADO)
+        self.assertEqual(p.mp_payment_id, "ORD01TEST")
 
-    def test_rechazo_explica_el_motivo(self):
+    def test_rechazo_402_explica_el_motivo(self):
         p = self.pedido()
         with mock.patch("pedidos.services.mercadopago.requests.post",
-                        return_value=respuesta(201, {"id": 7, "status": "rejected",
-                                                     "status_detail": "cc_rejected_insufficient_amount"})):
+                        return_value=respuesta(402, self.orden("failed", "insufficient_amount", ref=str(p.pk)))):
             r = self.client.post(reverse("pedidos:procesar", args=[p.codigo]),
                                  json.dumps({"token": "t", "payment_method_id": "visa"}), content_type="application/json")
         self.assertEqual(r.json()["estado"], "rechazado")
@@ -173,7 +184,47 @@ class PagoTests(Base):
         p.refresh_from_db()
         self.assertEqual(p.estado, Pedido.Estado.RECHAZADO)
 
-    def test_webhook_aprobado_con_monto_correcto(self):
+    def test_rechazo_402_solo_con_errores(self):
+        p = self.pedido()
+        cuerpo = {"errors": [{"code": "failed", "message": "x", "details": ["rejected_by_issuer"]}]}
+        with mock.patch("pedidos.services.mercadopago.requests.post", return_value=respuesta(402, cuerpo)):
+            r = self.client.post(reverse("pedidos:procesar", args=[p.codigo]),
+                                 json.dumps({"token": "t", "payment_method_id": "visa"}), content_type="application/json")
+        self.assertEqual(r.json()["estado"], "rechazado")
+        self.assertIn("banco", r.json()["mensaje"])
+
+    def test_en_revision_queda_pendiente(self):
+        p = self.pedido()
+        with mock.patch("pedidos.services.mercadopago.requests.post",
+                        return_value=respuesta(201, self.orden("processing", "in_review", ref=str(p.pk)))):
+            r = self.client.post(reverse("pedidos:procesar", args=[p.codigo]),
+                                 json.dumps({"token": "t", "payment_method_id": "visa"}), content_type="application/json")
+        self.assertEqual(r.json()["estado"], "pendiente")
+        p.refresh_from_db()
+        self.assertEqual(p.estado, Pedido.Estado.PENDIENTE)
+
+    def test_webhook_order_aprobada(self):
+        p = self.pedido()
+        with mock.patch("pedidos.services.mercadopago.requests.get",
+                        return_value=respuesta(200, self.orden(ref=str(p.pk)))) as get:
+            r = self.client.post(reverse("pedidos:mp_webhook") + "?data.id=ORD01TEST&type=order",
+                                 json.dumps({"type": "order", "action": "order.processed", "data": {"id": "ORD01TEST"}}),
+                                 content_type="application/json")
+        self.assertTrue(get.call_args.args[0].endswith("/v1/orders/ORD01TEST"))
+        self.assertEqual(r.status_code, 200)
+        p.refresh_from_db()
+        self.assertEqual(p.estado, Pedido.Estado.PAGADO)
+
+    def test_webhook_order_con_monto_menor_no_paga(self):
+        p = self.pedido()
+        with mock.patch("pedidos.services.mercadopago.requests.get",
+                        return_value=respuesta(200, self.orden(monto="10.00", ref=str(p.pk)))):
+            self.client.post(reverse("pedidos:mp_webhook") + "?data.id=ORD01TEST&type=order",
+                             json.dumps({"type": "order"}), content_type="application/json")
+        p.refresh_from_db()
+        self.assertEqual(p.estado, Pedido.Estado.PENDIENTE)
+
+    def test_webhook_pago_billetera_aprobado(self):
         p = self.pedido()
         pago = {"status": "approved", "external_reference": str(p.pk), "transaction_amount": 50000, "currency_id": "ARS"}
         with mock.patch("pedidos.services.mercadopago.requests.get", return_value=respuesta(200, pago)):
@@ -183,7 +234,7 @@ class PagoTests(Base):
         p.refresh_from_db()
         self.assertEqual(p.estado, Pedido.Estado.PAGADO)
 
-    def test_webhook_monto_menor_no_marca_pagado(self):
+    def test_webhook_pago_billetera_monto_menor(self):
         p = self.pedido()
         pago = {"status": "approved", "external_reference": str(p.pk), "transaction_amount": 10, "currency_id": "ARS"}
         with mock.patch("pedidos.services.mercadopago.requests.get", return_value=respuesta(200, pago)):

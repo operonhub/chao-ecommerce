@@ -35,7 +35,22 @@ from .services import mercadopago
 logger = logging.getLogger(__name__)
 
 # Lo que Mercado Pago contesta cuando rechaza, traducido a algo que se entienda.
+# Los primeros son de la API de Orders (tarjeta en la página); los cc_rejected_*
+# llegan de los pagos con la billetera de Mercado Pago (Checkout Pro).
 MOTIVOS_RECHAZO = {
+    "insufficient_amount": "La tarjeta no tiene saldo suficiente.",
+    "card_insufficient_amount": "La tarjeta no tiene saldo suficiente.",
+    "bad_filled_card_data": "Revisá los datos de la tarjeta (número, vencimiento o código).",
+    "invalid_card_token": "Los datos de la tarjeta vencieron. Volvé a cargarlos.",
+    "rejected_by_issuer": "El banco rechazó el pago. Probá con otra tarjeta.",
+    "required_call_for_authorize": "El banco pide que autorices el pago: llamalo y volvé a intentar.",
+    "card_disabled": "La tarjeta no está habilitada. Llamá al banco para activarla.",
+    "high_risk": "El pago fue rechazado por seguridad. Probá con otra tarjeta.",
+    "max_attempts_exceeded": "Llegaste al límite de intentos. Probá con otra tarjeta.",
+    "amount_limit_exceeded": "El monto supera el límite de la tarjeta.",
+    "invalid_installments": "Esas cuotas no están disponibles para esta tarjeta. Probá con otra cantidad.",
+    "processing_error": "Hubo un error de Mercado Pago. Probá de nuevo en unos minutos.",
+    "3ds_challenge_expired": "Se venció el tiempo para confirmar con tu banco. Probá de nuevo.",
     "cc_rejected_insufficient_amount": "La tarjeta no tiene saldo suficiente.",
     "cc_rejected_bad_filled_security_code": "El código de seguridad no es correcto.",
     "cc_rejected_bad_filled_date": "La fecha de vencimiento no es correcta.",
@@ -176,7 +191,7 @@ def pago(request, codigo):
 
 @require_POST
 def procesar(request, codigo):
-    """Recibe la tarjeta tokenizada por el formulario seguro y crea el pago."""
+    """Recibe la tarjeta tokenizada por el formulario seguro y crea la order."""
     pedido = get_object_or_404(Pedido, codigo=codigo)
     if pedido.estado == Pedido.Estado.PAGADO:
         return JsonResponse({"estado": "pagado", "url": reverse("pedidos:pedido", args=[codigo])})
@@ -186,27 +201,27 @@ def procesar(request, codigo):
         return HttpResponseBadRequest("Datos ilegibles")
 
     try:
-        pago_mp = mercadopago.crear_pago(pedido, datos, request)
+        orden = mercadopago.crear_orden(pedido, datos)
     except mercadopago.MercadoPagoError as exc:
         return JsonResponse({"estado": "error", "mensaje": str(exc)}, status=502)
 
-    estado_mp = pago_mp.get("status")
-    detalle = pago_mp.get("status_detail", "")
-    if estado_mp == "approved" and mercadopago.pago_coincide(pago_mp, pedido):
-        pedido.marcar_pagado(str(pago_mp.get("id")), detalle)
-        return JsonResponse({"estado": "pagado", "url": reverse("pedidos:pedido", args=[codigo])})
+    url_pedido = reverse("pedidos:pedido", args=[codigo])
+    if orden.aprobada and mercadopago.orden_coincide(orden, pedido):
+        pedido.marcar_pagado(orden.id, orden.detalle)
+        return JsonResponse({"estado": "pagado", "url": url_pedido})
 
-    pedido.mp_payment_id = str(pago_mp.get("id") or "")
-    pedido.mp_status_detail = detalle
-    if estado_mp == "rejected":
+    pedido.mp_payment_id = orden.id
+    pedido.mp_status_detail = orden.detalle
+    if orden.fallida:
         pedido.estado = Pedido.Estado.RECHAZADO
     pedido.save(update_fields=["mp_payment_id", "mp_status_detail", "estado", "actualizado"])
-    if estado_mp == "rejected":
+    if orden.fallida:
         return JsonResponse(
-            {"estado": "rechazado", "mensaje": MOTIVOS_RECHAZO.get(detalle, "La tarjeta rechazó el pago. Probá con otra.")}
+            {"estado": "rechazado",
+             "mensaje": MOTIVOS_RECHAZO.get(orden.detalle, "La tarjeta rechazó el pago. Probá con otra.")}
         )
-    # in_process / pending: lo resuelve el webhook; la página del pedido espera.
-    return JsonResponse({"estado": "pendiente", "url": reverse("pedidos:pedido", args=[codigo])})
+    # processing / action_required (en revisión, 3DS…): lo resuelve el webhook.
+    return JsonResponse({"estado": "pendiente", "url": url_pedido})
 
 
 # --- Estado del pedido ---------------------------------------------------------------
@@ -254,15 +269,18 @@ def mp_webhook(request):
         logger.warning("Webhook de MP con cuerpo ilegible.")
         return HttpResponse(status=200)
 
-    payment_id = request.GET.get("data.id") or (cuerpo.get("data") or {}).get("id")
+    data_id = request.GET.get("data.id") or (cuerpo.get("data") or {}).get("id")
     tipo = cuerpo.get("type") or request.GET.get("type")
-    if tipo != "payment" or not payment_id:
+    if tipo not in ("order", "payment") or not data_id:
         return HttpResponse(status=200)  # otros avisos que no nos interesan
 
-    if not mercadopago.firma_valida(request, str(payment_id)):
-        logger.warning("Webhook de MP con firma inválida (pago %s).", payment_id)
+    if not mercadopago.firma_valida(request, str(data_id)):
+        logger.warning("Webhook de MP con firma inválida (%s %s).", tipo, data_id)
         return HttpResponse(status=401)
 
+    if tipo == "order":
+        return _webhook_orden(str(data_id))
+    payment_id = data_id
     try:
         pago_mp = mercadopago.consultar_pago(str(payment_id))
     except mercadopago.MercadoPagoError as exc:
@@ -286,5 +304,32 @@ def mp_webhook(request):
         pedido.estado = Pedido.Estado.RECHAZADO if estado_mp == "rejected" else Pedido.Estado.CANCELADO
         pedido.mp_payment_id = str(payment_id)
         pedido.mp_status_detail = pago_mp.get("status_detail", "")
+        pedido.save(update_fields=["estado", "mp_payment_id", "mp_status_detail", "actualizado"])
+    return HttpResponse(status=200)
+
+
+def _webhook_orden(order_id: str) -> HttpResponse:
+    """Aviso de una order (pago con tarjeta en la página)."""
+    try:
+        orden = mercadopago.consultar_orden(order_id)
+    except mercadopago.MercadoPagoError as exc:
+        logger.error("No se pudo consultar la order %s: %s", order_id, exc)
+        return HttpResponse(status=500)
+
+    pedido = Pedido.objects.filter(pk=orden.referencia).first() if orden.referencia.isdigit() else None
+    if pedido is None:
+        logger.warning("Order %s con external_reference desconocido: %r", order_id, orden.referencia)
+        return HttpResponse(status=200)
+
+    if orden.aprobada:
+        if mercadopago.orden_coincide(orden, pedido):
+            pedido.marcar_pagado(orden.id, orden.detalle)
+            logger.info("Pedido #%s pagado (order %s)", pedido.pk, order_id)
+        else:
+            logger.error("Order %s aprobada pero el monto no coincide con el pedido #%s", order_id, pedido.pk)
+    elif orden.estado in ("failed", "canceled", "expired") and pedido.estado != Pedido.Estado.PAGADO:
+        pedido.estado = Pedido.Estado.RECHAZADO if orden.estado == "failed" else Pedido.Estado.CANCELADO
+        pedido.mp_payment_id = orden.id
+        pedido.mp_status_detail = orden.detalle
         pedido.save(update_fields=["estado", "mp_payment_id", "mp_status_detail", "actualizado"])
     return HttpResponse(status=200)

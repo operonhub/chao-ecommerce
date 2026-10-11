@@ -8,10 +8,13 @@ entra directo a su cuenta. Se llama a la API REST con `requests`, sin el SDK.
 Dos formas de cobrar, las dos en la página de pago de CHAO (Payment Brick):
 
 * Tarjeta de crédito/débito: el formulario seguro de MP tokeniza la tarjeta en el
-  navegador (ni CHAO ni Operon ven los datos) y el servidor crea el pago con
-  `crear_pago`. El monto SIEMPRE sale del pedido, nunca de lo que mande el navegador.
+  navegador (ni CHAO ni Operon ven los datos) y el servidor crea el cobro con la
+  API de Orders (`crear_orden`; la de Payments MP la va a discontinuar). El monto
+  SIEMPRE sale del pedido, nunca de lo que mande el navegador.
 * "Pagar con mi cuenta de Mercado Pago": necesita una preferencia
   (`crear_preferencia`) y redirige a MP para pagar con saldo o tarjetas guardadas.
+  Ese pago llega por el webhook como `payment` (`consultar_pago`); el de tarjeta,
+  como `order` (`consultar_orden`).
 
 Reglas traídas de las integraciones anteriores (nutri-mvp, Operon Reservas):
 
@@ -222,42 +225,91 @@ def crear_preferencia(pedido, request) -> str:
     return pedido.mp_preference_id
 
 
-def crear_pago(pedido, datos_tarjeta: dict, request) -> dict:
+TIPOS_TARJETA = {"credit_card", "debit_card", "prepaid_card"}
+
+
+@dataclass
+class ResultadoOrden:
+    """Lo que importa de una order de MP, venga de crearla o del webhook."""
+
+    id: str
+    estado: str  # processed / processing / action_required / failed / canceled / expired …
+    detalle: str  # accredited / insufficient_amount / rejected_by_issuer …
+    monto: Decimal
+    referencia: str
+
+    @property
+    def aprobada(self) -> bool:
+        return self.estado == "processed" and self.detalle == "accredited"
+
+    @property
+    def fallida(self) -> bool:
+        return self.estado == "failed"
+
+
+def _resultado(orden: dict) -> ResultadoOrden:
+    pagos = ((orden.get("transactions") or {}).get("payments")) or []
+    pago = pagos[0] if pagos else {}
+    try:
+        monto = Decimal(str(orden.get("total_amount") or pago.get("amount") or "0"))
+    except Exception:  # noqa: BLE001 — un monto ilegible no aprueba nada
+        monto = Decimal(0)
+    return ResultadoOrden(
+        id=str(orden.get("id") or ""),
+        estado=str(pago.get("status") or orden.get("status") or ""),
+        detalle=str(pago.get("status_detail") or orden.get("status_detail") or ""),
+        monto=monto,
+        referencia=str(orden.get("external_reference") or ""),
+    )
+
+
+def crear_orden(pedido, datos_tarjeta: dict) -> ResultadoOrden:
     """
-    Cobra con la tarjeta que tokenizó el formulario. De lo que manda el navegador
-    solo se usan el token y los datos de la tarjeta: el monto es el del pedido.
+    Cobra con la tarjeta que tokenizó el formulario (API de Orders de MP).
+
+    Del navegador solo se usan el token, la tarjeta, las cuotas y el email: el
+    monto sale del pedido. Un rechazo de la tarjeta vuelve como 402 con la order
+    en estado `failed`; se devuelve igual para poder explicarle el motivo.
     """
     cred = credenciales()
     if not cred:
         raise MercadoPagoError("Mercado Pago no está conectado.")
-    base, es_https = _base(request)
+
+    tipo = datos_tarjeta.get("payment_type_id")
+    if tipo not in TIPOS_TARJETA:
+        tipo = "credit_card"
     pagador = datos_tarjeta.get("payer") or {}
+    monto = f"{pedido.total:.2f}"  # la API de Orders pide el monto como texto "00.00"
     payload = {
-        "transaction_amount": float(pedido.total),
-        "token": datos_tarjeta.get("token"),
-        "installments": int(datos_tarjeta.get("installments") or 1),
-        "payment_method_id": datos_tarjeta.get("payment_method_id"),
-        "description": f"CHAO Indumentaria · pedido #{pedido.pk}",
+        "type": "online",
+        "processing_mode": "automatic",
+        "total_amount": monto,
         "external_reference": str(pedido.pk),
-        "statement_descriptor": "CHAO",
-        "binary_mode": True,
-        "metadata": {"pedido_id": pedido.pk},
         "payer": {
             "email": pagador.get("email") or pedido.email,
             **({"identification": pagador["identification"]} if pagador.get("identification") else {}),
         },
-        "additional_info": {"items": _items(pedido)},
+        "transactions": {
+            "payments": [
+                {
+                    "amount": monto,
+                    "payment_method": {
+                        "id": datos_tarjeta.get("payment_method_id"),
+                        "type": tipo,
+                        "token": datos_tarjeta.get("token"),
+                        "installments": int(datos_tarjeta.get("installments") or 1),
+                    },
+                }
+            ]
+        },
     }
-    if datos_tarjeta.get("issuer_id"):
-        payload["issuer_id"] = datos_tarjeta["issuer_id"]
-    if es_https:
-        payload["notification_url"] = f"{base}{reverse('pedidos:mp_webhook')}"
-    if not payload["token"] or not payload["payment_method_id"]:
+    metodo = payload["transactions"]["payments"][0]["payment_method"]
+    if not metodo["token"] or not metodo["id"]:
         raise MercadoPagoError("Faltan los datos de la tarjeta.")
 
     try:
         r = requests.post(
-            f"{API}/v1/payments",
+            f"{API}/v1/orders",
             json=payload,
             # Si la clienta toca dos veces "Pagar", Mercado Pago cobra una sola.
             headers=_headers(cred, **{"X-Idempotency-Key": f"chao-{pedido.pk}-{uuid.uuid4()}"}),
@@ -265,10 +317,45 @@ def crear_pago(pedido, datos_tarjeta: dict, request) -> dict:
         )
     except requests.RequestException as exc:
         raise MercadoPagoError(f"No se pudo contactar a Mercado Pago: {exc}") from exc
+
+    try:
+        cuerpo = r.json()
+    except ValueError:
+        cuerpo = {}
+
+    if r.status_code in (200, 201):
+        return _resultado(cuerpo)
+    if r.status_code == 402:
+        # Rechazo de la tarjeta: puede venir la order entera o solo el error.
+        orden = cuerpo.get("data") if isinstance(cuerpo.get("data"), dict) else cuerpo
+        resultado = _resultado(orden)
+        if not resultado.detalle:
+            errores = cuerpo.get("errors") or []
+            detalles = (errores[0].get("details") if errores else None) or []
+            resultado.detalle = str(detalles[0] if detalles else (errores[0].get("code") if errores else "failed"))
+        resultado.estado = "failed"
+        return resultado
+    logger.error("MP rechazó la order del pedido #%s (%s): %s", pedido.pk, r.status_code, r.text[:400])
+    raise MercadoPagoError("Mercado Pago no pudo procesar el pago.")
+
+
+def consultar_orden(order_id: str) -> ResultadoOrden:
+    """Trae la order desde la API. El webhook solo manda el id; el estado se lee acá."""
+    cred = credenciales()
+    if not cred:
+        raise MercadoPagoError("Mercado Pago no está conectado.")
+    try:
+        r = requests.get(f"{API}/v1/orders/{order_id}", headers=_headers(cred), timeout=TIMEOUT)
+    except requests.RequestException as exc:
+        raise MercadoPagoError(f"No se pudo consultar la order {order_id}: {exc}") from exc
     if r.status_code >= 400:
-        logger.error("MP rechazó el pago del pedido #%s (%s): %s", pedido.pk, r.status_code, r.text[:300])
-        raise MercadoPagoError("Mercado Pago no pudo procesar el pago.")
-    return r.json()
+        raise MercadoPagoError(f"Mercado Pago devolvió {r.status_code} al consultar la order.")
+    return _resultado(r.json())
+
+
+def orden_coincide(resultado: ResultadoOrden, pedido) -> bool:
+    """El monto de la order tiene que ser el del pedido (como en Operon Reservas)."""
+    return resultado.monto >= pedido.total - Decimal("0.01")
 
 
 def consultar_pago(payment_id: str) -> dict:

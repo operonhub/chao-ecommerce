@@ -1,8 +1,8 @@
 /* ==========================================================================
    CHAO — pago con el Payment Brick de Mercado Pago
    El formulario de tarjeta lo dibuja MP en un recuadro seguro. Al confirmar,
-   se manda el token de la tarjeta a /procesar/ y el servidor crea el pago con
-   el monto del pedido. El botón "Mercado Pago" (billetera) redirige solo a MP.
+   se manda el token de la tarjeta a /procesar/ y el servidor crea la order
+   (API de Orders de MP) con el monto del pedido. El botón "Mercado Pago" (billetera) redirige solo a MP.
    ========================================================================== */
 
 (() => {
@@ -77,7 +77,8 @@
           return fetch(cfg.urlProcesar, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
-            body: JSON.stringify(formData),
+            // La API de Orders necesita saber si es crédito o débito.
+            body: JSON.stringify({ ...formData, payment_type_id: selectedPaymentMethod }),
           })
             .then((r) => r.json())
             .then((res) => {

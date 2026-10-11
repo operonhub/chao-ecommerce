@@ -1237,18 +1237,35 @@ body.home .barra.sobre-portada {
   translate: 0 0;
 }
 
+/* La foto se descubre con un telón (::before) del color de la sección que se
+   retira hacia abajo. No se recorta la foto en sí: con clip-path a cero el
+   IntersectionObserver la daba por invisible y nunca se revelaba. */
 .revela [data-revelar="persiana"] {
-  clip-path: inset(0 0 100% 0);
-  transition: clip-path 1.3s var(--curva-telon);
+  position: relative;
+}
+
+.revela [data-revelar="persiana"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: var(--telon, var(--fondo));
+  transform-origin: 50% 100%;
+  transition: transform 1.3s var(--curva-telon);
+  pointer-events: none;
+}
+
+.revela [data-revelar="persiana"].revelado::before {
+  transform: scaleY(0);
+}
+
+.look-compra {
+  --telon: var(--tinta);
 }
 
 .revela [data-revelar="persiana"] img {
   scale: 1.18;
   transition: scale 2s var(--curva);
-}
-
-.revela [data-revelar="persiana"].revelado {
-  clip-path: inset(0 0 0 0);
 }
 
 .revela [data-revelar="persiana"].revelado img {
@@ -1311,5 +1328,9 @@ body.home .barra.sobre-portada {
 
   .frase__texto .palabra {
     opacity: 1;
+  }
+
+  .revela [data-revelar="persiana"]::before {
+    display: none;
   }
 }

@@ -221,15 +221,51 @@
     const select = $("[data-pedido-estado]", card);
     const entregado = $("[data-pedido-entregado]", card);
 
+    const pintarEstado = (res) => {
+      badge.className = `g-estado g-estado--${res.estado}`;
+      badge.textContent = res.estado_texto;
+      if (select) select.value = res.estado;
+    };
+
     select?.addEventListener("change", async () => {
       const anterior = badge.className;
       try {
-        const { estado } = await postear(url, { estado: select.value });
-        badge.className = `g-estado g-estado--${estado}`;
-        badge.textContent = select.options[select.selectedIndex].text;
+        pintarEstado(await postear(url, { estado: select.value }));
         toast("Estado del pedido actualizado");
       } catch (err) {
         badge.className = anterior;
+        toast(err.message, "error");
+      }
+    });
+
+    // "Llegó la transferencia" / "Ya pagó": pasa a pagado (y descuenta el stock).
+    const confirmar = $("[data-pedido-confirmar]", card);
+    confirmar?.addEventListener("click", async () => {
+      confirmar.dataset.cargando = "";
+      try {
+        pintarEstado(await postear(url, { estado: "pagado" }));
+        confirmar.remove();
+        toast("Pedido marcado como pagado");
+      } catch (err) {
+        toast(err.message, "error");
+      } finally {
+        delete confirmar.dataset.cargando;
+      }
+    });
+
+    // Número de seguimiento del correo + botón para mandárselo por WhatsApp.
+    const seguimiento = $("[data-seguimiento]", card);
+    seguimiento?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const wsp = $("[data-seguimiento-wsp]", seguimiento);
+      try {
+        const res = await postear(url, { seguimiento: seguimiento.elements.seguimiento.value });
+        if (wsp) {
+          wsp.hidden = !res.seguimiento;
+          if (res.link_seguimiento) wsp.href = res.link_seguimiento;
+        }
+        toast(res.seguimiento ? "Seguimiento guardado" : "Seguimiento borrado");
+      } catch (err) {
         toast(err.message, "error");
       }
     });

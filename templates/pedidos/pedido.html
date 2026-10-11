@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load static humanize_ar %}
+
+{% block titulo %}Pedido #{{ pedido.pk }} — {{ negocio.nombre }}{% endblock %}
+
+{% block contenido %}
+{% comment %}
+  La página del pedido: se llega después de confirmar el checkout o de pagar, y
+  sirve de link para volver a mirarlo. Lo que dice depende del estado REAL del
+  pedido en la base — si todavía no se confirmó el pago, no se afirma que entró
+  (data-esperar hace que la página se actualice sola cuando el webhook confirma).
+{% endcomment %}
+{% with primer_nombre=pedido.nombre.split.0 %}
+<section class="contenido checkout checkout--pedido">
+  <div class="resultado"
+       {% if pedido.metodo_pago == 'mercadopago' and pedido.estado == 'pendiente' and pedido.mp_payment_id %}data-esperar="{% url 'pedidos:estado' pedido.codigo %}"{% endif %}>
+
+    {% if sin_mp %}
+      <div class="resultado__icono resultado__icono--espera" aria-hidden="true">!</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">Guardamos tu <em>pedido</em></h1>
+      <p class="seccion__nota">El pago online no está disponible en este momento. Escribinos por WhatsApp y lo terminamos por ahí.</p>
+
+    {% elif pedido.estado == 'pagado' %}
+      <div class="resultado__icono" aria-hidden="true">✓</div>
+      <p class="sup">Pedido #{{ pedido.pk }} · pagado</p>
+      <h1 class="display seccion__titulo">¡Gracias, <em>{{ primer_nombre }}</em>!</h1>
+      {% if pedido.entrega == 'envio' %}
+        <p class="seccion__nota">
+          Recibimos tu pago. Preparamos tu pedido y te avisamos por WhatsApp al {{ pedido.telefono }}
+          cuando sale, con el número de seguimiento. Llega en {{ pedido.zona_demora|lower }}.
+          {% if pedido.envio_a_coordinar %}El costo del envío lo coordinamos por WhatsApp.{% endif %}
+        </p>
+      {% else %}
+        <p class="seccion__nota">
+          Recibimos tu pago. Te escribimos por WhatsApp al {{ pedido.telefono }} para avisarte cuándo
+          está listo para retirar en {{ negocio.direccion }}.
+        </p>
+      {% endif %}
+      {% if pedido.seguimiento %}
+        <p class="resultado__seguimiento">Seguimiento de Correo Argentino: <b>{{ pedido.seguimiento }}</b></p>
+      {% endif %}
+
+    {% elif pedido.estado == 'pendiente' and pedido.metodo_pago == 'transferencia' %}
+      <div class="resultado__icono resultado__icono--espera" aria-hidden="true">$</div>
+      <p class="sup">Pedido #{{ pedido.pk }} · esperando transferencia</p>
+      <h1 class="display seccion__titulo">Te falta <em>transferir</em></h1>
+      <p class="seccion__nota">
+        Transferí <b>${{ pedido.total|pesos }}</b>{% if pedido.envio_a_coordinar %} (el envío lo coordinamos aparte){% endif %}
+        y mandanos el comprobante por WhatsApp. Te separamos las prendas en cuanto lo recibimos.
+      </p>
+      <dl class="transferencia">
+        {% if cobros.alias %}<div><dt>Alias</dt><dd><span data-copiable>{{ cobros.alias }}</span><button type="button" class="transferencia__copiar" data-copiar>Copiar</button></dd></div>{% endif %}
+        {% if cobros.cbu %}<div><dt>CBU / CVU</dt><dd><span data-copiable>{{ cobros.cbu }}</span><button type="button" class="transferencia__copiar" data-copiar>Copiar</button></dd></div>{% endif %}
+        {% if cobros.titular %}<div><dt>Titular</dt><dd>{{ cobros.titular }}</dd></div>{% endif %}
+        {% if cobros.banco %}<div><dt>Banco</dt><dd>{{ cobros.banco }}</dd></div>{% endif %}
+        <div><dt>Monto</dt><dd><span data-copiable>{{ pedido.total|floatformat:0 }}</span><button type="button" class="transferencia__copiar" data-copiar>Copiar</button></dd></div>
+      </dl>
+
+    {% elif pedido.estado == 'pendiente' and pedido.metodo_pago == 'efectivo' %}
+      <div class="resultado__icono" aria-hidden="true">✓</div>
+      <p class="sup">Pedido #{{ pedido.pk }} · reservado</p>
+      <h1 class="display seccion__titulo">Te lo <em>separamos</em></h1>
+      <p class="seccion__nota">
+        Pasá a retirarlo por {{ negocio.direccion }} ({{ negocio.dias|lower }}, {{ negocio.horario_manana }} y
+        {{ negocio.horario_tarde }} hs) y pagás ${{ pedido.total|pesos }} en efectivo. Te escribimos al
+        {{ pedido.telefono }} para confirmar.
+      </p>
+
+    {% elif pedido.estado == 'rechazado' %}
+      <div class="resultado__icono resultado__icono--error" aria-hidden="true">!</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">El pago <em>no pasó</em></h1>
+      <p class="seccion__nota">
+        {{ motivo_rechazo|default:"La tarjeta rechazó la operación." }} Tu pedido quedó guardado: podés intentar
+        de nuevo con otra tarjeta o con tu cuenta de Mercado Pago.
+      </p>
+
+    {% elif pedido.estado == 'cancelado' %}
+      <div class="resultado__icono resultado__icono--error" aria-hidden="true">×</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">Pedido <em>cancelado</em></h1>
+      <p class="seccion__nota">Si fue un error o querés volver a pedirlo, escribinos por WhatsApp.</p>
+
+    {% elif pedido.mp_payment_id %}
+      {# Ojo: acá no se afirma que el pago entró. Lo confirma el servidor. #}
+      <div class="resultado__icono resultado__icono--espera" aria-hidden="true">…</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">Estamos confirmando <em>el pago</em></h1>
+      <p class="seccion__nota">
+        Mercado Pago está terminando de procesar la operación. Esta página se actualiza sola; en cuanto
+        se confirme te escribimos al {{ pedido.telefono }}.
+      </p>
+
+    {% else %}
+      <div class="resultado__icono resultado__icono--espera" aria-hidden="true">$</div>
+      <p class="sup">Pedido #{{ pedido.pk }}</p>
+      <h1 class="display seccion__titulo">Falta <em>pagar</em></h1>
+      <p class="seccion__nota">Tu pedido está guardado. Cuando quieras, terminá el pago acá mismo.</p>
+    {% endif %}
+
+    <div class="resultado__acciones">
+      {% if pedido.metodo_pago == 'mercadopago' and pedido.estado == 'rechazado' or pedido.metodo_pago == 'mercadopago' and pedido.estado == 'pendiente' and not pedido.mp_payment_id and not sin_mp %}
+        <a href="{% url 'pedidos:pago' pedido.codigo %}" class="btn btn--primario">{% if pedido.estado == 'rechazado' %}Intentar de nuevo{% else %}Pagar ahora{% endif %} <span aria-hidden="true">→</span></a>
+      {% endif %}
+      {% if pedido.estado == 'pendiente' and pedido.metodo_pago == 'transferencia' %}
+        <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ pedido.texto_comprobante|urlencode }}"
+           class="btn btn--wsp" target="_blank" rel="noopener">Mandar el comprobante por WhatsApp</a>
+      {% else %}
+        <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ pedido.resumen_whatsapp|urlencode }}"
+           class="btn btn--secundario" target="_blank" rel="noopener">Escribinos por WhatsApp</a>
+      {% endif %}
+      <a href="{% url 'catalogo:catalogo' %}" class="cta-ghost">Seguir viendo la tienda</a>
+    </div>
+  </div>
+
+  {% include "pedidos/_resumen_pedido.html" with pedido=pedido %}
+</section>
+{% endwith %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (() => {
+    // Copiar alias / CBU / monto.
+    document.querySelectorAll("[data-copiar]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const texto = b.parentElement.querySelector("[data-copiable]")?.textContent.trim() || "";
+        navigator.clipboard?.writeText(texto).then(() => {
+          b.textContent = "Copiado";
+          setTimeout(() => (b.textContent = "Copiar"), 1800);
+        });
+      })
+    );
+
+    // Pago "en proceso": se consulta el estado real cada 4 s durante 3 minutos.
+    const caja = document.querySelector("[data-esperar]");
+    if (!caja) return;
+    let vueltas = 0;
+    const iv = setInterval(async () => {
+      vueltas += 1;
+      try {
+        const r = await fetch(caja.dataset.esperar, { cache: "no-store" });
+        const { estado } = await r.json();
+        if (estado !== "pendiente") location.reload();
+      } catch (e) {}
+      if (vueltas > 45) clearInterval(iv);
+    }, 4000);
+  })();
+</script>
+{% endblock %}

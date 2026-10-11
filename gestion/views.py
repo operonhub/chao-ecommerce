@@ -11,6 +11,7 @@ se ve en la web al instante. Solo entra personal (is_staff).
 
 from __future__ import annotations
 
+import secrets
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -26,14 +27,16 @@ from django.db import transaction
 from django.db.models import Count, F, Max, Q, Sum
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from PIL import Image, ImageOps
 
 from catalogo.models import Categoria, Look, Portada, Producto, ProductoImagen, Talle, Variante
-from pedidos.models import Pedido
+from pedidos.models import Cobros, ConexionMP, Pedido, ZonaEnvio
+from pedidos.services import mercadopago
 
-from .forms import PortadaForm, ProductoForm
+from .forms import CobrosForm, PortadaForm, ProductoForm, ZonaForm
 
 
 def _es_staff(usuario):
@@ -335,6 +338,10 @@ def pedidos(request):
     ver = request.GET.get("ver") or ""
     if ver == "sin-entregar":
         qs = qs.filter(estado=Pedido.Estado.PAGADO, entregado=False)
+    elif ver == "transferencia":
+        qs = qs.filter(estado=Pedido.Estado.PENDIENTE, metodo_pago=Pedido.Metodo.TRANSFERENCIA)
+    elif ver == "envios":
+        qs = qs.filter(estado=Pedido.Estado.PAGADO, entrega=Pedido.Entrega.ENVIO, entregado=False)
     elif ver in Pedido.Estado.values:
         qs = qs.filter(estado=ver)
 
@@ -359,16 +366,29 @@ def pedido_actualizar(request, pk):
     Mercado Pago (ver pedidos/views.py).
     """
     pedido = get_object_or_404(Pedido, pk=pk)
-    campos = ["actualizado"]
     estado = request.POST.get("estado")
-    if estado in Pedido.Estado.values:
-        pedido.estado = estado
-        campos.append("estado")
+    if estado in Pedido.Estado.values and estado != pedido.estado:
+        # Por el modelo, no a mano: pagado descuenta stock, cancelado lo devuelve.
+        pedido.cambiar_estado(estado)
+    campos = ["actualizado"]
     if "entregado" in request.POST:
         pedido.entregado = request.POST["entregado"] == "1"
         campos.append("entregado")
-    pedido.save(update_fields=campos)
-    return JsonResponse({"ok": True, "estado": pedido.estado, "entregado": pedido.entregado})
+    if "seguimiento" in request.POST:
+        pedido.seguimiento = request.POST["seguimiento"].strip()[:60]
+        campos.append("seguimiento")
+    if len(campos) > 1:
+        pedido.save(update_fields=campos)
+    return JsonResponse(
+        {
+            "ok": True,
+            "estado": pedido.estado,
+            "estado_texto": pedido.descripcion_estado,
+            "entregado": pedido.entregado,
+            "seguimiento": pedido.seguimiento,
+            "link_seguimiento": pedido.link_whatsapp_seguimiento if pedido.seguimiento else "",
+        }
+    )
 
 
 # --- Portada -------------------------------------------------------------------
@@ -396,3 +416,99 @@ def portada(request):
             "destacadas": Producto.objects.filter(activo=True, destacado=True).prefetch_related("imagenes"),
         },
     )
+
+
+# --- Cobros y envíos -------------------------------------------------------------
+@solo_duena
+def cobros(request):
+    """Medios de pago, datos de transferencia, zonas de envío y la conexión con MP."""
+    actual = Cobros.actual()
+    form = CobrosForm(instance=actual)
+    zona_con_error = None
+
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        if accion == "cobros":
+            form = CobrosForm(request.POST, instance=actual)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Listo: los medios de pago ya se ven así en la tienda.")
+                return redirect("gestion:cobros")
+            messages.error(request, "Revisá los campos marcados.")
+        elif accion == "zona":
+            zona = ZonaEnvio.objects.filter(pk=request.POST.get("zona")).first() or ZonaEnvio(
+                orden=ZonaEnvio.objects.count() + 1
+            )
+            zona_form = ZonaForm(request.POST, instance=zona, prefix=f"z{zona.pk or 'nueva'}")
+            if zona_form.is_valid():
+                zona_form.save()
+                messages.success(request, f"Zona «{zona.nombre}» guardada.")
+                return redirect(f"{reverse('gestion:cobros')}#envios")
+            zona_con_error = zona_form
+            messages.error(request, "Revisá los datos de la zona.")
+        elif accion == "zona-borrar":
+            ZonaEnvio.objects.filter(pk=request.POST.get("zona")).delete()
+            messages.success(request, "Zona borrada.")
+            return redirect(f"{reverse('gestion:cobros')}#envios")
+
+    zonas = []
+    for z in ZonaEnvio.objects.all():
+        if zona_con_error is not None and zona_con_error.instance.pk == z.pk:
+            zonas.append(zona_con_error)
+        else:
+            zonas.append(ZonaForm(instance=z, prefix=f"z{z.pk}"))
+    nueva = zona_con_error if zona_con_error is not None and not zona_con_error.instance.pk else ZonaForm(prefix="znueva")
+
+    return render(
+        request,
+        "gestion/cobros.html",
+        {
+            "seccion": "cobros",
+            "form": form,
+            "zonas": zonas,
+            "zona_nueva": nueva,
+            "conexion": ConexionMP.actual(),
+            "app_mp": mercadopago.app_configurada(),
+            "mp_entorno": not ConexionMP.actual() and mercadopago.configurado(),
+        },
+    )
+
+
+@solo_duena
+def mp_conectar(request):
+    """El botón "Conectar Mercado Pago": manda a la dueña a autorizar en MP."""
+    if not mercadopago.app_configurada():
+        messages.error(request, "Falta configurar la app de Mercado Pago (Client ID y Secret en Vercel).")
+        return redirect("gestion:cobros")
+    estado = secrets.token_urlsafe(24)
+    request.session["mp_estado"] = estado
+    return redirect(mercadopago.url_para_conectar(request, estado))
+
+
+@solo_duena
+def mp_callback(request):
+    """Vuelta desde Mercado Pago con el código para pedir los tokens."""
+    esperado = request.session.pop("mp_estado", None)
+    if request.GET.get("error"):
+        messages.error(request, "No se conectó Mercado Pago: la autorización se canceló.")
+        return redirect("gestion:cobros")
+    # `state` evita que alguien conecte SU cuenta a la tienda con un link armado.
+    if not esperado or request.GET.get("state") != esperado or not request.GET.get("code"):
+        messages.error(request, "El link de conexión venció. Tocá «Conectar Mercado Pago» de nuevo.")
+        return redirect("gestion:cobros")
+    try:
+        conexion = mercadopago.conectar_con_codigo(request, request.GET["code"])
+    except mercadopago.MercadoPagoError as exc:
+        messages.error(request, str(exc))
+        return redirect("gestion:cobros")
+    quien = conexion.apodo or conexion.email or f"usuario {conexion.mp_user_id}"
+    messages.success(request, f"¡Listo! Mercado Pago quedó conectado con la cuenta {quien}.")
+    return redirect("gestion:cobros")
+
+
+@solo_duena
+@require_POST
+def mp_desconectar(request):
+    ConexionMP.objects.all().delete()
+    messages.success(request, "Mercado Pago desconectado. La tienda deja de cobrar con tarjeta hasta que lo vuelvas a conectar.")
+    return redirect("gestion:cobros")

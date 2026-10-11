@@ -1,0 +1,142 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Cobros y envíos{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup">— Cómo te pagan y cómo llega</p>
+    <h1 class="display g-titulo">Cobros y envíos</h1>
+  </div>
+</header>
+
+{# ===== MERCADO PAGO ===================================================== #}
+<section class="g-bloque g-mp {% if conexion %}g-mp--conectado{% endif %}">
+  <div class="g-mp__logo" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+  </div>
+  <div class="g-mp__cuerpo">
+    <h2 class="g-bloque__titulo">Mercado Pago</h2>
+    {% if conexion %}
+      <p class="g-mp__estado"><span class="g-mp__punto" aria-hidden="true"></span>
+        Conectado con la cuenta <b>{{ conexion.apodo|default:conexion.email|default:conexion.mp_user_id }}</b>
+        {% if conexion.modo_prueba %}<span class="g-estado g-estado--pendiente">Modo prueba</span>{% endif %}
+      </p>
+      <p class="g-ayuda">
+        Las clientas pagan con tarjeta de crédito, débito o su cuenta de Mercado Pago sin salir de la tienda, y la plata
+        te entra directo a esa cuenta. Conectado el {{ conexion.conectada|date:"j \d\e F \d\e Y" }}.
+      </p>
+      <form method="post" action="{% url 'gestion:mp_desconectar' %}"
+            data-confirmar="¿Desconectar Mercado Pago? La tienda deja de cobrar con tarjeta hasta que lo vuelvas a conectar.">
+        {% csrf_token %}
+        <button type="submit" class="cta-ghost">Desconectar</button>
+      </form>
+    {% else %}
+      <p class="g-ayuda">
+        Conectá tu cuenta para cobrar con tarjeta (en cuotas, crédito o débito) y con Mercado Pago, sin que la clienta salga
+        de la tienda. Te lleva a Mercado Pago para que autorices y vuelve acá. La plata entra directo a tu cuenta.
+      </p>
+      {% if mp_entorno %}
+        <p class="g-ayuda"><b>Ahora la tienda cobra con credenciales de prueba del servidor.</b> Conectá tu cuenta para cobrar de verdad.</p>
+      {% endif %}
+      {% if app_mp %}
+        <a href="{% url 'gestion:mp_conectar' %}" class="btn btn--primario g-mp__boton">Conectar Mercado Pago</a>
+      {% else %}
+        <button type="button" class="btn btn--primario g-mp__boton" disabled>Conectar Mercado Pago</button>
+        <p class="g-ayuda g-ayuda--alerta">Falta un paso técnico de Operon (crear la app de Mercado Pago). Cuando esté, este botón se habilita.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+{# ===== MEDIOS DE PAGO ==================================================== #}
+<form method="post" class="g-bloque">
+  {% csrf_token %}
+  <input type="hidden" name="accion" value="cobros">
+  <h2 class="g-bloque__titulo">Medios de pago</h2>
+  <p class="g-ayuda">Lo que puede elegir la clienta al finalizar la compra.</p>
+
+  <div class="g-checks">
+    <label class="g-check">
+      <input type="checkbox" name="acepta_mercadopago" {% if form.acepta_mercadopago.value %}checked{% endif %}>
+      <span><b>Tarjeta / Mercado Pago</b><small>{% if conexion or mp_entorno %}Se cobra online, al instante.{% else %}Se muestra cuando conectes Mercado Pago.{% endif %}</small></span>
+    </label>
+    <label class="g-check">
+      <input type="checkbox" name="acepta_transferencia" {% if form.acepta_transferencia.value %}checked{% endif %}>
+      <span><b>Transferencia</b><small>La clienta ve tus datos y te manda el comprobante por WhatsApp. Lo confirmás en Pedidos.</small></span>
+    </label>
+    <label class="g-check">
+      <input type="checkbox" name="acepta_efectivo" {% if form.acepta_efectivo.value %}checked{% endif %}>
+      <span><b>Efectivo al retirar</b><small>Te reservan las prendas y pagan en el local. Solo con retiro.</small></span>
+    </label>
+  </div>
+
+  <h3 class="g-subtitulo">Datos para transferir</h3>
+  <div class="g-campos-2">
+    <label class="g-campo {% if form.alias.errors %}g-campo--error{% endif %}">
+      <span>Alias</span>
+      <input type="text" name="alias" value="{{ form.alias.value|default_if_none:'' }}" maxlength="60" placeholder="chao.indumentaria">
+      {% if form.alias.errors %}<small class="g-error">{{ form.alias.errors.0 }}</small>{% endif %}
+    </label>
+    <label class="g-campo">
+      <span>CBU / CVU</span>
+      <input type="text" name="cbu" value="{{ form.cbu.value|default_if_none:'' }}" maxlength="30" inputmode="numeric">
+    </label>
+    <label class="g-campo">
+      <span>Titular</span>
+      <input type="text" name="titular" value="{{ form.titular.value|default_if_none:'' }}" maxlength="100">
+    </label>
+    <label class="g-campo">
+      <span>Banco / billetera</span>
+      <input type="text" name="banco" value="{{ form.banco.value|default_if_none:'' }}" maxlength="60" placeholder="Mercado Pago, Galicia…">
+    </label>
+    <label class="g-campo {% if form.descuento_transferencia.errors %}g-campo--error{% endif %}">
+      <span>Descuento por transferencia <em>(%)</em></span>
+      <input type="number" name="descuento_transferencia" min="0" max="50" value="{{ form.descuento_transferencia.value|default_if_none:0 }}">
+      {% if form.descuento_transferencia.errors %}<small class="g-error">{{ form.descuento_transferencia.errors.0 }}</small>{% else %}<small class="g-ayuda">0 = sin descuento. Se aplica a las prendas, no al envío.</small>{% endif %}
+    </label>
+  </div>
+
+  <button type="submit" class="btn btn--primario">Guardar medios de pago</button>
+</form>
+
+{# ===== ENVÍOS ============================================================= #}
+<section class="g-bloque" id="envios">
+  <h2 class="g-bloque__titulo">Envíos</h2>
+  <p class="g-ayuda">
+    El <b>retiro en el local</b> siempre está, gratis. Acá armás las opciones de envío: dejá el precio vacío si preferís
+    cotizarlo por WhatsApp ("a coordinar"). La demora es lo que ve la clienta antes de pagar.
+  </p>
+
+  <div class="g-zonas">
+    {% for z in zonas %}
+      <form method="post" class="g-zona {% if not z.instance.activa %}g-zona--apagada{% endif %}">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="zona">
+        <input type="hidden" name="zona" value="{{ z.instance.pk }}">
+        {% include "gestion/_zona_campos.html" with f=z %}
+        <div class="g-zona__acciones">
+          <button type="submit" class="btn btn--primario g-btn-chico">Guardar</button>
+          <button type="submit" name="accion" value="zona-borrar" class="cta-ghost"
+                  formnovalidate onclick="return confirm('¿Borrar la zona «{{ z.instance.nombre|escapejs }}»?')">Borrar</button>
+        </div>
+      </form>
+    {% empty %}
+      <p class="g-vacio">Todavía no hay zonas de envío: solo se ofrece retiro en el local.</p>
+    {% endfor %}
+  </div>
+
+  <details class="g-zona-nueva" {% if zona_nueva.errors %}open{% endif %}>
+    <summary class="btn btn--secundario">+ Agregar zona de envío</summary>
+    <form method="post" class="g-zona">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="zona">
+      {% include "gestion/_zona_campos.html" with f=zona_nueva %}
+      <div class="g-zona__acciones">
+        <button type="submit" class="btn btn--primario g-btn-chico">Agregar</button>
+      </div>
+    </form>
+  </details>
+</section>
+{% endblock %}

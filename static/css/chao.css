@@ -74,6 +74,11 @@ img {
   display: block;
 }
 
+/* `hidden` tiene que ganarle siempre a un display: flex/grid de una clase. */
+[hidden] {
+  display: none !important;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -2552,6 +2557,393 @@ button {
   margin-top: 2rem;
 }
 
+/* --- Checkout en 3 pasos: datos, entrega, pago -------------------------------- */
+.checkout__bloque {
+  margin: 0 0 2.25rem;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.checkout__paso {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  margin-bottom: 1.1rem;
+  padding: 0 0 0.85rem;
+  border-bottom: 1px solid var(--linea);
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  font-weight: 400;
+}
+
+.checkout__paso span {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--tinta);
+  color: var(--fondo);
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.campos {
+  display: grid;
+  gap: 0 1rem;
+}
+
+.campos--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.campos--direccion {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.campo--ancho,
+.campos--direccion .campo--calle {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 640px) {
+  .campos--direccion .campo--calle {
+    grid-column: span 2;
+  }
+}
+
+.campo select {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  background: var(--fondo-hueso);
+  font: inherit;
+  font-size: 1rem;
+  color: var(--tinta);
+}
+
+.campo select:focus {
+  outline: none;
+  border-color: var(--tinta);
+  background: #fff;
+}
+
+.campo--error input,
+.campo--error select {
+  border-color: var(--bordo);
+}
+
+.campo__ayuda {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: var(--tinta-mute);
+}
+
+@media (max-width: 640px) {
+  .campos--2,
+  .campos--direccion {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tarjetas de opción (entrega y pago) */
+.opciones {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.opcion {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--linea);
+  background: var(--fondo-hueso);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.opcion:hover {
+  border-color: rgba(36, 27, 22, 0.35);
+}
+
+.opcion input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.opcion__marca {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(36, 27, 22, 0.35);
+  background: #fff;
+  transition: border 0.2s;
+}
+
+.opcion:has(input:checked) {
+  border-color: var(--tinta);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--tinta) inset;
+}
+
+.opcion:has(input:checked) .opcion__marca {
+  border: 6px solid var(--tinta);
+}
+
+.opcion:has(input:focus-visible) {
+  outline: 2px solid var(--sage-deep);
+  outline-offset: 2px;
+}
+
+.opcion__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.opcion__titulo {
+  font-weight: 500;
+  font-size: 0.98rem;
+}
+
+.opcion__off {
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.45rem;
+  background: var(--aqua);
+  color: var(--tinta);
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.opcion__detalle {
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--tinta-suave);
+}
+
+.opcion__precio {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.opcion__icono {
+  color: var(--tinta-suave);
+}
+
+.opcion__icono svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.opcion--apagada {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Dirección de envío */
+.direccion {
+  margin-top: 1.25rem;
+  padding: 1.25rem;
+  border: 1px solid var(--linea);
+  background: var(--fondo-hueso);
+}
+
+.direccion[hidden] {
+  display: none;
+}
+
+.direccion__titulo {
+  margin: 0 0 1rem;
+  font-family: var(--serif);
+  font-size: 1.25rem;
+}
+
+.direccion__nota {
+  margin: 0.25rem 0 0;
+  padding: 0.75rem 0.9rem;
+  background: var(--superficie);
+  font-size: 0.85rem;
+  color: var(--tinta-suave);
+}
+
+.checkout__seguro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.9rem 0 0;
+  font-size: 0.78rem;
+  color: var(--tinta-mute);
+  text-align: center;
+}
+
+.checkout__seguro svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.checkout__wsp {
+  display: block;
+  margin-top: 1.25rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--sage-deep);
+}
+
+.checkout__wsp:hover {
+  text-decoration: underline;
+}
+
+.btn--cargando {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.resumen__cuentas {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--linea);
+}
+
+.resumen__nota {
+  margin: 0.4rem 0 0;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--tinta-mute);
+}
+
+/* Pago con el formulario seguro de Mercado Pago */
+.pago {
+  min-height: 220px;
+}
+
+.pago__cargando {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 0;
+  font-size: 0.9rem;
+  color: var(--tinta-suave);
+}
+
+.pago__cargando[hidden] {
+  display: none;
+}
+
+.pago__spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--linea);
+  border-top-color: var(--tinta);
+  animation: girar 0.8s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pago__error {
+  margin: 1rem 0 0;
+}
+
+.pago__error[hidden] {
+  display: none;
+}
+
+/* Datos para transferir */
+.transferencia {
+  display: grid;
+  margin: 1.5rem 0;
+  border: 1px solid var(--linea);
+  background: var(--fondo-hueso);
+}
+
+.transferencia div {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+}
+
+.transferencia div + div {
+  border-top: 1px solid var(--linea);
+}
+
+.transferencia dt {
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tinta-mute);
+}
+
+.transferencia dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  word-break: break-all;
+}
+
+.transferencia__copiar {
+  flex: none;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--pildora);
+  background: #fff;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tinta);
+  cursor: pointer;
+}
+
+.transferencia__copiar:hover {
+  border-color: var(--tinta);
+}
+
+.resultado__seguimiento {
+  margin: 1rem 0 0;
+  padding: 0.8rem 1rem;
+  background: var(--fondo-hueso);
+  border: 1px solid var(--linea);
+}
+
+.checkout--pedido .resultado {
+  text-align: left;
+  padding: 0;
+}
+
 /* --- Accesibilidad y foco ------------------------------------------------ */
 :focus-visible {
   outline: 2px solid var(--accion);
@@ -2976,5 +3368,45 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+.checkout--pedido .resultado__icono {
+  margin-left: 0;
+}
+
+.checkout--pedido .resultado__acciones {
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.checkout--pedido .resultado .seccion__nota {
+  margin-left: 0;
+}
+
+/* En el celular el resumen queda abajo de todo: el total se repite arriba del botón. */
+.checkout__total-movil {
+  display: none;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 1.25rem 0 0.75rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+
+.checkout__total-movil b {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--tinta);
+}
+
+@media (max-width: 900px) {
+  .checkout__total-movil {
+    display: flex;
   }
 }

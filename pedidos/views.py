@@ -1,10 +1,16 @@
 """
-Checkout y vuelta de Mercado Pago.
+Checkout, pago y estado del pedido.
 
-Regla que ordena todo este módulo: **el estado de pago lo cambia el webhook (o la
-dueña a mano desde /gestion/), nunca la URL a la que volvió el navegador**. La
-página de resultado le muestra a la clienta lo que pasó, pero si dice "aprobado" es
-porque ya se confirmó del lado del servidor. Si no, muestra "estamos confirmando".
+Flujo: /checkout/ (datos, entrega y medio de pago) → se crea el Pedido →
+  · tarjeta / Mercado Pago: /checkout/pago/<codigo>/ (formulario seguro de MP
+    dentro de la página) → /checkout/pedido/<codigo>/
+  · transferencia o efectivo: directo a /checkout/pedido/<codigo>/ con los datos
+    para transferir o la dirección del local.
+
+Regla que ordena todo: **el pedido pasa a pagado solo si Mercado Pago lo confirma
+del lado del servidor** (respuesta del pago o webhook, con monto y moneda
+verificados) **o si la dueña lo marca a mano en el panel**. Nunca por una URL a la
+que volvió el navegador.
 """
 
 from __future__ import annotations
@@ -12,132 +18,235 @@ from __future__ import annotations
 import json
 import logging
 
-from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.http import HttpResponse
-from django.shortcuts import redirect, render
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from carrito.cart import Cart
 
-from .models import Pedido, PedidoItem
+from .forms import CheckoutForm
+from .models import Cobros, Pedido, PedidoItem
 from .services import mercadopago
 
 logger = logging.getLogger(__name__)
 
+# Lo que Mercado Pago contesta cuando rechaza, traducido a algo que se entienda.
+MOTIVOS_RECHAZO = {
+    "cc_rejected_insufficient_amount": "La tarjeta no tiene saldo suficiente.",
+    "cc_rejected_bad_filled_security_code": "El código de seguridad no es correcto.",
+    "cc_rejected_bad_filled_date": "La fecha de vencimiento no es correcta.",
+    "cc_rejected_bad_filled_card_number": "Revisá el número de la tarjeta.",
+    "cc_rejected_bad_filled_other": "Revisá los datos de la tarjeta.",
+    "cc_rejected_call_for_authorize": "El banco pide que autorices el pago: llamalo y volvé a intentar.",
+    "cc_rejected_card_disabled": "La tarjeta no está habilitada. Llamá al banco para activarla.",
+    "cc_rejected_duplicated_payment": "Ya hiciste un pago igual hace un momento.",
+    "cc_rejected_high_risk": "El pago fue rechazado por seguridad. Probá con otra tarjeta.",
+    "cc_rejected_max_attempts": "Llegaste al límite de intentos. Probá con otra tarjeta.",
+}
 
+
+def _mp_disponible() -> bool:
+    return mercadopago.configurado()
+
+
+# --- Checkout ------------------------------------------------------------------
 def checkout(request):
     carrito = Cart(request)
     if carrito.vacio:
         return redirect("catalogo:home")
 
+    lineas = list(carrito)
     # Con talles cargados y sin talle elegido no se puede cobrar: no sabríamos qué
     # prenda entregar. Se avisa acá y no en el pago, que es más tarde y peor.
     faltan_talle = [
-        linea["producto"].nombre
-        for linea in carrito
-        if linea["talle"] is None and linea["producto"].necesita_elegir_talle
+        l["producto"].nombre for l in lineas if l["talle"] is None and l["producto"].necesita_elegir_talle
     ]
 
+    form = CheckoutForm(request.POST or None, mp_disponible=_mp_disponible())
+    if request.method == "POST" and not faltan_talle and form.is_valid():
+        pedido = _crear_pedido(form, lineas)
+        carrito.vaciar()
+        if pedido.metodo_pago == Pedido.Metodo.MERCADOPAGO:
+            return redirect("pedidos:pago", codigo=pedido.codigo)
+        return redirect("pedidos:pedido", codigo=pedido.codigo)
+    if request.method == "POST" and form.errors:
+        messages.error(request, "Revisá los campos marcados.")
+
+    cobros = form.cobros
     return render(
         request,
         "pedidos/checkout.html",
         {
             "carrito": carrito,
+            "form": form,
             "faltan_talle": faltan_talle,
-            "mp_activo": mercadopago.configurado(),
+            "zonas": [
+                {"zona": z, "valor": f"zona-{z.pk}", "costo": z.costo_para(carrito.total)} for z in form.zonas
+            ],
+            "metodos": form.metodos_disponibles(),
+            "cobros": cobros,
+            "entrega_elegida": form.data.get("entrega", "retiro") if form.is_bound else "retiro",
+            "metodo_elegido": form.data.get("metodo_pago") if form.is_bound else (form.metodos_disponibles() or [""])[0],
+        },
+    )
+
+
+def _crear_pedido(form, lineas) -> Pedido:
+    d = form.cleaned_data
+    zona = form.zona
+    cobros = Cobros.actual()
+    # El pedido y sus líneas se crean juntos o no se crean: un pedido sin items es
+    # basura en la base y confunde a la dueña en el panel.
+    with transaction.atomic():
+        pedido = Pedido(
+            nombre=d["nombre"].strip(),
+            telefono=d["telefono"],
+            email=d["email"],
+            dni=d.get("dni", "").strip(),
+            notas=(d.get("notas") or "").strip(),
+            metodo_pago=d["metodo_pago"],
+            entrega=Pedido.Entrega.ENVIO if zona else Pedido.Entrega.RETIRO,
+        )
+        if zona:
+            subtotal = sum(l["subtotal"] for l in lineas)
+            pedido.zona = zona
+            pedido.zona_nombre = zona.nombre
+            pedido.zona_demora = zona.demora
+            pedido.costo_envio = zona.costo_para(subtotal)
+            for campo in ("calle", "numero", "piso_depto", "entre_calles", "codigo_postal",
+                          "localidad", "provincia", "indicaciones"):
+                setattr(pedido, campo, (d.get(campo) or "").strip())
+        pedido.save()
+        PedidoItem.objects.bulk_create(
+            [
+                PedidoItem(
+                    pedido=pedido,
+                    producto=l["producto"],
+                    talle=l["talle"],
+                    cantidad=l["cantidad"],
+                    precio_unitario=l["precio"],
+                )
+                for l in lineas
+            ]
+        )
+        descuento = cobros.descuento_transferencia if pedido.metodo_pago == Pedido.Metodo.TRANSFERENCIA else 0
+        pedido.recalcular_total(descuento_pct=descuento)
+    return pedido
+
+
+# --- Pago con tarjeta / Mercado Pago -------------------------------------------
+def pago(request, codigo):
+    pedido = get_object_or_404(Pedido, codigo=codigo)
+    if pedido.estado == Pedido.Estado.PAGADO or pedido.metodo_pago != Pedido.Metodo.MERCADOPAGO:
+        return redirect("pedidos:pedido", codigo=codigo)
+
+    cred = mercadopago.credenciales()
+    if not cred:
+        # Sin Mercado Pago conectado el pedido no se pierde: se termina por WhatsApp.
+        return render(request, "pedidos/pedido.html", {"pedido": pedido, "sin_mp": True})
+
+    try:
+        # Para el botón "Pagar con mi cuenta de Mercado Pago". Si falla, el
+        # formulario de tarjeta sigue andando igual.
+        preferencia = mercadopago.crear_preferencia(pedido, request)
+    except mercadopago.MercadoPagoError as exc:
+        logger.warning("Pedido #%s sin preferencia para la billetera: %s", pedido.pk, exc)
+        preferencia = ""
+
+    return render(
+        request,
+        "pedidos/pago.html",
+        {
+            "pedido": pedido,
+            "mp_config": {
+                "publicKey": cred.public_key,
+                "monto": float(pedido.total),
+                "preferenceId": preferencia,
+                "email": pedido.email,
+                "urlProcesar": reverse("pedidos:procesar", args=[pedido.codigo]),
+                "urlPedido": reverse("pedidos:pedido", args=[pedido.codigo]),
+            },
         },
     )
 
 
 @require_POST
-def pagar(request):
-    """Convierte el carrito en un Pedido y manda a la clienta a Mercado Pago."""
-    carrito = Cart(request)
-    if carrito.vacio:
-        return redirect("catalogo:home")
-
-    nombre = (request.POST.get("nombre") or "").strip()
-    telefono = (request.POST.get("telefono") or "").strip()
-    email = (request.POST.get("email") or "").strip()
-
-    if not nombre or not telefono:
-        messages.error(request, "Necesitamos tu nombre y un teléfono para coordinar la entrega.")
-        return redirect("pedidos:checkout")
-
-    lineas = list(carrito)
-    if any(l["talle"] is None and l["producto"].necesita_elegir_talle for l in lineas):
-        messages.error(request, "Hay prendas sin talle elegido. Revisá el carrito antes de pagar.")
-        return redirect("pedidos:checkout")
-
-    # El pedido y sus líneas se crean juntos o no se crean: un pedido sin items es
-    # basura en la base y confunde a la dueña en el panel.
-    with transaction.atomic():
-        pedido = Pedido.objects.create(
-            nombre=nombre,
-            telefono=telefono,
-            email=email,
-            notas=(request.POST.get("notas") or "").strip(),
-        )
-        PedidoItem.objects.bulk_create(
-            [
-                PedidoItem(
-                    pedido=pedido,
-                    producto=linea["producto"],
-                    talle=linea["talle"],
-                    cantidad=linea["cantidad"],
-                    precio_unitario=linea["precio"],
-                )
-                for linea in lineas
-            ]
-        )
-        pedido.recalcular_total()
+def procesar(request, codigo):
+    """Recibe la tarjeta tokenizada por el formulario seguro y crea el pago."""
+    pedido = get_object_or_404(Pedido, codigo=codigo)
+    if pedido.estado == Pedido.Estado.PAGADO:
+        return JsonResponse({"estado": "pagado", "url": reverse("pedidos:pedido", args=[codigo])})
+    try:
+        datos = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("Datos ilegibles")
 
     try:
-        link = mercadopago.crear_preferencia(pedido, request)
+        pago_mp = mercadopago.crear_pago(pedido, datos, request)
     except mercadopago.MercadoPagoError as exc:
-        logger.error("Pedido #%s sin link de pago: %s", pedido.pk, exc)
-        # El pedido queda igual, en estado pendiente: la venta no se pierde, se
-        # termina por WhatsApp. Es lo que haría la dueña de todas formas.
-        return render(
-            request,
-            "pedidos/sin_pago.html",
-            {"pedido": pedido, "motivo": str(exc), "debug": settings.DEBUG},
+        return JsonResponse({"estado": "error", "mensaje": str(exc)}, status=502)
+
+    estado_mp = pago_mp.get("status")
+    detalle = pago_mp.get("status_detail", "")
+    if estado_mp == "approved" and mercadopago.pago_coincide(pago_mp, pedido):
+        pedido.marcar_pagado(str(pago_mp.get("id")), detalle)
+        return JsonResponse({"estado": "pagado", "url": reverse("pedidos:pedido", args=[codigo])})
+
+    pedido.mp_payment_id = str(pago_mp.get("id") or "")
+    pedido.mp_status_detail = detalle
+    if estado_mp == "rejected":
+        pedido.estado = Pedido.Estado.RECHAZADO
+    pedido.save(update_fields=["mp_payment_id", "mp_status_detail", "estado", "actualizado"])
+    if estado_mp == "rejected":
+        return JsonResponse(
+            {"estado": "rechazado", "mensaje": MOTIVOS_RECHAZO.get(detalle, "La tarjeta rechazó el pago. Probá con otra.")}
         )
-
-    # El carrito se vacía recién cuando hay link: si falló, la clienta lo sigue teniendo.
-    carrito.vaciar()
-    return redirect(link)
+    # in_process / pending: lo resuelve el webhook; la página del pedido espera.
+    return JsonResponse({"estado": "pendiente", "url": reverse("pedidos:pedido", args=[codigo])})
 
 
-def resultado(request):
-    """
-    Vuelta desde Mercado Pago. Solo informa — no cambia el estado del pedido.
+# --- Estado del pedido ---------------------------------------------------------------
+def pedido(request, codigo):
+    pedido = get_object_or_404(
+        Pedido.objects.prefetch_related("items__producto__imagenes", "items__talle"), codigo=codigo
+    )
+    return render(
+        request,
+        "pedidos/pedido.html",
+        {
+            "pedido": pedido,
+            "cobros": Cobros.actual(),
+            "motivo_rechazo": MOTIVOS_RECHAZO.get(pedido.mp_status_detail, ""),
+        },
+    )
 
-    Los parámetros de esta URL los puede escribir cualquiera, así que lo único que se
-    usa es el id del pedido para leerlo de la base.
-    """
-    pedido = Pedido.objects.filter(pk=request.GET.get("pedido")).prefetch_related(
-        "items__producto", "items__talle"
-    ).first()
-    return render(request, "pedidos/resultado.html", {"pedido": pedido})
+
+@require_GET
+def estado(request, codigo):
+    """Para que la página del pedido se entere sola cuando el webhook confirma."""
+    p = get_object_or_404(Pedido, codigo=codigo)
+    return JsonResponse({"estado": p.estado})
 
 
+# --- Webhook ---------------------------------------------------------------------------
 @csrf_exempt
 @require_POST
 def mp_webhook(request):
     """
-    Aviso de Mercado Pago. Es el único lugar que marca un pedido como pagado.
+    Aviso de Mercado Pago. Junto con `procesar`, el único lugar que marca un pedido
+    como pagado.
 
-    Va sin CSRF porque el que postea es Mercado Pago, no un formulario nuestro. La
-    seguridad no está en el token: está en que el estado no se lee del cuerpo del
-    aviso sino consultando la API con nuestro token privado.
+    Va sin CSRF porque el que postea es Mercado Pago. La seguridad está en tres
+    capas: la firma (x-signature), que el estado se consulta a la API con nuestro
+    token y que el monto y la moneda tienen que coincidir con el pedido.
 
     Devuelve 200 casi siempre a propósito: si contestamos error, Mercado Pago
-    reintenta el mismo aviso durante horas. Solo interesa retener el 500 cuando el
-    problema es nuestro y un reintento puede andar.
+    reintenta el mismo aviso durante horas. Solo se usa 500 cuando el problema es
+    nuestro y un reintento puede andar.
     """
     try:
         cuerpo = json.loads(request.body or b"{}")
@@ -145,35 +254,37 @@ def mp_webhook(request):
         logger.warning("Webhook de MP con cuerpo ilegible.")
         return HttpResponse(status=200)
 
-    payment_id = (cuerpo.get("data") or {}).get("id") or request.GET.get("data.id")
+    payment_id = request.GET.get("data.id") or (cuerpo.get("data") or {}).get("id")
     tipo = cuerpo.get("type") or request.GET.get("type")
-
     if tipo != "payment" or not payment_id:
-        # Mercado Pago manda otros tipos de aviso que no nos interesan.
-        return HttpResponse(status=200)
+        return HttpResponse(status=200)  # otros avisos que no nos interesan
+
+    if not mercadopago.firma_valida(request, str(payment_id)):
+        logger.warning("Webhook de MP con firma inválida (pago %s).", payment_id)
+        return HttpResponse(status=401)
 
     try:
-        pago = mercadopago.consultar_pago(str(payment_id))
+        pago_mp = mercadopago.consultar_pago(str(payment_id))
     except mercadopago.MercadoPagoError as exc:
         logger.error("No se pudo consultar el pago %s: %s", payment_id, exc)
-        return HttpResponse(status=500)  # Que reintente: puede ser un corte pasajero.
+        return HttpResponse(status=500)  # que reintente: puede ser un corte pasajero
 
-    referencia = pago.get("external_reference")
-    pedido = Pedido.objects.filter(pk=referencia).first() if referencia else None
+    referencia = pago_mp.get("external_reference")
+    pedido = Pedido.objects.filter(pk=referencia).first() if str(referencia or "").isdigit() else None
     if pedido is None:
         logger.warning("Pago %s con external_reference desconocido: %r", payment_id, referencia)
         return HttpResponse(status=200)
 
-    estados = {
-        "approved": Pedido.Estado.PAGADO,
-        "rejected": Pedido.Estado.RECHAZADO,
-        "cancelled": Pedido.Estado.CANCELADO,
-    }
-    nuevo = estados.get(pago.get("status"))
-    if nuevo:
-        pedido.estado = nuevo
+    estado_mp = pago_mp.get("status")
+    if estado_mp == "approved":
+        if mercadopago.pago_coincide(pago_mp, pedido):
+            pedido.marcar_pagado(str(payment_id), pago_mp.get("status_detail", ""))
+            logger.info("Pedido #%s pagado (pago %s)", pedido.pk, payment_id)
+        else:
+            logger.error("Pago %s aprobado pero el monto no coincide con el pedido #%s", payment_id, pedido.pk)
+    elif estado_mp in ("rejected", "cancelled") and pedido.estado != Pedido.Estado.PAGADO:
+        pedido.estado = Pedido.Estado.RECHAZADO if estado_mp == "rejected" else Pedido.Estado.CANCELADO
         pedido.mp_payment_id = str(payment_id)
-        pedido.save(update_fields=["estado", "mp_payment_id", "actualizado"])
-        logger.info("Pedido #%s → %s (pago %s)", pedido.pk, nuevo, payment_id)
-
+        pedido.mp_status_detail = pago_mp.get("status_detail", "")
+        pedido.save(update_fields=["estado", "mp_payment_id", "mp_status_detail", "actualizado"])
     return HttpResponse(status=200)

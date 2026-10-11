@@ -9,6 +9,7 @@ from django import forms
 from django.utils.text import slugify
 
 from catalogo.models import Categoria, Look, Portada, Producto
+from pedidos.models import Cobros, ZonaEnvio
 
 
 class ProductoForm(forms.ModelForm):
@@ -81,3 +82,36 @@ class PortadaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["foto_hero"].queryset = Look.objects.filter(activo=True)
         self.fields["foto_hero"].required = False
+
+
+class CobrosForm(forms.ModelForm):
+    class Meta:
+        model = Cobros
+        fields = [
+            "acepta_mercadopago", "acepta_transferencia", "acepta_efectivo",
+            "descuento_transferencia", "alias", "cbu", "titular", "banco",
+        ]
+
+    def clean_descuento_transferencia(self):
+        pct = self.cleaned_data["descuento_transferencia"]
+        if pct > 50:
+            raise forms.ValidationError("Como máximo 50%.")
+        return pct
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get("acepta_transferencia") and not (datos.get("alias") or datos.get("cbu")):
+            self.add_error("alias", "Para aceptar transferencias cargá el alias o el CBU/CVU.")
+        return datos
+
+
+class ZonaForm(forms.ModelForm):
+    class Meta:
+        model = ZonaEnvio
+        fields = ["nombre", "tipo", "descripcion", "precio", "gratis_desde", "demora", "activa"]
+
+    def clean_precio(self):
+        precio = self.cleaned_data["precio"]
+        if precio is not None and precio < 0:
+            raise forms.ValidationError("El precio no puede ser negativo.")
+        return precio

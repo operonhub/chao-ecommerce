@@ -22,7 +22,7 @@
         <span>Temporada</span>
         <input type="text" name="temporada" value="{{ form.temporada.value|default_if_none:'' }}" maxlength="40"
                placeholder="Otoño / 26" data-preview="temporada" required>
-        <small class="g-ayuda">Aparece en la etiqueta vertical del inicio y en "Lo nuevo".</small>
+        <small class="g-ayuda">Aparece arriba de la frase de la portada, en la cinta y en "Lo nuevo".</small>
       </label>
       <label class="g-campo {% if form.frase.errors %}g-campo--error{% endif %}">
         <span>Frase de la portada</span>

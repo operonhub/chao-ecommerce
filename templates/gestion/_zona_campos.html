@@ -1,0 +1,42 @@
+{% comment %} Campos de una zona de envío. `f` es un ZonaForm con prefijo propio. {% endcomment %}
+<div class="g-zona__grid">
+  <label class="g-campo g-zona__nombre {% if f.nombre.errors %}g-campo--error{% endif %}">
+    <span>Nombre</span>
+    <input type="text" name="{{ f.nombre.html_name }}" value="{{ f.nombre.value|default_if_none:'' }}" maxlength="80"
+           required placeholder="Villa Bosch y alrededores">
+    {% if f.nombre.errors %}<small class="g-error">{{ f.nombre.errors.0 }}</small>{% endif %}
+  </label>
+  <label class="g-campo">
+    <span>Quién lo lleva</span>
+    <select name="{{ f.tipo.html_name }}">
+      {% for valor, texto in f.fields.tipo.choices %}
+        <option value="{{ valor }}" {% if f.tipo.value == valor %}selected{% endif %}>{{ texto }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="g-campo {% if f.precio.errors %}g-campo--error{% endif %}">
+    <span>Precio <em>($, vacío = a coordinar)</em></span>
+    <input type="number" name="{{ f.precio.html_name }}" min="0" step="1"
+           value="{% if f.precio.value is not None %}{{ f.precio.value|floatformat:0 }}{% endif %}" placeholder="A coordinar">
+    {% if f.precio.errors %}<small class="g-error">{{ f.precio.errors.0 }}</small>{% endif %}
+  </label>
+  <label class="g-campo">
+    <span>Gratis desde <em>($, opcional)</em></span>
+    <input type="number" name="{{ f.gratis_desde.html_name }}" min="0" step="1"
+           value="{% if f.gratis_desde.value is not None %}{{ f.gratis_desde.value|floatformat:0 }}{% endif %}" placeholder="Nunca">
+  </label>
+  <label class="g-campo">
+    <span>Demora</span>
+    <input type="text" name="{{ f.demora.html_name }}" value="{{ f.demora.value|default_if_none:'' }}" maxlength="80"
+           required placeholder="3 a 5 días hábiles">
+  </label>
+  <label class="g-campo g-zona__desc">
+    <span>Qué cubre <em>(opcional)</em></span>
+    <input type="text" name="{{ f.descripcion.html_name }}" value="{{ f.descripcion.value|default_if_none:'' }}" maxlength="140"
+           placeholder="CABA y Gran Buenos Aires">
+  </label>
+  <label class="g-check g-check--chico">
+    <input type="checkbox" name="{{ f.activa.html_name }}" {% if f.activa.value %}checked{% endif %}>
+    <span><b>Activa</b><small>Se muestra en la tienda.</small></span>
+  </label>
+</div>

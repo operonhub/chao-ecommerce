@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static humanize_ar %}
+
+{% block titulo %}Pagar el pedido #{{ pedido.pk }} — {{ negocio.nombre }}{% endblock %}
+
+{% block contenido %}
+{% comment %}
+  El formulario de pago es el "Payment Brick" de Mercado Pago: corre dentro de un
+  recuadro seguro de MP, así los datos de la tarjeta nunca pasan por CHAO. Al
+  confirmar, el navegador manda solo un token a /procesar/ y el servidor crea el
+  pago con el monto del pedido (static/js/pago.js).
+{% endcomment %}
+<section class="contenido checkout">
+  <div class="checkout__form">
+    <ol class="pasos" aria-label="Pasos de la compra">
+      <li class="pasos__hecho">Bolsa</li>
+      <li class="pasos__hecho">Datos y entrega</li>
+      <li class="pasos__actual" aria-current="step">Pago</li>
+    </ol>
+
+    <h1 class="display checkout__titulo">Pagá tu <em>pedido</em></h1>
+    {% if pedido.estado == 'rechazado' %}
+      <p class="aviso"><span aria-hidden="true">⚠</span>
+        <span>El intento anterior no pasó. Podés probar con otra tarjeta o con tu cuenta de Mercado Pago.</span></p>
+    {% endif %}
+
+    <div class="pago" data-pago>
+      <div class="pago__cargando" data-pago-cargando>
+        <span class="pago__spinner" aria-hidden="true"></span>
+        Cargando el pago seguro de Mercado Pago…
+      </div>
+      <div id="pago-brick"></div>
+      <p class="aviso pago__error" data-pago-error hidden role="alert"></p>
+    </div>
+
+    <p class="checkout__seguro">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+      Pago procesado por Mercado Pago. CHAO no ve ni guarda los datos de tu tarjeta.
+    </p>
+    <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ pedido.texto_problema_pago|urlencode }}"
+       class="checkout__wsp" target="_blank" rel="noopener">¿Algún problema con el pago? Escribinos →</a>
+  </div>
+
+  {% include "pedidos/_resumen_pedido.html" with pedido=pedido %}
+</section>
+{% csrf_token %}
+{{ mp_config|json_script:"mp-config" }}
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
+  <script src="{% static 'js/pago.js' %}" defer></script>
+{% endblock %}

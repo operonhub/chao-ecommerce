@@ -37,6 +37,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 15l5-4 4 3 3-2 6 4"/></svg>
         Portada
       </a>
+      <a href="{% url 'gestion:cobros' %}" {% if seccion == 'cobros' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+        Cobros y envíos
+      </a>
     </nav>
 
     <div class="g-lado__pie">
@@ -55,7 +59,12 @@
         <span class="marca__disco" aria-hidden="true"><span>CHAO</span><em>Indumentaria</em></span>
         <span class="g-marca__texto">Mi <em>tienda</em></span>
       </a>
-      <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="g-top__ver">Ver tienda ↗</a>
+      <div class="g-top__der">
+        <a href="{% url 'gestion:cobros' %}" class="g-top__cobros" aria-label="Cobros y envíos" {% if seccion == 'cobros' %}aria-current="page"{% endif %}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+        </a>
+        <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="g-top__ver">Ver tienda ↗</a>
+      </div>
     </header>
 
     {% if messages %}

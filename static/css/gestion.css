@@ -1813,3 +1813,251 @@
     bottom: 1.5rem;
   }
 }
+
+/* --- Cobros y envíos ------------------------------------------------------------ */
+.g-top__der {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.g-top__cobros {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--tinta);
+}
+
+.g-top__cobros[aria-current="page"] {
+  background: var(--tinta);
+  color: var(--fondo);
+}
+
+.g-mp {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.g-mp__logo {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: #e6f0fb;
+  color: #00699d;
+}
+
+.g-mp__logo svg {
+  width: 26px;
+  height: 26px;
+}
+
+.g-mp--conectado .g-mp__logo {
+  background: #e3f1e9;
+  color: var(--g-verde);
+}
+
+.g-mp__estado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+}
+
+.g-mp__punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--g-verde);
+  box-shadow: 0 0 0 4px rgba(63, 122, 92, 0.15);
+}
+
+.g-mp__boton {
+  margin-top: 0.4rem;
+}
+
+.g-mp__boton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.g-ayuda--alerta {
+  color: var(--g-ambar);
+}
+
+.g-subtitulo {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+
+.g-campos-2 {
+  display: grid;
+  gap: 0 1rem;
+}
+
+@media (min-width: 720px) {
+  .g-campos-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.g-checks {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.g-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--g-campo-radio);
+  background: #fff;
+  cursor: pointer;
+}
+
+.g-check:has(input:checked) {
+  border-color: var(--sage-deep);
+  box-shadow: 0 0 0 1px var(--sage-deep) inset;
+}
+
+.g-check input {
+  width: 20px;
+  height: 20px;
+  margin: 0.1rem 0 0;
+  accent-color: var(--sage-deep);
+  flex: none;
+}
+
+.g-check span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.g-check b {
+  font-weight: 500;
+}
+
+.g-check small {
+  color: var(--tinta-mute);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.g-check--chico {
+  padding: 0.7rem 0.85rem;
+  align-self: end;
+  margin-bottom: 1rem;
+}
+
+.g-zonas {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.g-zona {
+  padding: 1rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--g-campo-radio);
+  background: #fff;
+}
+
+.g-zona--apagada {
+  opacity: 0.6;
+}
+
+.g-zona__grid {
+  display: grid;
+  gap: 0 0.85rem;
+}
+
+@media (min-width: 720px) {
+  .g-zona__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .g-zona__nombre,
+  .g-zona__desc {
+    grid-column: span 2;
+  }
+}
+
+.g-zona__acciones {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.g-zona-nueva > summary {
+  list-style: none;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.g-zona-nueva > summary::-webkit-details-marker {
+  display: none;
+}
+
+.g-zona-nueva[open] > summary {
+  margin-bottom: 0.75rem;
+}
+
+/* --- Pedidos: entrega, pago y seguimiento --------------------------------------- */
+.g-pedido__entrega {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.25rem 0 0.9rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: var(--g-campo-radio);
+  background: var(--fondo);
+  font-size: 0.9rem;
+}
+
+.g-pedido__entrega b {
+  font-weight: 500;
+}
+
+.g-pedido__entrega small {
+  color: var(--tinta-mute);
+}
+
+.g-seguimiento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+}
+
+.g-seguimiento input {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--g-campo-radio);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.g-seguimiento a[hidden] {
+  display: none;
+}
+
+.g-estado--esperando {
+  background: #fdf1dc;
+  color: var(--g-ambar);
+}

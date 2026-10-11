@@ -1,0 +1,45 @@
+{% load humanize_ar %}
+<aside class="resumen">
+  <p class="resumen__titulo">Pedido #{{ pedido.pk }}</p>
+  {% for item in pedido.items.all %}
+    {% with foto=item.producto.foto_principal %}
+    <div class="resumen__item">
+      <span class="resumen__foto">
+        {% if foto %}<img src="{{ foto.url }}" alt="" loading="lazy">{% endif %}
+        <span class="resumen__cant">{{ item.cantidad }}</span>
+      </span>
+      <span class="resumen__nombre">
+        {{ item.producto.nombre }}
+        {% if item.talle %}<small>Talle {{ item.talle }}</small>{% endif %}
+      </span>
+      <span class="resumen__precio">${{ item.subtotal|pesos }}</span>
+    </div>
+    {% endwith %}
+  {% endfor %}
+
+  <div class="resumen__cuentas">
+    <div class="resumen__linea"><span>Subtotal</span><span>${{ pedido.subtotal|pesos }}</span></div>
+    {% if pedido.descuento %}
+      <div class="resumen__linea"><span>Descuento transferencia</span><span>−${{ pedido.descuento|pesos }}</span></div>
+    {% endif %}
+    <div class="resumen__linea">
+      <span>{% if pedido.entrega == 'envio' %}Envío · {{ pedido.zona_nombre }}{% else %}Retiro en el local{% endif %}</span>
+      <span>{% if pedido.entrega != 'envio' or pedido.costo_envio == 0 %}Gratis{% elif pedido.costo_envio is None %}A coordinar{% else %}${{ pedido.costo_envio|pesos }}{% endif %}</span>
+    </div>
+  </div>
+  <div class="resumen__total">
+    <span>Total</span>
+    <b>${{ pedido.total|pesos }}</b>
+  </div>
+  {% if pedido.envio_a_coordinar %}<p class="resumen__nota">+ envío a coordinar por WhatsApp</p>{% endif %}
+
+  <ul class="resumen__datos">
+    {% if pedido.entrega == 'envio' %}
+      <li><span>Enviamos a</span>{{ pedido.direccion_completa }}</li>
+      <li><span>Demora</span>{{ pedido.zona_demora }}</li>
+    {% else %}
+      <li><span>Retiro</span>{{ negocio.direccion }}</li>
+      <li><span>Horario</span>{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</li>
+    {% endif %}
+  </ul>
+</aside>

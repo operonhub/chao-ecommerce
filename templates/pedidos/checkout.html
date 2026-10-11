@@ -1,25 +1,28 @@
 {% extends "base.html" %}
-{% load humanize_ar %}
+{% load static humanize_ar %}
 
 {% block titulo %}Finalizar compra — {{ negocio.nombre }}{% endblock %}
 
 {% block contenido %}
+{% comment %}
+  Una sola página en tres pasos (datos → entrega → pago), como los checkouts que
+  la gente ya conoce. Las opciones de entrega y de pago salen de la base: la
+  dueña las prende, apaga y les pone precio desde /gestion/cobros/. El resumen
+  se recalcula en vivo (static/js/checkout.js), pero el monto que se cobra lo
+  calcula siempre el servidor.
+{% endcomment %}
 <section class="contenido checkout">
-  <div class="checkout__form">
+  <form method="post" class="checkout__form" data-checkout novalidate
+        data-subtotal="{{ carrito.total }}" data-descuento-transferencia="{{ cobros.descuento_transferencia }}">
+    {% csrf_token %}
+
     <ol class="pasos" aria-label="Pasos de la compra">
       <li class="pasos__hecho">Bolsa</li>
-      <li class="pasos__actual" aria-current="step">Tus datos</li>
+      <li class="pasos__actual" aria-current="step">Datos y entrega</li>
       <li>Pago</li>
     </ol>
 
     <h1 class="display checkout__titulo">Finalizar <em>compra</em></h1>
-    <p class="seccion__nota">Con tu nombre y un teléfono alcanza: te escribimos para coordinar el retiro en el local.</p>
-
-    {% if messages %}
-      {% for mensaje in messages %}
-        <p class="aviso"><span aria-hidden="true">⚠</span> <span>{{ mensaje }}</span></p>
-      {% endfor %}
-    {% endif %}
 
     {% if faltan_talle %}
       <p class="aviso">
@@ -28,54 +31,196 @@
         Quitala de la bolsa y volvé a agregarla con su talle para poder seguir.</span>
       </p>
     {% endif %}
+    {% if form.non_field_errors %}<p class="aviso"><span aria-hidden="true">⚠</span> <span>{{ form.non_field_errors.0 }}</span></p>{% endif %}
 
-    <form method="post" action="{% url 'pedidos:pagar' %}" class="checkout__campos">
-      {% csrf_token %}
+    {# ===== 1. DATOS ===================================================== #}
+    <fieldset class="checkout__bloque">
+      <legend class="checkout__paso"><span>1</span> Tus datos</legend>
+      <div class="campos campos--2">
+        <div class="campo campo--ancho {% if form.nombre.errors %}campo--error{% endif %}">
+          <label for="nombre">Nombre y apellido</label>
+          <input type="text" id="nombre" name="nombre" required autocomplete="name" maxlength="120" value="{{ form.nombre.value|default_if_none:'' }}">
+          {% if form.nombre.errors %}<p class="campo__error">{{ form.nombre.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="campo {% if form.telefono.errors %}campo--error{% endif %}">
+          <label for="telefono">Teléfono / WhatsApp</label>
+          <input type="tel" id="telefono" name="telefono" required autocomplete="tel" inputmode="tel"
+                 placeholder="11 5555-5555" maxlength="40" value="{{ form.telefono.value|default_if_none:'' }}">
+          {% if form.telefono.errors %}<p class="campo__error">{{ form.telefono.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="campo {% if form.email.errors %}campo--error{% endif %}">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required autocomplete="email" value="{{ form.email.value|default_if_none:'' }}">
+          {% if form.email.errors %}<p class="campo__error">{{ form.email.errors.0 }}</p>{% else %}<p class="campo__ayuda">Para mandarte el comprobante.</p>{% endif %}
+        </div>
+      </div>
+    </fieldset>
 
-      <div class="campo">
-        <label for="nombre">Nombre y apellido</label>
-        <input type="text" id="nombre" name="nombre" required autocomplete="name" maxlength="120">
+    {# ===== 2. ENTREGA =================================================== #}
+    <fieldset class="checkout__bloque">
+      <legend class="checkout__paso"><span>2</span> Entrega</legend>
+      {% if form.entrega.errors %}<p class="campo__error">{{ form.entrega.errors.0 }}</p>{% endif %}
+
+      <div class="opciones">
+        <label class="opcion">
+          <input type="radio" name="entrega" value="retiro" data-tipo="retiro" data-costo="0" data-nombre="Retiro en el local"
+                 {% if entrega_elegida == 'retiro' %}checked{% endif %}>
+          <span class="opcion__marca" aria-hidden="true"></span>
+          <span class="opcion__cuerpo">
+            <span class="opcion__titulo">Retiro en el local</span>
+            <span class="opcion__detalle">{{ negocio.direccion }} · {{ negocio.dias }}, {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</span>
+          </span>
+          <span class="opcion__precio">Gratis</span>
+        </label>
+
+        {% for z in zonas %}
+          <label class="opcion">
+            <input type="radio" name="entrega" value="{{ z.valor }}" data-tipo="envio"
+                   data-costo="{% if z.costo is not None %}{{ z.costo }}{% endif %}" data-nombre="{{ z.zona.nombre }}"
+                   {% if entrega_elegida == z.valor %}checked{% endif %}>
+            <span class="opcion__marca" aria-hidden="true"></span>
+            <span class="opcion__cuerpo">
+              <span class="opcion__titulo">{{ z.zona.nombre }}</span>
+              <span class="opcion__detalle">{% if z.zona.descripcion %}{{ z.zona.descripcion }} · {% endif %}{{ z.zona.demora }}</span>
+            </span>
+            <span class="opcion__precio">
+              {% if z.costo is None %}A coordinar{% elif z.costo == 0 %}Gratis{% else %}${{ z.costo|pesos }}{% endif %}
+            </span>
+          </label>
+        {% endfor %}
       </div>
 
-      <div class="campo">
-        <label for="telefono">Teléfono / WhatsApp</label>
-        <input type="tel" id="telefono" name="telefono" required autocomplete="tel"
-               inputmode="tel" placeholder="11 5555-5555" maxlength="40">
-      </div>
-
-      <div class="campo">
-        <label for="email">Email <span>(opcional)</span></label>
-        <input type="email" id="email" name="email" autocomplete="email">
-      </div>
-
-      <div class="campo">
-        <label for="notas">¿Algo que quieras aclarar?</label>
-        <textarea id="notas" name="notas" rows="3"
-                  placeholder="Por ejemplo: paso a retirarlo el sábado a la mañana."></textarea>
-      </div>
-
-      <button type="submit" class="btn btn--primario btn--bloque checkout__pagar" {% if faltan_talle %}disabled{% endif %}>
-        Pagar con Mercado Pago
-      </button>
-
-      <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ 'Hola CHAO! Armé un pedido en la tienda y quería coordinarlo por acá.'|urlencode }}"
-         class="btn btn--secundario btn--bloque" target="_blank" rel="noopener">
-        Prefiero coordinar por WhatsApp
-      </a>
-
-      {% if not mp_activo %}
-        <p class="sandbox">
-          <strong>Mercado Pago sin configurar.</strong> El pedido se registra igual y se
-          termina por WhatsApp.
+      <div class="direccion" data-direccion {% if entrega_elegida == 'retiro' %}hidden{% endif %}>
+        <p class="direccion__titulo">¿A dónde te lo mandamos?</p>
+        <div class="campos campos--direccion">
+          <div class="campo campo--calle {% if form.calle.errors %}campo--error{% endif %}">
+            <label for="calle">Calle</label>
+            <input type="text" id="calle" name="calle" autocomplete="address-line1" maxlength="120" value="{{ form.calle.value|default_if_none:'' }}">
+            {% if form.calle.errors %}<p class="campo__error">{{ form.calle.errors.0 }}</p>{% endif %}
+          </div>
+          <div class="campo {% if form.numero.errors %}campo--error{% endif %}">
+            <label for="numero">Número</label>
+            <input type="text" id="numero" name="numero" inputmode="numeric" maxlength="12" value="{{ form.numero.value|default_if_none:'' }}">
+            {% if form.numero.errors %}<p class="campo__error">{{ form.numero.errors.0 }}</p>{% endif %}
+          </div>
+          <div class="campo">
+            <label for="piso_depto">Piso / depto <span>(opcional)</span></label>
+            <input type="text" id="piso_depto" name="piso_depto" autocomplete="address-line2" maxlength="30" value="{{ form.piso_depto.value|default_if_none:'' }}">
+          </div>
+          <div class="campo {% if form.codigo_postal.errors %}campo--error{% endif %}">
+            <label for="codigo_postal">Código postal</label>
+            <input type="text" id="codigo_postal" name="codigo_postal" autocomplete="postal-code" inputmode="numeric" maxlength="10"
+                   value="{{ form.codigo_postal.value|default_if_none:'' }}">
+            {% if form.codigo_postal.errors %}<p class="campo__error">{{ form.codigo_postal.errors.0 }}</p>{% endif %}
+          </div>
+          <div class="campo {% if form.localidad.errors %}campo--error{% endif %}">
+            <label for="localidad">Localidad</label>
+            <input type="text" id="localidad" name="localidad" autocomplete="address-level2" maxlength="80" value="{{ form.localidad.value|default_if_none:'' }}">
+            {% if form.localidad.errors %}<p class="campo__error">{{ form.localidad.errors.0 }}</p>{% endif %}
+          </div>
+          <div class="campo {% if form.provincia.errors %}campo--error{% endif %}">
+            <label for="provincia">Provincia</label>
+            <select id="provincia" name="provincia" autocomplete="address-level1">
+              {% for valor, nombre in form.fields.provincia.choices %}
+                <option value="{{ valor }}" {% if form.provincia.value == valor %}selected{% endif %}>{{ nombre }}</option>
+              {% endfor %}
+            </select>
+            {% if form.provincia.errors %}<p class="campo__error">{{ form.provincia.errors.0 }}</p>{% endif %}
+          </div>
+          <div class="campo campo--ancho">
+            <label for="entre_calles">Entre calles <span>(opcional)</span></label>
+            <input type="text" id="entre_calles" name="entre_calles" maxlength="120" value="{{ form.entre_calles.value|default_if_none:'' }}">
+          </div>
+          <div class="campo campo--ancho">
+            <label for="indicaciones">Indicaciones para la entrega <span>(opcional)</span></label>
+            <input type="text" id="indicaciones" name="indicaciones" maxlength="200"
+                   placeholder="Por ejemplo: timbre 2, casa con rejas blancas" value="{{ form.indicaciones.value|default_if_none:'' }}">
+          </div>
+          <div class="campo">
+            <label for="dni">DNI de quien recibe <span>(opcional)</span></label>
+            <input type="text" id="dni" name="dni" inputmode="numeric" maxlength="12" value="{{ form.dni.value|default_if_none:'' }}">
+          </div>
+        </div>
+        <p class="direccion__nota" data-nota-coordinar hidden>
+          El costo de este envío lo coordinamos por WhatsApp antes de despacharlo: ahora pagás solo las prendas.
         </p>
-      {% else %}
-        <p class="sandbox">
-          <strong>Modo de prueba.</strong> El pago corre en el sandbox de Mercado Pago:
-          se paga con tarjetas de test, no se cobra plata real.
-        </p>
+      </div>
+    </fieldset>
+
+    {# ===== 3. PAGO ======================================================= #}
+    <fieldset class="checkout__bloque">
+      <legend class="checkout__paso"><span>3</span> Pago</legend>
+      {% if form.metodo_pago.errors %}<p class="campo__error">{{ form.metodo_pago.errors.0 }}</p>{% endif %}
+
+      {% if not metodos %}
+        <p class="aviso"><span aria-hidden="true">⚠</span>
+          <span>La tienda no está tomando pagos online en este momento. Escribinos por WhatsApp y lo coordinamos.</span></p>
       {% endif %}
-    </form>
-  </div>
+
+      <div class="opciones">
+        {% if 'mercadopago' in metodos %}
+          <label class="opcion">
+            <input type="radio" name="metodo_pago" value="mercadopago" {% if metodo_elegido == 'mercadopago' %}checked{% endif %}>
+            <span class="opcion__marca" aria-hidden="true"></span>
+            <span class="opcion__cuerpo">
+              <span class="opcion__titulo">Tarjeta o Mercado Pago</span>
+              <span class="opcion__detalle">Crédito, débito o tu cuenta de Mercado Pago. Pagás acá mismo, sin salir de la tienda.</span>
+            </span>
+            <span class="opcion__icono" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+            </span>
+          </label>
+        {% endif %}
+        {% if 'transferencia' in metodos %}
+          <label class="opcion">
+            <input type="radio" name="metodo_pago" value="transferencia" {% if metodo_elegido == 'transferencia' %}checked{% endif %}>
+            <span class="opcion__marca" aria-hidden="true"></span>
+            <span class="opcion__cuerpo">
+              <span class="opcion__titulo">Transferencia{% if cobros.descuento_transferencia %} <em class="opcion__off">{{ cobros.descuento_transferencia }}% off</em>{% endif %}</span>
+              <span class="opcion__detalle">Te mostramos el alias al confirmar y nos mandás el comprobante por WhatsApp.</span>
+            </span>
+            <span class="opcion__icono" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/></svg>
+            </span>
+          </label>
+        {% endif %}
+        {% if 'efectivo' in metodos %}
+          <label class="opcion" data-solo-retiro>
+            <input type="radio" name="metodo_pago" value="efectivo" {% if metodo_elegido == 'efectivo' %}checked{% endif %}>
+            <span class="opcion__marca" aria-hidden="true"></span>
+            <span class="opcion__cuerpo">
+              <span class="opcion__titulo">Efectivo al retirar</span>
+              <span class="opcion__detalle" data-detalle-efectivo>Te lo separamos y pagás cuando pasás por el local.</span>
+            </span>
+            <span class="opcion__icono" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.6"/></svg>
+            </span>
+          </label>
+        {% endif %}
+      </div>
+    </fieldset>
+
+    <div class="campo">
+      <label for="notas">¿Algo que quieras aclarar? <span>(opcional)</span></label>
+      <textarea id="notas" name="notas" rows="2" maxlength="600"
+                placeholder="Por ejemplo: paso a retirarlo el sábado a la mañana.">{{ form.notas.value|default_if_none:'' }}</textarea>
+    </div>
+
+    <p class="checkout__total-movil">Total <b data-total-movil>${{ carrito.total|pesos }}</b></p>
+    <button type="submit" class="btn btn--primario btn--bloque checkout__pagar" data-boton-enviar
+            {% if faltan_talle or not metodos %}disabled{% endif %}>
+      Continuar al pago <span aria-hidden="true">→</span>
+    </button>
+    {% if 'mercadopago' in metodos %}
+      <p class="checkout__seguro">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+        Los datos de tu tarjeta los procesa Mercado Pago: CHAO no los ve ni los guarda.
+      </p>
+    {% endif %}
+
+    <a href="https://wa.me/{{ negocio.whatsapp }}?text={{ 'Hola CHAO! Armé un pedido en la tienda y quería coordinarlo por acá.'|urlencode }}"
+       class="checkout__wsp" target="_blank" rel="noopener">¿Preferís coordinarlo por WhatsApp? Escribinos →</a>
+  </form>
 
   <aside class="resumen">
     <p class="resumen__titulo">Tu pedido</p>
@@ -95,16 +240,20 @@
       {% endwith %}
     {% endfor %}
 
+    <div class="resumen__cuentas">
+      <div class="resumen__linea"><span>Subtotal</span><span>${{ carrito.total|pesos }}</span></div>
+      <div class="resumen__linea" data-linea-descuento hidden><span>Descuento transferencia</span><span data-descuento></span></div>
+      <div class="resumen__linea"><span data-envio-nombre>Retiro en el local</span><span data-envio>Gratis</span></div>
+    </div>
     <div class="resumen__total">
       <span>Total</span>
-      <b>${{ carrito.total|pesos }}</b>
+      <b data-total>${{ carrito.total|pesos }}</b>
     </div>
-    <p class="cajon__cuotas">o 3 cuotas sin interés de ${{ carrito.total|cuota:3 }}</p>
-
-    <ul class="resumen__datos">
-      <li><span>Retiro</span>{{ negocio.direccion }}</li>
-      <li><span>Horario</span>{{ negocio.dias }} · {{ negocio.horario_manana }} y {{ negocio.horario_tarde }} hs</li>
-    </ul>
+    <p class="resumen__nota" data-total-nota hidden>+ envío a coordinar</p>
   </aside>
 </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/checkout.js' %}" defer></script>
 {% endblock %}

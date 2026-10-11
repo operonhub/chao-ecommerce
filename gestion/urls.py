@@ -19,4 +19,8 @@ urlpatterns = [
     path("pedidos/", views.pedidos, name="pedidos"),
     path("pedidos/<int:pk>/", views.pedido_actualizar, name="pedido_actualizar"),
     path("portada/", views.portada, name="portada"),
+    path("cobros/", views.cobros, name="cobros"),
+    path("mercadopago/conectar/", views.mp_conectar, name="mp_conectar"),
+    path("mercadopago/callback/", views.mp_callback, name="mp_callback"),
+    path("mercadopago/desconectar/", views.mp_desconectar, name="mp_desconectar"),
 ]

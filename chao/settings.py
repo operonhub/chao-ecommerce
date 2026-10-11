@@ -201,3 +201,13 @@ NEGOCIO = {
 # Token de PRUEBA (empieza con TEST-). Se obtiene en mercadopago.com/developers.
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN", "")
 MP_PUBLIC_KEY = os.getenv("MP_PUBLIC_KEY", "")
+# App de Mercado Pago de Operon ("Operon Tiendas") para el botón "Conectar Mercado
+# Pago" del panel (OAuth). Con esto la dueña conecta su cuenta y los cobros le
+# entran directo a ella; MP_ACCESS_TOKEN/MP_PUBLIC_KEY quedan solo para desarrollo.
+MP_CLIENT_ID = os.getenv("MP_CLIENT_ID", "")
+MP_CLIENT_SECRET = os.getenv("MP_CLIENT_SECRET", "")
+MP_WEBHOOK_SECRET = os.getenv("MP_WEBHOOK_SECRET", "")
+# Dirección pública canónica (https://chao-ecommerce.vercel.app). La URL de vuelta
+# del botón de MP tiene que ser EXACTAMENTE la registrada en la app, aunque se
+# entre por otro dominio de Vercel. Vacío = se arma con el dominio del request.
+SITIO_URL = os.getenv("SITIO_URL", "").rstrip("/")

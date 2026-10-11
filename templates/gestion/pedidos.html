@@ -14,6 +14,8 @@
 <nav class="g-chips" aria-label="Filtrar pedidos">
   <a href="?" {% if not ver %}aria-current="true"{% endif %}>Todos</a>
   <a href="?ver=pendiente" {% if ver == 'pendiente' %}aria-current="true"{% endif %}>Pendientes de pago</a>
+  <a href="?ver=transferencia" {% if ver == 'transferencia' %}aria-current="true"{% endif %}>Esperando transferencia</a>
+  <a href="?ver=envios" {% if ver == 'envios' %}aria-current="true"{% endif %}>Envíos por despachar</a>
   <a href="?ver=sin-entregar" {% if ver == 'sin-entregar' %}aria-current="true"{% endif %}>Pagados sin entregar</a>
   <a href="?ver=pagado" {% if ver == 'pagado' %}aria-current="true"{% endif %}>Pagados</a>
   <a href="?ver=cancelado" {% if ver == 'cancelado' %}aria-current="true"{% endif %}>Cancelados</a>
@@ -29,7 +31,7 @@
           <h2 class="g-pedido__nombre">{{ p.nombre }}</h2>
           <p class="g-pedido__contacto">{{ p.telefono }}{% if p.email %} · {{ p.email }}{% endif %}</p>
         </div>
-        <span class="g-estado g-estado--{{ p.estado }}" data-estado-badge>{{ p.get_estado_display }}</span>
+        <span class="g-estado g-estado--{{ p.estado }}{% if p.estado == 'pendiente' and p.metodo_pago != 'mercadopago' %} g-estado--esperando{% endif %}" data-estado-badge>{{ p.descripcion_estado }}</span>
       </header>
 
       <ul class="g-pedido__items">
@@ -44,11 +46,39 @@
         {% endfor %}
       </ul>
 
+      <div class="g-pedido__entrega">
+        <span><b>{{ p.get_metodo_pago_display }}</b>{% if p.descuento %} · descuento ${{ p.descuento|pesos }}{% endif %}{% if p.mp_payment_id %} · <small>pago MP {{ p.mp_payment_id }}</small>{% endif %}</span>
+        {% if p.entrega == 'envio' %}
+          <span><b>Envío · {{ p.zona_nombre }}</b> — {% if p.costo_envio is None %}costo a coordinar{% elif p.costo_envio == 0 %}gratis{% else %}${{ p.costo_envio|pesos }}{% endif %}</span>
+          <span>{{ p.direccion_completa }}</span>
+          {% if p.entre_calles %}<small>Entre {{ p.entre_calles }}</small>{% endif %}
+          {% if p.indicaciones %}<small>{{ p.indicaciones }}</small>{% endif %}
+          {% if p.dni %}<small>DNI {{ p.dni }}</small>{% endif %}
+        {% else %}
+          <span><b>Retira en el local</b></span>
+        {% endif %}
+      </div>
+
+      {% if p.entrega == 'envio' %}
+        <form class="g-seguimiento" data-seguimiento>
+          <label class="solo-lectores" for="seg-{{ p.pk }}">Número de seguimiento</label>
+          <input type="text" id="seg-{{ p.pk }}" name="seguimiento" value="{{ p.seguimiento }}" maxlength="60" placeholder="N° de seguimiento del correo">
+          <button type="submit" class="btn btn--secundario g-btn-chico">Guardar</button>
+          <a href="{{ p.link_whatsapp_seguimiento }}" class="btn btn--wsp g-btn-chico" target="_blank" rel="noopener"
+             data-seguimiento-wsp {% if not p.seguimiento %}hidden{% endif %}>Mandárselo</a>
+        </form>
+      {% endif %}
+
       {% if p.notas %}<p class="g-pedido__notas">“{{ p.notas }}”</p>{% endif %}
 
       <footer class="g-pedido__pie">
         <p class="g-pedido__total">Total <b>${{ p.total|pesos }}</b></p>
         <div class="g-pedido__acciones">
+          {% if p.estado == 'pendiente' and p.metodo_pago != 'mercadopago' %}
+            <button type="button" class="btn btn--primario g-btn-chico" data-pedido-confirmar>
+              {% if p.metodo_pago == 'transferencia' %}Llegó la transferencia{% else %}Ya pagó{% endif %}
+            </button>
+          {% endif %}
           <label class="g-select-chico">
             <span class="solo-lectores">Estado del pago</span>
             <select data-pedido-estado>

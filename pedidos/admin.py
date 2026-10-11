@@ -3,7 +3,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Pedido, PedidoItem
+from .models import Pedido, PedidoItem, ZonaEnvio
 
 
 class PedidoItemInline(admin.TabularInline):
@@ -22,12 +22,15 @@ class PedidoAdmin(admin.ModelAdmin):
     search_fields = ("nombre", "telefono", "email", "mp_payment_id")
     date_hierarchy = "creado"
     inlines = [PedidoItemInline]
-    readonly_fields = ("creado", "actualizado", "mp_preference_id", "mp_payment_id", "total", "resumen")
+    readonly_fields = ("creado", "actualizado", "mp_preference_id", "mp_payment_id", "mp_status_detail", "total", "resumen")
 
     fieldsets = (
-        ("Clienta", {"fields": ("nombre", "telefono", "email", "notas")}),
-        ("Pedido", {"fields": ("total", "estado", "resumen")}),
-        ("Mercado Pago", {"fields": ("mp_preference_id", "mp_payment_id"), "classes": ("collapse",)}),
+        ("Clienta", {"fields": ("nombre", "telefono", "email", "dni", "notas")}),
+        ("Pedido", {"fields": ("total", "estado", "metodo_pago", "resumen")}),
+        ("Entrega", {"fields": ("entrega", "zona_nombre", "costo_envio", "calle", "numero", "piso_depto",
+                               "entre_calles", "codigo_postal", "localidad", "provincia", "indicaciones",
+                               "seguimiento")}),
+        ("Mercado Pago", {"fields": ("mp_preference_id", "mp_payment_id", "mp_status_detail"), "classes": ("collapse",)}),
         ("Fechas", {"fields": ("creado", "actualizado"), "classes": ("collapse",)}),
     )
 
@@ -50,3 +53,9 @@ class PedidoAdmin(admin.ModelAdmin):
     @admin.display(description="Para copiar y pegar")
     def resumen(self, obj):
         return format_html("<pre style='margin:0'>{}</pre>", obj.resumen_whatsapp)
+
+
+@admin.register(ZonaEnvio)
+class ZonaEnvioAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "tipo", "precio", "demora", "activa", "orden")
+    list_editable = ("precio", "activa", "orden")

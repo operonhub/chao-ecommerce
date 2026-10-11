@@ -1,0 +1,1315 @@
+/* ==========================================================================
+   CHAO Indumentaria — home editorial (scroll vertical)
+   --------------------------------------------------------------------------
+   Solo se carga en la home. Usa los tokens de chao.css (--fondo, --tinta,
+   --serif, --curva…). Orden: portada en tríptico → cinta → lo nuevo →
+   categorías → frase → el look → nosotras → por qué → Instagram → el local.
+
+   Movimiento: la portada se anima sola (CSS + home.js); el resto entra al
+   aparecer en pantalla ([data-revelar], [data-revelar-grupo]). Con "reducir
+   movimiento" todo queda quieto y visible.
+   ========================================================================== */
+
+:root {
+  --entrada: 2.45s; /* la portada espera a que se abra el telón de la intro */
+  --curva-telon: cubic-bezier(0.7, 0, 0.2, 1);
+  --crema-claro: #faf6ee;
+}
+
+.sin-intro,
+.intro-saltada {
+  --entrada: 0.15s;
+}
+
+/* "Ver lo nuevo", "Deslizá" y el índice lateral bajan suave, no de un salto. */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(body.home) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* El anuncio de arriba ya está en la cinta debajo de la portada: en la home
+   la portada arranca pegada al borde, como en las tiendas de moda grandes. */
+body.home .anuncio {
+  display: none;
+}
+
+/* --- Header sobre la portada ------------------------------------------------
+   Transparente y en claro mientras está sobre las fotos; al bajar vuelve a su
+   versión crema. home.js pone/saca .sobre-portada. */
+body.home .barra {
+  transition: background 0.45s ease, border-color 0.45s ease, backdrop-filter 0.45s ease;
+}
+
+body.home .barra.sobre-portada {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-color: transparent;
+}
+
+.barra.sobre-portada :is(.marca__palabra, .barra__links a, .menu-trigger, .barra__wsp, .boton-carrito) {
+  color: var(--crema-claro);
+  transition: color 0.45s ease;
+}
+
+.barra.sobre-portada .barra__wsp:hover {
+  background: rgba(250, 246, 238, 0.14);
+}
+
+/* ==========================================================================
+   PORTADA — "para cada versión tuya"
+   Tres fotos de looks reales en paneles verticales (las fotos son verticales:
+   en tríptico se recortan bien, estiradas a lo ancho no). Entran como un telón,
+   rotan con una persiana en ola y se mueven a distinta velocidad al scrollear.
+   ========================================================================== */
+.portada {
+  --p: 0; /* progreso del scroll sobre la portada (0 → 1), lo pone home.js */
+  position: relative;
+  height: 100svh;
+  min-height: 560px;
+  margin-top: calc(-1 * var(--alto-barra, 64px));
+  overflow: hidden;
+  background: var(--tinta);
+  color: var(--crema-claro);
+  isolation: isolate;
+}
+
+.portada__triptico {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  background: var(--tinta);
+}
+
+.portada__panel {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  /* Entrada: cada panel sube como un telón, de izquierda a derecha. */
+  animation: panel-entra 1.25s var(--curva-telon) both;
+  animation-delay: calc(var(--entrada) - 0.25s + var(--i) * 0.14s);
+}
+
+/* El panel del medio baja un poco más lento al scrollear: profundidad. */
+.portada__mueve {
+  position: absolute;
+  inset: -6% 0;
+  transform: translate3d(0, calc(var(--p) * var(--vel, 60px)), 0);
+  will-change: transform;
+}
+
+.portada__panel:nth-child(1) { --vel: 90px; }
+.portada__panel:nth-child(2) { --vel: 30px; }
+.portada__panel:nth-child(3) { --vel: 120px; }
+
+.portada__capa {
+  position: absolute;
+  inset: 0;
+}
+
+.portada__capa img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  animation: asienta-lento 7s var(--curva) both;
+  animation-delay: calc(var(--entrada) - 0.25s + var(--i, 0) * 0.14s);
+}
+
+/* La capa nueva entra por una persiana de 7 tablillas (la tela de la cortina
+   de la intro, ahora como gesto de la vidriera). */
+@property --persiana {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+.portada__capa.entrando {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - var(--persiana)), transparent 0);
+  mask-image: linear-gradient(90deg, #000 calc(100% - var(--persiana)), transparent 0);
+  -webkit-mask-size: calc(100% / 7 + 0.5px) 100%;
+  mask-size: calc(100% / 7 + 0.5px) 100%;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  animation: persiana 1.15s var(--curva-telon) both;
+  animation-delay: var(--retraso, 0s);
+}
+
+.portada__capa.entrando img {
+  animation: asienta-lento 7s var(--curva) both;
+  animation-delay: var(--retraso, 0s);
+}
+
+/* Velo para que el texto se lea sobre cualquier foto. */
+.portada::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(24, 18, 14, 0.6) 0%, rgba(24, 18, 14, 0) 24%),
+    linear-gradient(90deg, rgba(24, 18, 14, 0.62) 0%, rgba(24, 18, 14, 0.18) 48%, rgba(24, 18, 14, 0) 70%),
+    linear-gradient(0deg, rgba(24, 18, 14, 0.8) 0%, rgba(24, 18, 14, 0.25) 45%, rgba(24, 18, 14, 0) 70%);
+}
+
+/* Pie de cada panel: "Versión 01 · Elegancia simple" — los nombres son los de
+   los looks reales; el link lleva a ese look en el lookbook. */
+.portada__pie {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--alto-barra, 64px) + clamp(0.75rem, 2vh, 1.25rem));
+  left: clamp(1rem, 2vw, 1.5rem);
+  right: clamp(1rem, 2vw, 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  animation: aparece 0.8s ease both;
+  animation-delay: calc(var(--entrada) + 0.7s + var(--i) * 0.12s);
+}
+
+.portada__num {
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(250, 246, 238, 0.7);
+}
+
+.portada__nombre {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--crema-claro);
+  width: fit-content;
+  transition: opacity 0.4s ease;
+}
+
+.portada__nombre:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 0.5px;
+}
+
+.portada__nombre.cambiando {
+  opacity: 0;
+}
+
+/* --- Texto --------------------------------------------------------------- */
+.portada__texto {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: clamp(4.5rem, 12vh, 7rem);
+  max-width: var(--contenido);
+  margin-inline: auto;
+  padding-inline: var(--paso);
+  transform: translate3d(0, calc(var(--p) * -90px), 0);
+  opacity: calc(1 - var(--p) * 1.6);
+}
+
+.portada__sup {
+  color: var(--crema-claro);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+  margin-bottom: clamp(0.75rem, 2vh, 1.25rem);
+  animation: aparece 0.8s ease both;
+  animation-delay: var(--entrada);
+}
+
+.portada__titulo {
+  margin: 0;
+  max-width: 11ch;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(3.2rem, min(10vw, 15vh), 9.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.025em;
+}
+
+.portada__titulo em {
+  font-style: italic;
+  color: var(--aqua);
+}
+
+/* Sin JS el titular aparece entero; con JS (data-partir) sube palabra por palabra. */
+.portada__titulo:not(.partido) {
+  animation: aparece 0.9s ease both;
+  animation-delay: calc(var(--entrada) + 0.1s);
+}
+
+.portada__titulo .palabra {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+
+.portada__titulo .palabra > span {
+  display: inline-block;
+  animation: palabra-sube 1.1s var(--curva) both;
+  animation-delay: calc(var(--entrada) + 0.1s + var(--n) * 75ms);
+}
+
+.portada__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: clamp(1.5rem, 4vh, 2.5rem);
+  animation: sube 0.9s var(--curva) both;
+  animation-delay: calc(var(--entrada) + 0.65s);
+}
+
+.portada__btn--claro {
+  background: var(--crema-claro);
+  color: var(--tinta);
+}
+
+.portada__btn--claro:hover {
+  background: var(--aqua);
+}
+
+.portada__btn--linea {
+  border-color: rgba(250, 246, 238, 0.55);
+  color: var(--crema-claro);
+}
+
+.portada__btn--linea:hover {
+  background: var(--crema-claro);
+  color: var(--tinta);
+}
+
+/* --- Progreso de la rotación (como las historias de Instagram) ------------ */
+.portada__progreso {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: clamp(1.25rem, 3vh, 2rem);
+  translate: -50% 0;
+  display: flex;
+  gap: 6px;
+  animation: aparece 0.8s ease both;
+  animation-delay: calc(var(--entrada) + 1s);
+}
+
+.portada__progreso button {
+  position: relative;
+  width: 44px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.portada__progreso button::before,
+.portada__progreso button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(250, 246, 238, 0.28);
+}
+
+.portada__progreso button::after {
+  background: var(--crema-claro);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.portada__progreso button.visto::after {
+  transform: scaleX(1);
+}
+
+.portada__progreso button.activo::after {
+  animation: llenar var(--duracion, 6.5s) linear forwards;
+}
+
+.portada.pausada .portada__progreso button.activo::after {
+  animation-play-state: paused;
+}
+
+/* --- "Deslizá" ------------------------------------------------------------ */
+.portada__bajar {
+  position: absolute;
+  z-index: 3;
+  right: var(--paso);
+  bottom: clamp(1.25rem, 3vh, 2rem);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(250, 246, 238, 0.75);
+  animation: aparece 0.8s ease both;
+  animation-delay: calc(var(--entrada) + 1.1s);
+}
+
+.portada__bajar i {
+  position: relative;
+  width: 1px;
+  height: 42px;
+  overflow: hidden;
+  background: rgba(250, 246, 238, 0.25);
+}
+
+.portada__bajar i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--crema-claro);
+  animation: gota 2.2s var(--curva) infinite;
+}
+
+@media (max-width: 900px) {
+  /* Celular: un solo panel a pantalla completa que recorre todos los looks. */
+  .portada__triptico {
+    grid-template-columns: 1fr;
+  }
+
+  .portada__panel:not(:first-child) {
+    display: none;
+  }
+
+  .portada__titulo {
+    font-size: clamp(3rem, 15vw, 5rem);
+  }
+
+  .portada__bajar {
+    display: none;
+  }
+
+  .portada__acciones .btn {
+    flex: 1 1 0;
+    padding-inline: 0.75rem;
+  }
+}
+
+@keyframes panel-entra {
+  from { clip-path: inset(100% 0 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes asienta-lento {
+  from { scale: 1.16; }
+  to { scale: 1; }
+}
+
+@keyframes persiana {
+  from { --persiana: 100%; }
+  to { --persiana: 0%; }
+}
+
+@keyframes palabra-sube {
+  from { translate: 0 110%; }
+  to { translate: 0 0; }
+}
+
+@keyframes sube {
+  from { opacity: 0; translate: 0 22px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes aparece {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes llenar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes gota {
+  0% { transform: translateY(-100%); }
+  60%, 100% { transform: translateY(100%); }
+}
+
+/* ==========================================================================
+   CINTA — los datos reales del local, en movimiento
+   ========================================================================== */
+.cinta {
+  overflow: hidden;
+  background: var(--fondo);
+  border-bottom: 1px solid var(--linea);
+  padding-block: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.cinta__pista {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  width: max-content;
+  animation: cinta 46s linear infinite;
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(1.35rem, 2.8vw, 2.2rem);
+  white-space: nowrap;
+  color: var(--tinta);
+}
+
+.cinta__pista i {
+  font-style: normal;
+  font-size: 0.55em;
+  color: var(--sage-deep);
+}
+
+.cinta:hover .cinta__pista {
+  animation-play-state: paused;
+}
+
+@keyframes cinta {
+  to { transform: translateX(-50%); }
+}
+
+/* ==========================================================================
+   BLOQUES — estructura común de las secciones
+   ========================================================================== */
+.bloque {
+  padding-block: clamp(4.5rem, 10vw, 8.5rem);
+  scroll-margin-top: var(--alto-barra, 64px);
+}
+
+.bloque__cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem 3rem;
+  margin-bottom: clamp(2rem, 4.5vw, 3.75rem);
+}
+
+.bloque__cabeza--centro {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.bloque__titulo {
+  font-size: clamp(2.6rem, 6vw, 5.2rem);
+  margin-top: 0.75rem;
+}
+
+.bloque__lado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.9rem;
+  text-align: right;
+}
+
+.cta-linea {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid currentColor;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tinta);
+  transition: gap 0.35s var(--curva), color 0.25s ease;
+}
+
+.cta-linea:hover {
+  gap: 0.9rem;
+  color: var(--bordo);
+}
+
+@media (max-width: 760px) {
+  .bloque__lado {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+/* --- Lo nuevo: grilla de 3, fotos grandes --------------------------------- */
+.grilla--home {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(2.5rem, 5vw, 4.5rem) clamp(1rem, 2.2vw, 2rem);
+}
+
+@media (max-width: 760px) {
+  .grilla--home {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2.25rem 0.85rem;
+  }
+}
+
+/* --- Categorías ------------------------------------------------------------ */
+.bloque--cats {
+  background: var(--fondo-hueso);
+}
+
+.cats {
+  display: grid;
+  grid-template-columns: repeat(var(--n-cats, 5), minmax(0, 1fr));
+  gap: clamp(0.6rem, 1.2vw, 1rem);
+  max-width: var(--contenido);
+  margin-inline: auto;
+  padding-inline: var(--paso);
+}
+
+.cat {
+  position: relative;
+  display: block;
+  color: var(--tinta);
+}
+
+.cat__foto {
+  display: block;
+  aspect-ratio: 3 / 4.4;
+  overflow: hidden;
+  background: var(--superficie);
+}
+
+.cat__foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: scale 1.1s var(--curva), filter 0.6s ease;
+}
+
+.cat:hover .cat__foto img {
+  scale: 1.06;
+}
+
+.cat__pie {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  padding-top: 0.9rem;
+}
+
+.cat__nombre {
+  font-family: var(--serif);
+  font-size: clamp(1.15rem, 1.6vw, 1.45rem);
+  line-height: 1.15;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+  transition: background-size 0.45s var(--curva);
+}
+
+.cat:hover .cat__nombre {
+  background-size: 100% 1px;
+}
+
+.cat__n {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta-mute);
+}
+
+/* Celular: las categorías se deslizan de costado (acá sí, es una fila). */
+@media (max-width: 900px) {
+  .cats {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--paso);
+    scrollbar-width: none;
+  }
+
+  .cats::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cat {
+    flex: 0 0 min(62%, 260px);
+    scroll-snap-align: start;
+  }
+}
+
+/* --- Frase que se ilumina al scrollear ------------------------------------- */
+.frase {
+  padding-block: clamp(5rem, 14vw, 11rem);
+  text-align: center;
+}
+
+.frase__texto {
+  max-width: 22ch;
+  margin: 0 auto;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(2.2rem, 5.6vw, 4.8rem);
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  color: var(--tinta);
+}
+
+.frase__texto em {
+  font-style: italic;
+  color: var(--bordo);
+}
+
+/* home.js parte la frase en palabras y las va prendiendo según el scroll. */
+.frase__texto .palabra {
+  opacity: 0.16;
+  transition: opacity 0.35s ease;
+}
+
+.frase__texto .palabra.prendida {
+  opacity: 1;
+}
+
+.frase__firma {
+  margin: 2rem 0 0;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--tinta-mute);
+}
+
+/* --- El look para comprar entero -------------------------------------------- */
+.look-compra {
+  background: var(--tinta);
+  color: var(--fondo);
+}
+
+.look-compra .sup {
+  color: var(--aqua);
+}
+
+.look-compra .bloque__titulo em {
+  color: var(--aqua);
+}
+
+.look-compra .seccion__nota {
+  margin-top: 1.1rem;
+  color: rgba(242, 234, 220, 0.7);
+}
+
+.look-compra__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: center;
+}
+
+.look-compra__foto {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: #1a1310;
+}
+
+.look-compra__foto img {
+  position: absolute;
+  inset: -8% 0;
+  width: 100%;
+  height: 116%;
+  object-fit: cover;
+}
+
+.look-compra__sello {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 0.7rem 1.1rem;
+  background: var(--aqua);
+  color: var(--tinta);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.look-compra__lista {
+  list-style: none;
+  margin: clamp(1.75rem, 4vw, 2.5rem) 0 0;
+  padding: 0;
+  border-top: 1px solid rgba(242, 234, 220, 0.16);
+}
+
+.look-compra__lista li {
+  border-bottom: 1px solid rgba(242, 234, 220, 0.16);
+}
+
+.look-compra__item {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  color: var(--fondo);
+}
+
+.look-compra__thumb {
+  width: 52px;
+  height: 66px;
+  overflow: hidden;
+  background: rgba(242, 234, 220, 0.08);
+}
+
+.look-compra__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: scale 0.6s var(--curva);
+}
+
+.look-compra__datos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.look-compra__cat {
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(242, 234, 220, 0.5);
+}
+
+.look-compra__nombre {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+
+.look-compra__precio {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.look-compra__flecha {
+  color: var(--aqua);
+  transition: translate 0.35s var(--curva);
+}
+
+.look-compra__item:hover .look-compra__flecha {
+  translate: 6px 0;
+}
+
+.look-compra__item:hover .look-compra__thumb img {
+  scale: 1.08;
+}
+
+.look-compra__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 1.25rem 0 2rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(242, 234, 220, 0.6);
+}
+
+.look-compra__total b {
+  font-family: var(--serif);
+  font-size: 1.9rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--fondo);
+}
+
+.look-compra__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.look-compra .btn--primario {
+  background: var(--aqua);
+  color: var(--tinta);
+}
+
+.look-compra .btn--primario:hover {
+  background: var(--fondo);
+}
+
+.look-compra .btn--secundario {
+  border-color: rgba(242, 234, 220, 0.4);
+  color: var(--fondo);
+}
+
+.look-compra .btn--secundario:hover {
+  background: var(--fondo);
+  color: var(--tinta);
+}
+
+@media (max-width: 900px) {
+  .look-compra__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Nosotras ---------------------------------------------------------------- */
+.nosotras-v__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  gap: clamp(2rem, 7vw, 7rem);
+  align-items: center;
+}
+
+.nosotras-v__foto {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--superficie);
+}
+
+.nosotras-v__foto img {
+  position: absolute;
+  inset: -8% 0;
+  width: 100%;
+  height: 116%;
+  object-fit: cover;
+}
+
+.nosotras-v__sello {
+  position: absolute;
+  right: 1.25rem;
+  top: 1.25rem;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 0.5px solid rgba(250, 246, 238, 0.6);
+  background: rgba(36, 27, 22, 0.28);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  color: var(--crema-claro);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.95rem;
+  line-height: 1.15;
+  animation: balanceo-sello 7s ease-in-out infinite;
+}
+
+.nosotras-v__sello small {
+  margin-top: 0.35rem;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.52rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+@keyframes balanceo-sello {
+  0%, 100% { rotate: -4deg; }
+  50% { rotate: 4deg; }
+}
+
+.nosotras-v__copy p:not(.sup) {
+  max-width: 46ch;
+  margin: 1.1rem 0 0;
+  color: var(--tinta-suave);
+  font-size: clamp(0.98rem, 1.2vw, 1.08rem);
+  line-height: 1.75;
+}
+
+.nosotras-v__copy .bloque__titulo {
+  margin-bottom: 1.25rem;
+}
+
+.nosotras-v__firma {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 2.25rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--tinta-mute);
+}
+
+.nosotras-v__firma span {
+  width: 34px;
+  height: 1px;
+  background: currentColor;
+}
+
+@media (max-width: 900px) {
+  .nosotras-v__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Por qué ----------------------------------------------------------------- */
+.porque-v {
+  background: var(--fondo-hueso);
+}
+
+.porque-v__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--linea);
+}
+
+.porque-v__item {
+  padding: clamp(1.75rem, 3vw, 2.75rem) clamp(1rem, 2.5vw, 2.5rem) 0;
+}
+
+.porque-v__item + .porque-v__item {
+  border-left: 1px solid var(--linea);
+}
+
+.porque-v__num {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.1rem;
+  color: var(--sage-deep);
+}
+
+.porque-v__item h3 {
+  margin: 0.9rem 0 0.6rem;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 2.2vw, 1.9rem);
+  line-height: 1.15;
+}
+
+.porque-v__item p {
+  margin: 0;
+  max-width: 32ch;
+  color: var(--tinta-suave);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+@media (max-width: 760px) {
+  .porque-v__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .porque-v__item {
+    padding: 1.5rem 0;
+  }
+
+  .porque-v__item + .porque-v__item {
+    border-left: 0;
+    border-top: 1px solid var(--linea);
+  }
+}
+
+/* --- Instagram --------------------------------------------------------------- */
+.ig-v__tira {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.ig-v__foto {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--superficie);
+}
+
+.ig-v__foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: scale 1s var(--curva);
+}
+
+.ig-v__foto::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(36, 27, 22, 0.42);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.ig-v__cap {
+  position: absolute;
+  z-index: 1;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: #fff;
+  opacity: 0;
+  translate: 0 8px;
+  transition: opacity 0.4s ease, translate 0.4s var(--curva);
+}
+
+.ig-v__foto:hover img {
+  scale: 1.06;
+}
+
+.ig-v__foto:hover::after,
+.ig-v__foto:hover .ig-v__cap {
+  opacity: 1;
+  translate: 0 0;
+}
+
+@media (max-width: 900px) {
+  .ig-v__tira {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ig-v__foto:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+/* --- El local ---------------------------------------------------------------- */
+.visita {
+  border-top: 1px solid var(--linea);
+}
+
+.visita__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: center;
+}
+
+.visita__datos {
+  margin: 2rem 0;
+  display: grid;
+  gap: 1.1rem;
+}
+
+.visita__datos div {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 1rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--linea);
+}
+
+.visita__datos dt {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tinta-mute);
+  padding-top: 0.3rem;
+}
+
+.visita__datos dd {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.visita__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem 1.75rem;
+}
+
+.visita__mapa {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--superficie);
+}
+
+.visita__mapa iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  filter: grayscale(1) sepia(0.15) contrast(1.05);
+  transition: filter 0.5s ease;
+}
+
+.visita__mapa:hover iframe {
+  filter: none;
+}
+
+@media (max-width: 900px) {
+  .visita__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .visita__datos div {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}
+
+/* ==========================================================================
+   ÍNDICE LATERAL (desktop): una rayita por sección, se alarga la actual.
+   mix-blend-mode: difference → se lee sobre fotos y sobre crema por igual.
+   ========================================================================== */
+.indice {
+  position: fixed;
+  z-index: 30;
+  right: clamp(0.75rem, 1.6vw, 1.5rem);
+  top: 50%;
+  translate: 0 -50%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  mix-blend-mode: difference;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.indice.listo {
+  opacity: 1;
+}
+
+.indice a {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  height: 18px;
+  color: inherit;
+}
+
+.indice a::after {
+  content: "";
+  width: 12px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.55;
+  transition: width 0.45s var(--curva), opacity 0.3s ease;
+}
+
+.indice a.activo::after {
+  width: 30px;
+  opacity: 1;
+}
+
+.indice span {
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0;
+  translate: 6px 0;
+  transition: opacity 0.3s ease, translate 0.3s var(--curva);
+}
+
+/* El nombre solo al pasar el mouse: fijo, se montaba sobre las fotos. */
+.indice:hover a span {
+  opacity: 0.55;
+  translate: 0 0;
+}
+
+.indice a:hover span {
+  opacity: 1;
+  translate: 0 0;
+}
+
+@media (max-width: 1100px) {
+  .indice {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   REVELADO al aparecer en pantalla (home.js pone .revela en <html> y
+   .revelado en cada pieza). Sin JS nada de esto aplica: todo visible.
+   ========================================================================== */
+.revela [data-revelar]:not([data-revelar="persiana"]) {
+  opacity: 0;
+  translate: 0 34px;
+  transition: opacity 1s ease, translate 1.1s var(--curva);
+}
+
+.revela [data-revelar].revelado {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.revela [data-revelar="persiana"] {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 1.3s var(--curva-telon);
+}
+
+.revela [data-revelar="persiana"] img {
+  scale: 1.18;
+  transition: scale 2s var(--curva);
+}
+
+.revela [data-revelar="persiana"].revelado {
+  clip-path: inset(0 0 0 0);
+}
+
+.revela [data-revelar="persiana"].revelado img {
+  scale: 1;
+}
+
+.revela [data-revelar-grupo] > * {
+  opacity: 0;
+  translate: 0 40px;
+  transition: opacity 0.9s ease, translate 1s var(--curva);
+  transition-delay: calc(var(--n, 0) * 90ms);
+}
+
+.revela [data-revelar-grupo].revelado > * {
+  opacity: 1;
+  translate: 0 0;
+}
+
+/* La foto con parallax se mueve por dentro de su marco (home.js pone --y). */
+[data-parallax] {
+  transform: translate3d(0, var(--y, 0px), 0);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portada__panel,
+  .portada__capa img,
+  .portada__capa.entrando,
+  .portada__titulo,
+  .portada__titulo .palabra > span,
+  .portada__acciones,
+  .portada__sup,
+  .portada__pie,
+  .portada__progreso,
+  .portada__bajar,
+  .cinta__pista,
+  .nosotras-v__sello {
+    animation: none !important;
+  }
+
+  .portada__mueve,
+  .portada__texto,
+  [data-parallax] {
+    transform: none !important;
+  }
+
+  .portada__texto {
+    opacity: 1 !important;
+  }
+
+  .revela [data-revelar],
+  .revela [data-revelar-grupo] > *,
+  .revela [data-revelar="persiana"],
+  .revela [data-revelar="persiana"] img {
+    opacity: 1 !important;
+    translate: none !important;
+    clip-path: none !important;
+    scale: 1 !important;
+  }
+
+  .frase__texto .palabra {
+    opacity: 1;
+  }
+}

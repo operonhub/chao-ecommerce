@@ -1,5 +1,6 @@
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 
 from .models import Categoria, Look, LookItem, Portada, Producto
 
@@ -18,21 +19,71 @@ def _categorias_con_stock():
 
 def home(request):
     """
-    La home es la presentación de 6 diapositivas (hero, nosotras, colección
-    destacada, por qué, instagram, contacto). El catálogo completo, el
-    lookbook y el resto de la tienda viven en sus propias páginas — ver
-    `catalogo` y `looks` más abajo.
+    Home editorial de scroll vertical: hero en tríptico con los looks, lo nuevo,
+    categorías con foto, un look para comprar entero, nosotras, por qué, Instagram
+    y el local. El catálogo completo y el lookbook viven en sus propias páginas.
     """
-    destacados = _productos_visibles().filter(destacado=True).order_by("orden")[:6]
-    if destacados.count() < 6:
+    destacados = list(_productos_visibles().filter(destacado=True).order_by("orden")[:6])
+    if len(destacados) < 6:
         # Si todavía no hay 6 marcadas como destacadas, se completa con las
-        # primeras del orden general para que la diapositiva no quede vacía.
+        # primeras del orden general para que la sección no quede con huecos.
         ids = [p.pk for p in destacados]
-        faltan = 6 - len(ids)
-        relleno = _productos_visibles().exclude(pk__in=ids).order_by("orden")[:faltan]
-        destacados = list(destacados) + list(relleno)
+        relleno = _productos_visibles().exclude(pk__in=ids).order_by("orden")[: 6 - len(ids)]
+        destacados += list(relleno)
 
-    return render(request, "catalogo/home.html", {"destacados": destacados})
+    portada = Portada.actual()
+    looks = list(Look.objects.filter(activo=True).order_by("orden", "nombre"))
+    # La foto que la dueña eligió para la portada va primera en el tríptico.
+    if portada.foto_hero and portada.foto_hero in looks:
+        looks.remove(portada.foto_hero)
+        looks.insert(0, portada.foto_hero)
+
+    # Cada categoría con la foto de su primera prenda: las tarjetas de "Elegí por
+    # categoría" muestran ropa real, no un ícono.
+    categorias = []
+    con_cantidad = Categoria.objects.filter(productos__activo=True).annotate(
+        n=Count("productos", filter=Q(productos__activo=True))
+    )
+    for cat in con_cantidad.order_by("orden", "nombre"):
+        prenda = _productos_visibles().filter(categoria=cat).order_by("-destacado", "orden").first()
+        foto = prenda.foto_principal if prenda else None
+        categorias.append({"categoria": cat, "n": cat.n, "foto": foto.url if foto else ""})
+
+    # El look para "comprá el look entero": el de la portada si tiene prendas
+    # marcadas; si no, el primero que tenga.
+    look_compra = None
+    for candidato in looks:
+        items = list(
+            LookItem.objects.filter(look=candidato, producto__activo=True)
+            .select_related("producto__categoria")
+            .prefetch_related("producto__imagenes")
+        )
+        if items:
+            look_compra = {"look": candidato, "items": items, "total": sum(i.producto.precio for i in items)}
+            break
+
+    return render(
+        request,
+        "catalogo/home.html",
+        {
+            "destacados": destacados,
+            "looks_hero": looks[:6],
+            # Lo mismo en datos para que el tríptico vaya rotando las fotos.
+            "looks_hero_datos": [
+                {
+                    "src": l.url,
+                    "alt": l.alt or l.nombre,
+                    "nombre": l.nombre,
+                    "href": f"{reverse('catalogo:looks')}#look-{l.pk}",
+                }
+                for l in looks[:6]
+                if l.url
+            ],
+            "categorias_home": categorias,
+            "look_compra": look_compra,
+            "fotos_ig": looks[:5],
+        },
+    )
 
 
 def catalogo(request, categoria_slug=None):

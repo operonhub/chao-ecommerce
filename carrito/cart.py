@@ -28,7 +28,10 @@ def _clave(producto_id: int, talle_id: int | None, color_id: int | None = None) 
 class Cart:
     def __init__(self, request):
         self.session = request.session
-        self.items: dict[str, dict] = self.session.setdefault(SESION_KEY, {})
+        # .get y no .setdefault: setdefault marca la sesión como modificada y Django
+        # guardaba una sesión nueva (una fila en la base) por cada visitante o bot
+        # que abría cualquier página, aunque nunca tocara el carrito.
+        self.items: dict[str, dict] = self.session.get(SESION_KEY, {})
 
     # -- Escritura -----------------------------------------------------------
     def guardar(self):

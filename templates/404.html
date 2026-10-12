@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block titulo %}No encontramos esa página — {{ negocio.nombre }}{% endblock %}
+
+{% block contenido %}
+{% comment %} Un link viejo de Instagram o una prenda que ya no está: en vez del
+  "Not Found" pelado del servidor, la clienta cae acá y sigue comprando. {% endcomment %}
+<section class="contenido seccion" style="text-align:center">
+  <p class="sup">— Error 404</p>
+  <h1 class="display seccion__titulo" style="margin:0.6rem 0 1rem">Esa página <em>ya no está</em></h1>
+  <p class="seccion__nota" style="margin-inline:auto">
+    Puede que la prenda se haya agotado o que el link esté mal escrito. La colección
+    completa sigue acá.
+  </p>
+  <p style="display:flex;flex-wrap:wrap;gap:1rem 1.5rem;justify-content:center;align-items:center;margin-top:2rem">
+    <a href="{% url 'catalogo:catalogo' %}" class="btn btn--primario">Ver la colección</a>
+    <a href="https://wa.me/{{ negocio.whatsapp }}" class="cta-ghost" target="_blank" rel="noopener">Escribinos por WhatsApp →</a>
+  </p>
+</section>
+{% endblock %}

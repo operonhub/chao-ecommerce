@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% load static humanize_ar %}
 
-{% block titulo %}Looks — {{ negocio.nombre }}{% endblock %}
+{% block titulo %}Looks — {{ negocio.nombre }}, Villa Bosch{% endblock %}
+{% block descripcion %}Los looks armados en el local de {{ negocio.nombre }}: tocá cada prenda de la foto, elegí tu talle y llevate el conjunto completo. {{ negocio.direccion }}.{% endblock %}
+{% block og_titulo %}Looks — {{ negocio.nombre }}{% endblock %}
 
 {% block contenido %}
 {{ prendas_json|json_script:"prendas-data" }}

@@ -27,7 +27,10 @@ def ver(request):
 
 @require_POST
 def agregar(request):
-    producto = get_object_or_404(Producto, pk=request.POST.get("producto"), activo=True)
+    producto_id = request.POST.get("producto", "")
+    if not producto_id.isdigit():
+        return HttpResponseBadRequest("Prenda inválida.")
+    producto = get_object_or_404(Producto, pk=producto_id, activo=True)
 
     # Color: si la prenda tiene colores, es obligatorio y tiene que ser de ella.
     color = None
@@ -42,13 +45,21 @@ def agregar(request):
     talle = None
     talle_id = request.POST.get("talle")
     if talle_id:
+        if not talle_id.isdigit():
+            return HttpResponseBadRequest("Talle inválido.")
         talle = get_object_or_404(Talle, pk=talle_id)
     elif producto.variantes.exists():
         # El producto tiene talles cargados y no eligieron ninguno: no se adivina.
         return HttpResponseBadRequest("Falta elegir el talle.")
 
-    if talle and not producto.variantes.filter(talle=talle, color=color).exists():
-        return HttpResponseBadRequest("Ese talle no viene en ese color.")
+    if talle:
+        variante = producto.variantes.filter(talle=talle, color=color).first()
+        if variante is None:
+            return HttpResponseBadRequest("Ese talle no viene en ese color.")
+        # La tienda deshabilita los talles agotados, pero el servidor no puede
+        # confiar en eso: sin este chequeo se podía pedir una prenda sin stock.
+        if variante.stock <= 0:
+            return HttpResponseBadRequest("Ese talle se quedó sin stock.")
 
     try:
         cantidad = max(1, int(request.POST.get("cantidad", 1)))

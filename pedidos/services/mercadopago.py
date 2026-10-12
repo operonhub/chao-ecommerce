@@ -34,7 +34,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
-import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
@@ -267,6 +266,11 @@ def _resultado(orden: dict) -> ResultadoOrden:
     )
 
 
+def _clave_idempotencia(pedido, token: str) -> str:
+    huella = hashlib.sha256(str(token).encode()).hexdigest()[:32]
+    return f"chao-{pedido.pk}-{huella}"
+
+
 def crear_orden(pedido, datos_tarjeta: dict) -> ResultadoOrden:
     """
     Cobra con la tarjeta que tokenizó el formulario (API de Orders de MP).
@@ -315,8 +319,11 @@ def crear_orden(pedido, datos_tarjeta: dict) -> ResultadoOrden:
         r = requests.post(
             f"{API}/v1/orders",
             json=payload,
-            # Si la clienta toca dos veces "Pagar", Mercado Pago cobra una sola.
-            headers=_headers(cred, **{"X-Idempotency-Key": f"chao-{pedido.pk}-{uuid.uuid4()}"}),
+            # Si la clienta toca dos veces "Pagar", Mercado Pago cobra una sola. La
+            # clave sale del token de la tarjeta (de un solo uso): el mismo intento
+            # repetido lleva la misma clave, y un intento nuevo con otra tarjeta,
+            # otra. Con una clave al azar por pedido de red no se deduplicaba nada.
+            headers=_headers(cred, **{"X-Idempotency-Key": _clave_idempotencia(pedido, metodo["token"])}),
             timeout=TIMEOUT + 15,
         )
     except requests.RequestException as exc:

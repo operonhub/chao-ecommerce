@@ -81,7 +81,7 @@
             <span class="opcion__marca" aria-hidden="true"></span>
             <span class="opcion__cuerpo">
               <span class="opcion__titulo">{{ z.zona.nombre }}</span>
-              <span class="opcion__detalle">{% if z.zona.descripcion %}{{ z.zona.descripcion }} · {% endif %}{{ z.zona.demora }}</span>
+              <span class="opcion__detalle">{% if z.zona.descripcion %}{{ z.zona.descripcion }}{% endif %}{% if z.zona.demora not in z.zona.descripcion %}{% if z.zona.descripcion %} · {% endif %}{{ z.zona.demora }}{% endif %}</span>
             </span>
             <span class="opcion__precio">
               {% if z.costo is None %}A coordinar{% elif z.costo == 0 %}Gratis{% else %}${{ z.costo|pesos }}{% endif %}

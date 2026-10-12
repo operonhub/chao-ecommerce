@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% load static humanize_ar editorial %}
 
-{% block titulo %}{% if categoria_actual %}{{ categoria_actual.nombre }}{% else %}Catálogo{% endif %} — {{ negocio.nombre }}{% endblock %}
+{% block titulo %}{% if categoria_actual %}{{ categoria_actual.nombre }}{% else %}Catálogo{% endif %} — {{ negocio.nombre }}, Villa Bosch{% endblock %}
+{% block descripcion %}{% if categoria_actual %}{{ categoria_actual.nombre }} de {{ negocio.nombre }}{% else %}Toda la colección de {{ negocio.nombre }}{% endif %}, con talle y precio. Comprá online y retirá en {{ negocio.direccion }}, {{ negocio.partido }}.{% endblock %}
+{% block og_titulo %}{% if categoria_actual %}{{ categoria_actual.nombre }}{% else %}La colección{% endif %} — {{ negocio.nombre }}{% endblock %}
 
 {% block contenido %}
 {% comment %}
@@ -46,7 +48,7 @@
   {% if hay_precios_a_confirmar %}
     <p class="tienda-aviso" style="margin:0 0 1.75rem">
       <span aria-hidden="true">⚠</span>
-      <span>Algunos precios son de referencia: CHAO todavía no confirmó toda su lista.</span>
+      <span>Algunos precios son de referencia: escribinos por WhatsApp y te confirmamos el valor.</span>
     </p>
   {% endif %}
 
@@ -97,17 +99,17 @@
     <details>
       <summary>¿Hacen envíos?</summary>
       <p>
-        El retiro en el local está siempre disponible en el horario de atención. Los envíos
-        se coordinan por WhatsApp. <em>La zona de cobertura y el costo los define CHAO —
-        quedan a confirmar.</em>
+        Sí. Podés retirar en el local en el horario de atención o pedir que te lo enviemos:
+        las opciones de envío, con su costo y su demora, las ves al finalizar la compra,
+        antes de pagar.
       </p>
     </details>
     <details>
       <summary>¿En cuántas cuotas puedo pagar?</summary>
       <p>
-        En el local hay cuotas sin interés todos los días. En la tienda online el pago es
-        con Mercado Pago, que te muestra los planes de cuotas disponibles según tu tarjeta
-        al momento de pagar.
+        En el local hay cuotas sin interés todos los días. En la tienda online podés pagar
+        con tarjeta o con tu cuenta de Mercado Pago, que te muestra las cuotas disponibles
+        según tu tarjeta al momento de pagar.
       </p>
     </details>
   </div>

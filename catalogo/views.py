@@ -2,6 +2,7 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
+from . import seo
 from .models import Categoria, Look, LookItem, Portada, Producto
 
 
@@ -82,6 +83,7 @@ def home(request):
             "categorias_home": categorias,
             "look_compra": look_compra,
             "fotos_ig": looks[:5],
+            "datos_estructurados": seo.tienda_jsonld(request, portada.hero_url),
         },
     )
 
@@ -195,12 +197,15 @@ def producto(request, slug):
             if i.producto_id != prenda.pk and i.producto.activo
         ]
 
+    fotos = list(prenda.imagenes.all())
     return render(
         request,
         "catalogo/producto.html",
         {
             "prenda": prenda,
-            "fotos": list(prenda.imagenes.all()),
+            "fotos": fotos,
+            "og_imagen": fotos[0].url if fotos else "",
+            "datos_estructurados": seo.producto_jsonld(request, prenda, fotos),
             "relacionados": relacionados,
             "look": look,
             "del_look": del_look,

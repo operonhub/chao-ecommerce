@@ -2,7 +2,10 @@
 {% load static humanize_ar editorial %}
 
 {% block titulo %}{{ prenda.nombre }} — {{ negocio.nombre }}{% endblock %}
-{% block descripcion %}{{ prenda.descripcion }} Disponible en CHAO Indumentaria, {{ negocio.direccion }}.{% endblock %}
+{% block descripcion %}{% if prenda.descripcion %}{{ prenda.descripcion|truncatechars:110 }} {% endif %}{{ prenda.categoria.nombre }} en {{ negocio.nombre }}, {{ negocio.direccion }}.{% endblock %}
+{% block og_tipo %}product{% endblock %}
+{% block og_titulo %}{{ prenda.nombre }} — {{ negocio.nombre }}{% endblock %}
+{% block og_descripcion %}{% if prenda.descripcion %}{{ prenda.descripcion|truncatechars:140 }}{% else %}{{ prenda.categoria.nombre }} en {{ negocio.nombre }}, {{ negocio.direccion }}.{% endif %}{% endblock %}
 
 {% block contenido %}
 <nav class="contenido migas" aria-label="Estás en">
@@ -51,7 +54,7 @@
       <p class="detalle__cuotas">3 cuotas sin interés de <b>${{ prenda.precio|cuota:3 }}</b></p>
 
       {% if prenda.precio_a_confirmar %}
-        <p class="tienda-aviso"><span aria-hidden="true">⚠</span><span>Precio de referencia: falta que CHAO lo confirme.</span></p>
+        <p class="tienda-aviso"><span aria-hidden="true">⚠</span><span>Precio de referencia: escribinos por WhatsApp y te confirmamos el valor.</span></p>
       {% endif %}
 
       <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito class="detalle__compra">

@@ -82,6 +82,7 @@ TEMPLATES = [
                 "carrito.context_processors.carrito",
                 "catalogo.context_processors.datos_negocio",
                 "catalogo.context_processors.menu_categorias",
+                "catalogo.seo.contexto",
             ],
         },
     },
@@ -198,6 +199,18 @@ NEGOCIO = {
     "horario_manana": "9.30 a 13.00",
     "horario_tarde": "16.30 a 20.00",
     "dias": "Lunes a sábado",
+    # Los mismos datos, partidos como los piden los buscadores (datos estructurados).
+    # Si cambia la dirección o el horario de arriba, cambiar también acá.
+    "calle": "Gaucho Cruz 5485",
+    "localidad": "Villa Bosch",
+    "provincia": "Buenos Aires",
+    "telefono_internacional": "+5491162285175",
+    "horarios_schema": [
+        {"abre": "09:30", "cierra": "13:00"},
+        {"abre": "16:30", "cierra": "20:00"},
+    ],
+    "dias_schema": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    "mapa_url": "https://www.google.com/maps?q=Gaucho+Cruz+5485,+Villa+Bosch,+Buenos+Aires",
 }
 
 # --- Mercado Pago ------------------------------------------------------------
@@ -214,3 +227,10 @@ MP_WEBHOOK_SECRET = os.getenv("MP_WEBHOOK_SECRET", "")
 # del botón de MP tiene que ser EXACTAMENTE la registrada en la app, aunque se
 # entre por otro dominio de Vercel. Vacío = se arma con el dominio del request.
 SITIO_URL = os.getenv("SITIO_URL", "").rstrip("/")
+
+# --- Buscadores ----------------------------------------------------------------
+# Apagado por defecto: mientras la tienda viva en una dirección provisoria (o le
+# falten precios reales), todas las páginas salen con noindex y no hay sitemap.
+# Se prende (PERMITIR_INDEXADO=True) recién con el dominio definitivo cargado en
+# SITIO_URL y el visto bueno de CHAO: ahí aparecen el canonical y el sitemap.
+PERMITIR_INDEXADO = env_bool("PERMITIR_INDEXADO", False) and bool(SITIO_URL)

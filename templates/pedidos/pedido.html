@@ -28,7 +28,7 @@
       {% if pedido.entrega == 'envio' %}
         <p class="seccion__nota">
           Recibimos tu pago. Preparamos tu pedido y te avisamos por WhatsApp al {{ pedido.telefono }}
-          cuando sale, con el número de seguimiento. Llega en {{ pedido.zona_demora|lower }}.
+          cuando sale, con el número de seguimiento.{% if pedido.zona_demora %} Demora estimada: {{ pedido.zona_demora|lower }}.{% endif %}
           {% if pedido.envio_a_coordinar %}El costo del envío lo coordinamos por WhatsApp.{% endif %}
         </p>
       {% else %}

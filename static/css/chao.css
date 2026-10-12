@@ -647,7 +647,9 @@ button.cta-ghost {
 
 /* --- Encabezado de sección ------------------------------------------------ */
 .seccion {
-  padding: clamp(3rem, 7vw, 6rem) 0;
+  /* Solo el eje vertical: con `padding: … 0` se pisaba el margen lateral de
+     .contenido y en pantallas de menos de 1280px el texto quedaba pegado al borde. */
+  padding-block: clamp(3rem, 7vw, 6rem);
 }
 
 .seccion__cabeza {
@@ -885,7 +887,7 @@ button.cta-ghost {
 }
 
 .talle small {
-  font-size: 0.56rem;
+  font-size: 0.64rem;
   font-weight: 400;
   letter-spacing: 0.04em;
   color: var(--bordo);
@@ -1570,7 +1572,7 @@ button.cta-ghost {
 
 .card__cat {
   margin: 0;
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--tinta-mute);
@@ -2281,7 +2283,7 @@ button.cta-ghost {
   padding: 0;
   list-style: none;
   counter-reset: paso;
-  font-size: 0.64rem;
+  font-size: 0.7rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--tinta-mute);
@@ -2357,7 +2359,7 @@ button.cta-ghost {
 
 .campo label {
   display: block;
-  font-size: 0.64rem;
+  font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -2506,7 +2508,7 @@ button.cta-ghost {
 
 .resumen__datos span {
   display: block;
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--tinta-mute);
@@ -2912,7 +2914,7 @@ button.cta-ghost {
 }
 
 .transferencia dt {
-  font-size: 0.64rem;
+  font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;

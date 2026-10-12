@@ -604,3 +604,31 @@ class FotosIATests(Base):
         self.assertContains(self.client.get(url), "data-foto-ia")
         with override_settings(GEMINI_API_KEY=""):
             self.assertNotContains(self.client.get(url), "data-foto-ia ")
+
+
+    def test_no_inventa_etiquetas_y_suma_el_pedido(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            self.client.post(reverse("gestion:foto_ia", args=[self.foto.pk]), {"pedido": 'Más luz "por favor"'})
+        texto = post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
+        self.assertIn("NO INVENTED LABELS", texto)
+        self.assertIn("must show NO label", texto)
+        self.assertIn("PLAIN patch of the same color with NO letters", texto)
+        self.assertIn("Remove ALL hang tags", texto)
+        self.assertIn("Never draw the missing parts", texto)
+        self.assertIn("Más luz 'por favor'", texto)  # el pedido viaja, sin romper las comillas
+        self.assertNotIn("Keep the brand label", texto)
+
+    def test_segunda_edicion_parte_de_la_original(self):
+        import base64
+
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        self.post("gestion:foto_ia_usar")
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            self.post("gestion:foto_ia")
+        enviada = base64.b64decode(post.call_args.kwargs["json"]["contents"][0]["parts"][1]["inline_data"]["data"])
+        from io import BytesIO
+        from PIL import Image
+
+        color = Image.open(BytesIO(enviada)).convert("RGB").getpixel((5, 5))
+        self.assertLess(abs(color[0] - 200) + abs(color[1] - 120), 40)  # el color de la ORIGINAL, no el de la IA

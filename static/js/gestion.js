@@ -134,6 +134,8 @@
     const usar = $("[data-ia-usar]", modalIA);
     const otra = $("[data-ia-otra]", modalIA);
     const descartar = $("[data-ia-descartar]", modalIA);
+    const pedidoCaja = $("[data-ia-pedido-caja]", modalIA);
+    const pedido = $("[data-ia-pedido]", modalIA);
     let fig = null;
     let reloj = null;
     let ocupado = false;
@@ -155,8 +157,10 @@
       despues.src = url;
       despues.hidden = false;
       aviso.hidden = false;
+      pedidoCaja.hidden = false;
       usar.disabled = false;
       otra.disabled = false;
+      otra.textContent = pedido.value.trim() ? "Probar con este cambio" : "Probar otra vez";
     }
 
     async function editar() {
@@ -168,12 +172,13 @@
       usar.disabled = true;
       otra.disabled = true;
       descartar.disabled = true;
+      pedido.disabled = true;
       const inicio = Date.now();
       segundos.textContent = "0 s";
       clearInterval(reloj);
       reloj = setInterval(() => (segundos.textContent = `${Math.round((Date.now() - inicio) / 1000)} s`), 1000);
       try {
-        const res = await postear(fig.dataset.urlIa, {});
+        const res = await postear(fig.dataset.urlIa, { pedido: pedido.value.trim() });
         fig.dataset.iaPendiente = res.url;
         mostrarResultado(res.url);
         marcarLista(fig, true);
@@ -186,6 +191,8 @@
       } finally {
         ocupado = false;
         descartar.disabled = false;
+        pedido.disabled = false;
+        pedidoCaja.hidden = false;
       }
     }
 
@@ -218,6 +225,7 @@
         try {
           const res = await postear(fig.dataset.urlIaOriginal, {});
           $("img", fig).src = res.url;
+          fig.dataset.original = res.url;
           original.remove();
           toast("Volvimos a la foto original");
         } catch (err) {
@@ -226,7 +234,9 @@
         return;
       }
 
-      antes.src = $("img", fig).src;
+      antes.src = fig.dataset.original || $("img", fig).src;
+      pedido.value = "";
+      pedidoCaja.hidden = true;
       abrir();
       if (ver && fig.dataset.iaPendiente) {
         editando.hidden = true;
@@ -239,6 +249,26 @@
     });
 
     otra.addEventListener("click", () => fig && editar());
+
+    // Sugerencias rápidas: se suman al pedido (o lo arman) con un toque.
+    $$("[data-ia-sugerencia]", modalIA).forEach((b) =>
+      b.addEventListener("click", () => {
+        const actual = pedido.value.trim();
+        const extra = b.dataset.iaSugerencia;
+        pedido.value = actual && !actual.includes(extra) ? `${actual}. ${extra}` : extra;
+        pedido.dispatchEvent(new Event("input"));
+        pedido.focus();
+      })
+    );
+    pedido.addEventListener("input", () => {
+      if (!otra.disabled) otra.textContent = pedido.value.trim() ? "Probar con este cambio" : "Probar otra vez";
+    });
+    pedido.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !otra.disabled) {
+        e.preventDefault();
+        editar();
+      }
+    });
 
     usar.addEventListener("click", async () => {
       usar.disabled = true;

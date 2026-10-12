@@ -460,19 +460,35 @@ def foto_borrar(request, pk):
 
 # --- Fotos con IA (Gemini) ----------------------------------------------------------
 def _leer_foto(foto) -> bytes:
-    """Los bytes de la foto actual, venga del storage o de static/."""
+    """
+    Los bytes de la foto ORIGINAL (la que sacó la dueña), venga del storage o de
+    static/. Si la foto publicada ya es una versión con IA, se parte de la
+    original guardada: editar lo ya editado va acumulando inventos.
+    """
+    from django.core.files.storage import default_storage
+
+    if foto.original:
+        tipo, _, ruta = foto.original.partition(":")
+        if tipo == "img":
+            with default_storage.open(ruta, "rb") as f:
+                return f.read()
+        return _leer_estatica(ruta)
     if foto.imagen:
         with foto.imagen.open("rb") as f:
             return f.read()
-    if foto.ruta_estatica:
+    return _leer_estatica(foto.ruta_estatica)
+
+
+def _leer_estatica(ruta_estatica: str) -> bytes:
+    if ruta_estatica:
         from django.contrib.staticfiles import finders
         from django.contrib.staticfiles.storage import staticfiles_storage
 
         try:
-            with staticfiles_storage.open(foto.ruta_estatica) as f:
+            with staticfiles_storage.open(ruta_estatica) as f:
                 return f.read()
         except (FileNotFoundError, OSError):
-            ruta = finders.find(foto.ruta_estatica)  # en desarrollo, sin collectstatic
+            ruta = finders.find(ruta_estatica)  # en desarrollo, sin collectstatic
             if ruta:
                 with open(ruta, "rb") as f:
                     return f.read()
@@ -497,7 +513,7 @@ def foto_ia(request, pk):
 
     foto = get_object_or_404(ProductoImagen.objects.select_related("producto"), pk=pk)
     try:
-        editada, modelo = ia.mejorar(_leer_foto(foto))
+        editada, modelo = ia.mejorar(_leer_foto(foto), pedido=request.POST.get("pedido", ""))
         archivo = _normalizar_imagen(BytesIO(editada))
     except ia.ErrorIA as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=502)

@@ -210,6 +210,20 @@ class ProductoImagen(models.Model):
     original = models.CharField(max_length=220, blank=True)
 
     @property
+    def url_original(self):
+        """La foto que sacó la dueña, aunque la publicada sea la versión con IA."""
+        if not self.original:
+            return self.url
+        tipo, _, ruta = self.original.partition(":")
+        if tipo == "static":
+            from django.templatetags.static import static
+
+            return static(ruta)
+        from django.core.files.storage import default_storage
+
+        return default_storage.url(ruta)
+
+    @property
     def url_ia_pendiente(self):
         from django.core.files.storage import default_storage
 

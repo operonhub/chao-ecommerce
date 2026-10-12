@@ -2511,3 +2511,62 @@
     animation: none;
   }
 }
+
+
+/* Pedido de cambio para la IA */
+.g-ia__pedido {
+  margin-top: 1rem;
+}
+
+.g-ia__pedido[hidden] {
+  display: none;
+}
+
+.g-ia__pedido label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+
+.g-ia__pedido label em {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--tinta-mute);
+}
+
+.g-ia__sugerencias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.55rem;
+}
+
+.g-ia__sugerencias button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--tinta);
+  cursor: pointer;
+}
+
+.g-ia__sugerencias button:hover {
+  border-color: var(--sage-deep);
+}
+
+.g-ia__pedido input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--g-campo-radio);
+  background: #fff;
+  font: inherit;
+  font-size: 1rem;
+}

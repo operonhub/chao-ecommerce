@@ -39,7 +39,8 @@
                   data-url-ia-usar="{% url 'gestion:foto_ia_usar' f.pk %}"
                   data-url-ia-descartar="{% url 'gestion:foto_ia_descartar' f.pk %}"
                   data-url-ia-original="{% url 'gestion:foto_ia_original' f.pk %}"
-                  data-ia-pendiente="{{ f.url_ia_pendiente }}">
+                  data-ia-pendiente="{{ f.url_ia_pendiente }}"
+                  data-original="{{ f.url_original }}">
             <img src="{{ f.url }}" alt="">
             <span class="g-foto__principal">Principal</span>
             {% if ia_activa %}
@@ -276,6 +277,17 @@
       </figure>
     </div>
     <p class="g-ia__error" data-ia-error hidden role="alert"></p>
+    <div class="g-ia__pedido" data-ia-pedido-caja hidden>
+      <label for="ia-pedido">¿Querés cambiar algo? <em>(opcional)</em></label>
+      <div class="g-ia__sugerencias">
+        <button type="button" data-ia-sugerencia="Más luz, más clara">Más luz</button>
+        <button type="button" data-ia-sugerencia="Fondo blanco liso en vez de crema">Fondo blanco</button>
+        <button type="button" data-ia-sugerencia="Sin percha, la prenda apoyada plana sobre el fondo">Sin percha</button>
+        <button type="button" data-ia-sugerencia="Más cerca, que la prenda ocupe más espacio en la foto">Más cerca</button>
+        <button type="button" data-ia-sugerencia="Más derecha y centrada">Más derecha</button>
+      </div>
+      <input type="text" id="ia-pedido" maxlength="240" placeholder="Ej: que se vea la manga entera, fondo un poco más oscuro" data-ia-pedido>
+    </div>
     <p class="g-ayuda g-ia__aviso" data-ia-aviso hidden>
       Antes de usarla, mirá que la prenda sea <b>igual a la real</b>: color, estampado, largo y etiqueta.
     </p>

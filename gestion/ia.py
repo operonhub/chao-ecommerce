@@ -33,21 +33,42 @@ API = "https://generativelanguage.googleapis.com/v1beta"
 
 INSTRUCCIONES = """You are retouching a real product photo for a women's clothing store's online catalog.
 
+FIRST, look at the edges of the original photo. If the garment touches or is cut off by ANY edge (its hem, a sleeve, a leg or part of a print is missing), this is a CLOSE-UP: keep exactly that same crop, with the garment cut off at the same places. Only if the whole garment is visible with background all around it, show it whole.
+
 Turn this phone photo, taken inside the shop, into a clean professional e-commerce product photo:
-- Show ONLY the garment from the photo, hanging straight and centered on a simple light natural-wood hanger.
+- Show ONLY the garment from the photo. Whole garment: hanging straight and centered on a simple light natural-wood hanger. Close-up: a studio detail shot of that same part, same crop, nothing added beyond the photo's edges.
 - Background: a smooth, seamless warm cream studio wall (a soft beige close to #F2EADC), evenly lit.
 - Soft diffused daylight from the front, gentle natural shadow, no harsh reflections.
-- Remove everything else: racks, mannequins, other clothes, the shop window, the street, people, price tags hanging loose.
-- Vertical 3:4 framing with comfortable margins around the garment.
+- Remove everything else: racks, mannequins, other clothes, the shop window, the street, people.
+- Vertical 3:4 framing (comfortable margins around the garment only when it is shown whole).
 
 CRITICAL — the garment must stay EXACTLY the same as in the original photo:
 - Same cut, length, sleeves, neckline, fit and proportions.
 - Same exact colors and fabric texture. Do not make it brighter, whiter or more saturated than it really is.
 - Same prints, graphics, embroidery and any text on it, letter by letter, in the same place and size.
-- Keep the brand label on the neck if it is visible.
 - Do not add, remove, redraw, smooth away or "improve" any detail of the garment. Only fix wrinkles caused by the hanger lightly.
 
+NO INVENTED LABELS, TAGS OR TEXT — this is strict:
+- Remove ALL hang tags and price tags (cardboard or paper tags hanging on a string or plastic fastener). They are not part of the garment.
+- Do NOT add any label, neck label, care label, brand tag, sticker, logo, brand name or text that is not in the original photo.
+- If the original shows no sewn-in label, the result must show NO label.
+- A sewn-in label that IS in the original (neck, waistband) stays in the same place and size, but always as a PLAIN patch of the same color with NO letters, numbers or logos on it. Do not try to reproduce its text.
+- Buttons, rivets and zippers stay plain: no engraved or printed text on them unless it is huge and obvious in the original.
+- Never write or invent brand names anywhere. Text is only allowed where it is part of the garment's own big print or graphic (like a slogan printed on a t-shirt), copied exactly.
+
+DO NOT INVENT PARTS OF THE GARMENT:
+- If the garment is cut off by an edge of the original photo, it must be cut off at the same place in the result. Keep that same partial framing (for example just the waist and a pocket, or the t-shirt without its hem).
+- Never draw the missing parts (legs, hem, sleeves, bottom of a print) that are not in the photo.
+
 Do not add any text, logo, watermark or props. Return only the edited image."""
+
+PEDIDO_EXTRA = """
+
+Extra request from the shop owner, written in Spanish: "{pedido}"
+Apply it ONLY to the photo itself (background, light, framing, hanger, angle). It never overrides the rules
+above: the garment must stay exactly the same and no labels, tags or text may be added."""
+
+LARGO_PEDIDO = 240
 
 TAMANO_ENTRADA = 2048  # lado mayor de la foto que se manda (más no mejora y pesa más)
 
@@ -71,13 +92,18 @@ def _preparar(imagen_bytes: bytes) -> tuple[str, str]:
     return base64.b64encode(salida.getvalue()).decode(), "image/jpeg"
 
 
-def _pedir(modelo: str, datos: str, mime: str, timeout: float) -> bytes:
+def instrucciones(pedido: str = "") -> str:
+    pedido = " ".join((pedido or "").split())[:LARGO_PEDIDO].replace('"', "'")
+    return INSTRUCCIONES + (PEDIDO_EXTRA.format(pedido=pedido) if pedido else "")
+
+
+def _pedir(modelo: str, datos: str, mime: str, timeout: float, pedido: str = "") -> bytes:
     cuerpo = {
         "contents": [
             {
                 "role": "user",
                 "parts": [
-                    {"text": INSTRUCCIONES},
+                    {"text": instrucciones(pedido)},
                     {"inline_data": {"mime_type": mime, "data": datos}},
                 ],
             }
@@ -124,10 +150,11 @@ def _mensaje_error(status: int, error: dict) -> str:
     return "La IA no pudo editar la foto ahora. Probá de nuevo en un rato."
 
 
-def mejorar(imagen_bytes: bytes, plazo: float | None = None) -> tuple[bytes, str]:
+def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "") -> tuple[bytes, str]:
     """
     Devuelve (foto editada, modelo que la hizo). Prueba la Pro y, si falla o se
     queda sin tiempo, el modelo de respaldo con lo que queda del plazo.
+    `pedido` es el cambio opcional que escribe la dueña ("más luz", "sin percha").
     """
     if not configurada():
         raise ErrorIA("Falta configurar la IA (GEMINI_API_KEY en Vercel).")
@@ -142,7 +169,7 @@ def mejorar(imagen_bytes: bytes, plazo: float | None = None) -> tuple[bytes, str
         if restante < 20:
             break
         try:
-            return _pedir(modelo, datos, mime, timeout=restante - 5), modelo
+            return _pedir(modelo, datos, mime, timeout=restante - 5, pedido=pedido), modelo
         except requests.Timeout:
             logger.warning("Gemini %s tardó demasiado; pruebo el respaldo.", modelo)
             ultimo_error = ErrorIA("La IA tardó demasiado. Probá de nuevo.")

@@ -471,5 +471,71 @@
     );
   }
 
+  /* --- "Llevar el look completo": elegir talle (y color) en cada fila ------
+     Cada prenda trae sus botoncitos. El botón del look se habilita cuando
+     todas las prendas con stock tienen su elección; las de una sola opción ya
+     vienen elegidas. */
+  $$("[data-look-form]").forEach((form) => {
+    const boton = $("[data-look-boton]", form);
+    const filas = $$("[data-fila][data-elegible]", form);
+
+    function lista(fila) {
+      const color = $("[data-look-color-elegido]", fila);
+      const talle = $("[data-look-talle-elegido]", fila);
+      return (!color || color.value) && (!talle || talle.value);
+    }
+
+    function pintar() {
+      const faltan = filas.filter((f) => !lista(f)).length;
+      boton.disabled = faltan > 0 || !filas.length;
+      boton.textContent = !filas.length
+        ? "Sin stock por ahora"
+        : faltan
+          ? `Elegí los talles (falta${faltan > 1 ? "n" : ""} ${faltan})`
+          : `Llevar el look completo (${filas.length} prenda${filas.length > 1 ? "s" : ""})`;
+    }
+
+    function elegirTalle(fila, btn) {
+      $$("[data-look-talle]", fila).forEach((b) => b.setAttribute("aria-pressed", "false"));
+      btn.setAttribute("aria-pressed", "true");
+      $("[data-look-talle-elegido]", fila).value = btn.dataset.lookTalle;
+    }
+
+    function autoTalle(fila, grupo) {
+      // Una sola opción con stock: se elige sola.
+      const libres = $$("[data-look-talle]:not([disabled])", grupo);
+      if (libres.length === 1) elegirTalle(fila, libres[0]);
+    }
+
+    function elegirColor(fila, btn) {
+      $$("[data-look-color]", fila).forEach((b) => b.setAttribute("aria-pressed", "false"));
+      btn.setAttribute("aria-pressed", "true");
+      $("[data-look-color-elegido]", fila).value = btn.dataset.lookColor;
+      $("[data-look-talle-elegido]", fila).value = "";
+      $$("[data-look-talles]", fila).forEach((g) => {
+        g.hidden = g.dataset.lookTalles !== btn.dataset.lookColor;
+        if (!g.hidden) autoTalle(fila, g);
+      });
+    }
+
+    filas.forEach((fila) => {
+      fila.addEventListener("click", (e) => {
+        const color = e.target.closest("[data-look-color]");
+        const talle = e.target.closest("[data-look-talle]");
+        if (color && !color.disabled) elegirColor(fila, color);
+        else if (talle && !talle.disabled) elegirTalle(fila, talle);
+        else return;
+        pintar();
+      });
+      const colores = $$("[data-look-color]:not([disabled])", fila);
+      if (colores.length === 1) elegirColor(fila, colores[0]);
+      else if (!colores.length) {
+        const grupo = $(".prenda-fila__opciones", fila);
+        if (grupo) autoTalle(fila, grupo);
+      }
+    });
+    pintar();
+  });
+
   sincronizarContador();
 })();

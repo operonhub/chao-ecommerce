@@ -3520,3 +3520,68 @@ button.cta-ghost {
   font-size: 0.88rem;
   color: var(--tinta-mute);
 }
+
+
+/* --- Lista del look: elegir talle y color en cada prenda --------------------- */
+.prenda-fila__cuerpo {
+  min-width: 0;
+}
+
+a.prenda-fila__nombre:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prenda-fila__opciones,
+.prenda-fila__colores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.prenda-fila__opciones[hidden] {
+  display: none;
+}
+
+.talle--chico {
+  min-width: 2.4rem;
+  min-height: 2.1rem;
+  padding: 0 0.6rem;
+  font-size: 0.75rem;
+}
+
+.prenda-fila__color {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.prenda-fila__color[aria-pressed="true"] {
+  border-color: var(--tinta);
+}
+
+.prenda-fila__color:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.prenda-fila__color .punto-color {
+  width: 20px;
+  height: 20px;
+}
+
+.prenda-fila[data-sin-stock] {
+  opacity: 0.55;
+}
+
+[data-look-boton]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

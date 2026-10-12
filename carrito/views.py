@@ -62,48 +62,59 @@ def agregar(request):
 @require_POST
 def agregar_look(request):
     """
-    "Llevar el look completo": suma de una vez todas las prendas marcadas en la foto.
+    "Llevar el look completo": suma de una vez todas las prendas de la foto.
 
-    Es el remate del factor sorpresa, y tiene una decisión de negocio adentro: qué
-    talle usar cuando la clienta agrega un look entero con un solo clic.
+    El talle (y el color) de cada prenda lo elige la clienta en la misma lista
+    del look: talle_<prenda> y color_<prenda>. No se adivina ninguno — un talle
+    adivinado es un cambio en el local. Las prendas sin stock se saltean; si a
+    alguna con stock le falta elegir, no se agrega nada y se avisa cuál.
     """
     look = get_object_or_404(Look, pk=request.POST.get("look"), activo=True)
-    carrito = Cart(request)
+    items = look.items.select_related("producto").prefetch_related(
+        "producto__variantes__talle", "producto__colores"
+    )
 
-    items = look.items.select_related("producto").prefetch_related("producto__variantes__talle")
+    a_sumar, faltan = [], []
     for item in items:
-        if not item.producto.activo:
+        prenda = item.producto
+        if not prenda.activo:
             continue
-        carrito.agregar(item.producto, elegir_talle_para_look(item.producto), 1)
+        variantes = [v for v in prenda.variantes.all() if v.stock > 0]
+        if prenda.variantes.all() and not variantes:
+            continue  # sin stock: queda afuera del look
 
+        colores = list(prenda.colores.all())
+        color = None
+        if colores:
+            color = next((x for x in colores if str(x.pk) == request.POST.get(f"color_{prenda.pk}")), None)
+            if color is None and len(colores) == 1:
+                color = colores[0]
+            if color is None:
+                faltan.append(prenda.nombre)
+                continue
+            variantes = [v for v in variantes if v.color_id == color.pk]
+
+        talle = None
+        if prenda.variantes.all():
+            elegido = request.POST.get(f"talle_{prenda.pk}")
+            variante = next((v for v in variantes if str(v.talle_id) == elegido), None)
+            if variante is None and len(variantes) == 1:
+                variante = variantes[0]
+            if variante is None:
+                faltan.append(prenda.nombre)
+                continue
+            talle = variante.talle
+        a_sumar.append((prenda, talle, color))
+
+    if faltan:
+        return HttpResponseBadRequest(f"Elegí el talle de: {', '.join(faltan)}.")
+    if not a_sumar:
+        return HttpResponseBadRequest("Las prendas de este look están sin stock por ahora.")
+
+    carrito = Cart(request)
+    for prenda, talle, color in a_sumar:
+        carrito.agregar(prenda, talle, 1, color)
     return _respuesta_carrito(request)
-
-
-def elegir_talle_para_look(producto: Producto) -> Talle | None:
-    """
-    Decide con qué talle entra una prenda al carrito cuando se agrega el look completo.
-
-    TODO(santi): implementar. Es una decisión de negocio, no técnica — mirá el
-    comentario de abajo antes de elegir.
-
-    Opciones y qué implica cada una:
-
-    a) Devolver el primer talle con stock (`producto.talles_disponibles.first().talle`).
-       Un solo clic y el carrito queda completo. Riesgo: si la clienta usa L y le
-       entra una M, o lo corrige en el carrito o te llega un cambio al local.
-
-    b) Devolver el talle de "en medio" de los disponibles (la M de S/M/L, el 40 de
-       36/38/40/42). Es el talle que más se vende, así que acierta más veces que (a)
-       sin agregar ningún paso.
-
-    c) Devolver None y que el carrito muestre la línea con un "elegí tu talle" en
-       rojo, bloqueando el checkout hasta que estén todos. Es el más honesto y el
-       que menos cambios genera, pero le saca la magia al "un solo clic".
-
-    Para las prendas sin talles cargados (bolsos, pañuelos) hay que devolver None
-    igual, porque no tienen variantes: eso ya lo maneja `Cart.agregar`.
-    """
-    raise NotImplementedError("Definir la estrategia de talle para 'llevar el look completo'.")
 
 
 @require_POST

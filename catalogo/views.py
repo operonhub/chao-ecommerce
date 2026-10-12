@@ -137,7 +137,7 @@ def catalogo(request, categoria_slug=None):
 def looks(request):
     """El lookbook con hotspots, en su propia página."""
     looks_qs = Look.objects.filter(activo=True).prefetch_related(
-        "items__producto__imagenes", "items__producto__variantes__talle"
+        "items__producto__imagenes", "items__producto__variantes__talle", "items__producto__colores"
     )
     productos = _productos_visibles()
 

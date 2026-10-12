@@ -459,3 +459,56 @@ class ColoresPanelTests(Base):
         r = self.client.get(self.url)
         self.assertContains(r, f'name="stock_{bordo.pk}_{self.talle.pk}"')
         self.assertContains(r, f'name="color_nombre_{bordo.pk}"')
+
+
+class LookCompletoTests(Base):
+    def setUp(self):
+        super().setUp()
+        from catalogo.models import Look, LookItem
+
+        cat = self.prenda.categoria
+        self.bolso = Producto.objects.create(nombre="Bolso", slug="bolso", categoria=cat, precio=Decimal("30000"))
+        unico = Talle.objects.create(nombre="Único", orden=9)
+        Variante.objects.create(producto=self.bolso, talle=unico, stock=2)
+        self.agotado = Producto.objects.create(nombre="Agotado", slug="agotado", categoria=cat, precio=Decimal("10"))
+        Variante.objects.create(producto=self.agotado, talle=self.talle, stock=0)
+        self.l = Talle.objects.create(nombre="L", orden=2)
+        Variante.objects.create(producto=self.prenda, talle=self.l, stock=1)
+        self.look = Look.objects.create(nombre="Look prueba")
+        for i, p in enumerate((self.prenda, self.bolso, self.agotado)):
+            LookItem.objects.create(look=self.look, producto=p, x=10, y=10, orden=i)
+        self.url = reverse("carrito:agregar_look")
+
+    def test_sin_elegir_talle_avisa_y_no_agrega(self):
+        r = self.client.post(self.url, {"look": self.look.pk})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Sweater de prueba", r.content.decode())
+        self.assertFalse(self.client.session.get("carrito"))
+
+    def test_agrega_con_el_talle_elegido_y_saltea_lo_sin_stock(self):
+        r = self.client.post(self.url, {"look": self.look.pk, f"talle_{self.prenda.pk}": self.l.pk})
+        self.assertEqual(r.status_code, 200)
+        carrito = self.client.session["carrito"]
+        self.assertEqual(len(carrito), 2)  # sweater L + bolso; el agotado no
+        sweater = next(l for l in carrito.values() if l["producto_id"] == self.prenda.pk)
+        self.assertEqual(sweater["talle_id"], self.l.pk)
+
+    def test_con_colores_pide_color(self):
+        from catalogo.models import ColorPrenda
+
+        rojo = ColorPrenda.objects.create(producto=self.prenda, nombre="Rojo")
+        ColorPrenda.objects.create(producto=self.prenda, nombre="Azul")
+        self.prenda.variantes.update(color=rojo)
+        r = self.client.post(self.url, {"look": self.look.pk, f"talle_{self.prenda.pk}": self.l.pk})
+        self.assertEqual(r.status_code, 400)
+        r = self.client.post(self.url, {"look": self.look.pk, f"talle_{self.prenda.pk}": self.l.pk,
+                                        f"color_{self.prenda.pk}": rojo.pk})
+        self.assertEqual(r.status_code, 200)
+        sweater = next(l for l in self.client.session["carrito"].values() if l["producto_id"] == self.prenda.pk)
+        self.assertEqual(sweater["color_id"], rojo.pk)
+
+    def test_pagina_de_looks_muestra_talles_para_elegir(self):
+        r = self.client.get(reverse("catalogo:looks"))
+        self.assertContains(r, f'name="talle_{self.prenda.pk}"')
+        self.assertContains(r, "data-look-talle")
+        self.assertContains(r, "Sin stock por ahora")

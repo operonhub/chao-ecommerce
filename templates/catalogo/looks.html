@@ -52,37 +52,75 @@
         <h2 class="display look__titulo">{{ look.nombre }}</h2>
         <p class="look__bajada">{{ look.bajada }}</p>
 
-        <ul class="look__lista">
-          {% for item in look.items.all %}
-            {% with prenda=item.producto foto=item.producto.foto_principal %}
-            <li class="prenda-fila" data-fila="{{ prenda.pk }}">
-              <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}" loading="lazy">
-              <div>
-                <div class="prenda-fila__nombre">{{ prenda.nombre }}</div>
-                <div class="prenda-fila__talles">
-                  {% if prenda.necesita_elegir_talle %}
-                    Talles
-                    {% for v in prenda.talles_disponibles %}{{ v.talle }}{% if not forloop.last %} · {% endif %}{% empty %}sin stock{% endfor %}
-                  {% else %}
-                    Talle único
-                  {% endif %}
-                </div>
-              </div>
-              <div class="prenda-fila__precio">${{ prenda.precio|pesos }}</div>
-            </li>
-            {% endwith %}
-          {% endfor %}
-        </ul>
-
-        <div class="look__total">
-          <span class="sup">Total del look</span>
-          <b>${{ look.total|pesos }}</b>
-        </div>
-
-        <form method="post" action="{% url 'carrito:agregar_look' %}" data-form-carrito>
+        {% comment %}
+          "Llevar el look completo": la lista vive DENTRO del form y cada prenda
+          trae sus talles (y colores) para elegir ahí mismo. Nada se adivina: el
+          botón se habilita cuando están todas elegidas. Las que tienen una sola
+          opción vienen elegidas; las sin stock quedan afuera.
+        {% endcomment %}
+        <form method="post" action="{% url 'carrito:agregar_look' %}" data-form-carrito data-look-form>
           {% csrf_token %}
           <input type="hidden" name="look" value="{{ look.pk }}">
-          <button type="submit" class="btn btn--secundario btn--bloque">
+
+          <ul class="look__lista">
+            {% for item in look.items.all %}
+              {% with prenda=item.producto foto=item.producto.foto_principal %}
+              <li class="prenda-fila" data-fila="{{ prenda.pk }}" {% if not prenda.hay_stock and prenda.tiene_talles %}data-sin-stock{% else %}data-elegible{% endif %}>
+                <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}" loading="lazy">
+                <div class="prenda-fila__cuerpo">
+                  <a class="prenda-fila__nombre" href="{{ prenda.get_absolute_url }}">{{ prenda.nombre }}</a>
+
+                  {% if prenda.tiene_talles and not prenda.hay_stock %}
+                    <div class="prenda-fila__talles">Sin stock por ahora · no se suma</div>
+                  {% elif prenda.tiene_colores %}
+                    {% with opciones=prenda.colores_con_stock %}
+                    <div class="prenda-fila__colores">
+                      {% for o in opciones %}
+                        <button type="button" class="prenda-fila__color" data-look-color="{{ o.color.pk }}"
+                                title="{{ o.color.nombre }}" aria-label="{{ o.color.nombre }}" aria-pressed="false"
+                                {% if not o.hay_stock %}disabled{% endif %}>
+                          <span class="punto-color" style="--c: {{ o.color.hex }}"></span>
+                        </button>
+                      {% endfor %}
+                    </div>
+                    {% for o in opciones %}
+                      <div class="prenda-fila__opciones" data-look-talles="{{ o.color.pk }}" hidden>
+                        {% for v in o.variantes %}
+                          <button type="button" class="talle talle--chico" data-look-talle="{{ v.talle.pk }}" aria-pressed="false"
+                                  {% if v.stock <= 0 %}disabled{% endif %}>{{ v.talle }}</button>
+                        {% endfor %}
+                      </div>
+                    {% endfor %}
+                    {% endwith %}
+                    <input type="hidden" name="color_{{ prenda.pk }}" value="" data-look-color-elegido>
+                    <input type="hidden" name="talle_{{ prenda.pk }}" value="" data-look-talle-elegido>
+                  {% elif prenda.necesita_elegir_talle %}
+                    <div class="prenda-fila__opciones">
+                      {% for v in prenda.variantes.all %}
+                        <button type="button" class="talle talle--chico" data-look-talle="{{ v.talle.pk }}" aria-pressed="false"
+                                {% if v.stock <= 0 %}disabled{% endif %}>{{ v.talle }}</button>
+                      {% endfor %}
+                    </div>
+                    <input type="hidden" name="talle_{{ prenda.pk }}" value="" data-look-talle-elegido>
+                  {% else %}
+                    <div class="prenda-fila__talles">Talle único</div>
+                    {% if prenda.variante_unica %}
+                      <input type="hidden" name="talle_{{ prenda.pk }}" value="{{ prenda.variante_unica.talle.pk }}" data-look-talle-elegido>
+                    {% endif %}
+                  {% endif %}
+                </div>
+                <div class="prenda-fila__precio">${{ prenda.precio|pesos }}</div>
+              </li>
+              {% endwith %}
+            {% endfor %}
+          </ul>
+
+          <div class="look__total">
+            <span class="sup">Total del look</span>
+            <b>${{ look.total|pesos }}</b>
+          </div>
+
+          <button type="submit" class="btn btn--secundario btn--bloque" data-look-boton>
             Llevar el look completo ({{ look.items.count }} prendas)
           </button>
         </form>

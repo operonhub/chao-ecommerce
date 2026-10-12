@@ -676,6 +676,40 @@ class FotosIATests(Base):
         self.assertIn("Billing", r.json()["error"])
         self.assertEqual(post.call_count, 1)  # el respaldo usa la misma cuenta: no tiene sentido
 
+    def test_contador_de_credito_descuenta_y_avisa_sin_saldo(self):
+        from gestion.models import CreditoIA
+
+        r = self.client.get(reverse("gestion:inicio"))
+        self.assertContains(r, "Anotá cuánto crédito hay")
+        self.client.post(reverse("gestion:credito_ia"), {"saldo": "10,00"})
+        credito = CreditoIA.actual()
+        self.assertEqual(credito.saldo_usd, Decimal("10.00"))
+        self.assertEqual(credito.fotos_restantes, 74)
+
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        texto = {"candidates": [{"content": {"parts": [{"text": "Una descripción."}]}}]}
+        with mock.patch("gestion.ia.requests.post", return_value=respuesta(200, texto)):
+            self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(500)):
+            self.post("gestion:foto_ia")  # una que falla no gasta
+        credito = CreditoIA.actual()
+        self.assertEqual(credito.restante_usd, Decimal("9.8640"))
+        self.assertEqual(credito.fotos_restantes, 73)
+        r = self.client.get(reverse("gestion:inicio"))
+        self.assertContains(r, "unas <b>73 fotos</b>")
+
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(402)):
+            self.post("gestion:foto_ia")
+        self.assertEqual(CreditoIA.actual().estado, "agotado")
+        self.assertContains(self.client.get(reverse("gestion:inicio")), "Sin crédito")
+        # Al anotar la recarga vuelve a contar desde cero.
+        self.client.post(reverse("gestion:credito_ia"), {"saldo": "20"})
+        credito = CreditoIA.actual()
+        self.assertEqual((credito.estado, credito.restante_usd), ("ok", Decimal("20.00")))
+        self.client.post(reverse("gestion:credito_ia"), {"saldo": "mucho"})
+        self.assertEqual(CreditoIA.actual().saldo_usd, Decimal("20.00"))
+
     def test_descripcion_prueba_el_respaldo_y_avisa_errores(self):
         texto = {"candidates": [{"content": {"parts": [{"text": "Texto del respaldo."}]}}]}
         with mock.patch("gestion.ia.requests.post", side_effect=[self.gemini(500), respuesta(200, texto)]):

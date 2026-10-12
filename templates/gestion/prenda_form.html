@@ -27,6 +27,11 @@
           <b>✨ Mejorar con IA:</b> tocá la estrellita de una foto y la IA la deja como foto de estudio (fondo crema,
           buena luz). Para que salga fiel, sacá la prenda <b>entera</b> y bien iluminada: lo que no se ve en la foto, la
           IA lo inventa. Siempre vas a ver las dos y elegís.
+          {% if credito_ia.estado == "agotado" %}
+            <b class="g-ayuda__alerta">Ahora no hay crédito: la IA está pausada hasta que se recargue.</b>
+          {% elif credito_ia.con_dato %}
+            <span class="g-ayuda__credito">Crédito: alcanza para unas <b>{{ credito_ia.fotos_restantes }} foto{{ credito_ia.fotos_restantes|pluralize }}</b>.</span>
+          {% endif %}
         </p>
       {% endif %}
 

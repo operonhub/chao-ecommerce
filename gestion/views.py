@@ -49,6 +49,7 @@ from pedidos.models import Cobros, ConexionMP, Pedido, ZonaEnvio
 from pedidos.services import mercadopago
 
 from . import ia
+from .models import CreditoIA, UsoIA
 from .forms import CobrosForm, PortadaForm, ProductoForm, ZonaForm
 
 
@@ -101,6 +102,7 @@ def inicio(request):
         "falta_mp": not ConexionMP.actual(),
         "falta_transferencia": not Cobros.actual().transferencia_lista,
         "app_mp": mercadopago.app_configurada(),
+        "credito_ia": CreditoIA.actual() if ia.configurada() else None,
     }
     return render(request, "gestion/inicio.html", contexto)
 
@@ -361,6 +363,7 @@ def prenda_editar(request, pk=None):
             "colores": colores,
             "bloques_color": bloques_color,
             "ia_activa": ia.configurada(),
+            "credito_ia": CreditoIA.actual() if ia.configurada() else None,
             "categorias": Categoria.objects.all(),
             "vendida": prenda.items_pedido.exists() if prenda else False,
         },
@@ -512,6 +515,7 @@ def foto_ia(request, pk):
         editada, modelo = ia.mejorar(_leer_foto(foto), pedido=request.POST.get("pedido", ""))
         archivo = _normalizar_imagen(BytesIO(editada))
     except ia.ErrorIA as exc:
+        _si_es_sin_credito(exc)
         return JsonResponse({"ok": False, "error": str(exc)}, status=502)
     except Exception:  # noqa: BLE001
         logger.exception("Falló la edición con IA de la foto %s", pk)
@@ -521,6 +525,7 @@ def foto_ia(request, pk):
     nombre = default_storage.save(f"productos/ia/{foto.producto.slug[:60]}.jpg", archivo)
     foto.ia_pendiente = nombre
     foto.save(update_fields=["ia_pendiente"])
+    UsoIA.anotar(UsoIA.Tipo.FOTO, modelo)
     logger.info("Foto %s editada con %s", pk, modelo)
     return JsonResponse({"ok": True, "url": foto.url_ia_pendiente, "original": foto.url, "modelo": modelo})
 
@@ -606,11 +611,40 @@ def descripcion_ia(request):
             notas=request.POST.get("notas", ""),
         )
     except ia.ErrorIA as exc:
+        _si_es_sin_credito(exc)
         return JsonResponse({"ok": False, "error": str(exc)}, status=502)
     except Exception:  # noqa: BLE001
         logger.exception("Falló la descripción con IA")
         return JsonResponse({"ok": False, "error": "No pudimos escribir la descripción. Probá de nuevo."}, status=500)
+    UsoIA.anotar(UsoIA.Tipo.DESCRIPCION, settings.GEMINI_MODELO_TEXTO)
     return JsonResponse({"ok": True, "texto": texto})
+
+
+def _si_es_sin_credito(exc) -> None:
+    """Google avisó que no hay saldo: el contador pasa a "sin crédito" hasta que se anote uno nuevo."""
+    if "crédito" in str(exc):
+        CreditoIA.objects.update_or_create(pk=1, defaults={"sin_credito": True})
+
+
+@solo_duena
+@require_POST
+def credito_ia(request):
+    """Anota el saldo que figura hoy en AI Studio → Billing; desde ahí se descuenta."""
+    crudo = (request.POST.get("saldo") or "").replace("US$", "").replace("$", "").replace(",", ".").strip()
+    try:
+        saldo = Decimal(crudo)
+    except InvalidOperation:
+        saldo = None
+    if saldo is None or saldo < 0 or saldo > 10000:
+        messages.error(request, "Escribí el saldo en dólares, por ejemplo 10 o 7.50.")
+        return redirect(reverse("gestion:inicio") + "#credito-ia")
+    credito = CreditoIA.actual()
+    credito.saldo_usd = saldo.quantize(Decimal("0.01"))
+    credito.anotado = timezone.now()
+    credito.sin_credito = False
+    credito.save()
+    messages.success(request, f"Listo: anotamos USD {credito.saldo_usd} de crédito para la IA.")
+    return redirect(reverse("gestion:inicio") + "#credito-ia")
 
 
 @solo_duena

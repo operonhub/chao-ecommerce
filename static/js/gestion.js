@@ -286,6 +286,18 @@
     });
   });
 
+  /* --- Colores: "+ Agregar otro color" suma otra fila vacía --------------------- */
+  const masColor = $("[data-color-mas]");
+  masColor?.addEventListener("click", () => {
+    const modelo = $("[data-color-nuevo]");
+    if (!modelo) return;
+    const fila = modelo.cloneNode(true);
+    fila.querySelector('input[type="text"]').value = "";
+    fila.querySelector('input[type="text"]').placeholder = "Otro color";
+    modelo.parentElement.appendChild(fila);
+    fila.querySelector('input[type="text"]').focus();
+  });
+
   /* --- Confirmaciones ---------------------------------------------------------- */
   $$("form[data-confirmar]").forEach((f) =>
     f.addEventListener("submit", (e) => {

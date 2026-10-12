@@ -10,7 +10,7 @@ seguido (precio y stock) contra lo que se toca una vez (slug, orden).
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Categoria, Look, LookItem, Producto, ProductoImagen, Talle, Variante
+from .models import Categoria, ColorPrenda, Look, LookItem, Producto, ProductoImagen, Talle, Variante
 
 admin.site.site_header = "CHAO Indumentaria"
 admin.site.site_title = "CHAO"
@@ -41,10 +41,23 @@ class ProductoImagenInline(admin.TabularInline):
         return _miniatura(obj.url if obj.pk else "", alto=110)
 
 
+class ColorPrendaInline(admin.TabularInline):
+    model = ColorPrenda
+    extra = 0
+    fields = ("nombre", "hex", "orden")
+
+
 class VarianteInline(admin.TabularInline):
     model = Variante
     extra = 1
-    fields = ("talle", "stock")
+    fields = ("color", "talle", "stock")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # En una prenda solo se pueden elegir SUS colores.
+        if db_field.name == "color":
+            pk = request.resolver_match.kwargs.get("object_id")
+            kwargs["queryset"] = ColorPrenda.objects.filter(producto_id=pk) if pk else ColorPrenda.objects.none()
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 @admin.register(Producto)
@@ -66,7 +79,7 @@ class ProductoAdmin(admin.ModelAdmin):
     list_filter = ("categoria", "activo", "destacado", "precio_a_confirmar")
     search_fields = ("nombre", "descripcion")
     prepopulated_fields = {"slug": ("nombre",)}
-    inlines = [ProductoImagenInline, VarianteInline]
+    inlines = [ProductoImagenInline, ColorPrendaInline, VarianteInline]
     fieldsets = (
         (None, {"fields": ("nombre", "categoria", "descripcion")}),
         ("Precio", {"fields": ("precio", "precio_a_confirmar")}),

@@ -101,7 +101,8 @@
         body: datos,
       });
       if (!res.ok) {
-        avisar(res.status === 400 ? "Elegí un talle antes de agregar." : "No se pudo actualizar el carrito.");
+        const motivo = res.status === 400 ? (await res.text()).trim() : "";
+        avisar(motivo || (res.status === 400 ? "Elegí un talle antes de agregar." : "No se pudo actualizar el carrito."));
         return;
       }
       pintarCajon(await res.text(), abrir);
@@ -204,6 +205,21 @@
 
     const agregar = $("[data-ficha-agregar]", ficha);
     agregar.dataset.producto = id;
+    delete agregar.dataset.ir;
+    if (prenda.colores > 1) {
+      // Varios colores: se eligen en la ficha de la prenda, no acá.
+      const p = document.createElement("p");
+      p.className = "prenda-fila__talles";
+      p.textContent = `Disponible en ${prenda.colores} colores`;
+      $("[data-ficha-talles]", ficha).replaceChildren(p);
+      agregar.dataset.ir = prenda.url;
+      agregar.disabled = false;
+      agregar.textContent = "Elegir color y talle";
+      ficha.dataset.abierta = "1";
+      hotspot.setAttribute("aria-expanded", "true");
+      ubicarFicha(ficha, hotspot, contenedor);
+      return;
+    }
     // Con varias opciones no se adivina: hasta que elija una, el botón no habilita.
     // Con talle único ya viaja resuelto y se puede agregar de una.
     if (prenda.necesitaElegir) {
@@ -281,6 +297,10 @@
     }
 
     const agregarFicha = e.target.closest("[data-ficha-agregar]");
+    if (agregarFicha && agregarFicha.dataset.ir) {
+      window.location.href = agregarFicha.dataset.ir;
+      return;
+    }
     if (agregarFicha && !agregarFicha.disabled) {
       const datos = new FormData();
       datos.append("producto", agregarFicha.dataset.producto);
@@ -346,24 +366,96 @@
   medirBarra();
   window.addEventListener("resize", medirBarra, { passive: true });
 
-  /* --- Selector de talle en la página de producto ------------------------ */
-  const tallesProducto = $("[data-talles-producto]");
-  if (tallesProducto) {
-    const oculto = $("[data-talle-elegido]");
-    const boton = $("[data-agregar-producto]");
-    $$(".talle", tallesProducto).forEach((btn) => {
+  /* --- Selector de color y talle en la página de producto ----------------
+     Con colores: primero el color (cambia las fotos y muestra solo sus
+     talles), después el talle. Sin colores: solo el talle, como siempre. */
+  const ocultoTalle = $("[data-talle-elegido]");
+  const ocultoColor = $("[data-color-elegido]");
+  const botonAgregar = $("[data-agregar-producto]");
+  const grupos = $$("[data-talles-producto]");
+  const conColores = Boolean($("[data-colores]"));
+
+  function textoBoton() {
+    if (!botonAgregar) return;
+    const talle = $(".talle[aria-pressed='true']");
+    const color = $(".color-opcion[aria-pressed='true']");
+    const listo = (!conColores || color) && ocultoTalle && ocultoTalle.value;
+    botonAgregar.disabled = !listo;
+    if (!listo) {
+      botonAgregar.textContent = conColores && !color ? "Elegí color y talle" : "Elegí tu talle";
+      return;
+    }
+    const partes = [color && color.dataset.nombre, talle && `talle ${talle.firstChild.textContent.trim()}`].filter(Boolean);
+    botonAgregar.textContent = partes.length ? `Agregar ${partes.join(", ")} a la bolsa` : "Agregar a la bolsa";
+  }
+
+  grupos.forEach((grupo) =>
+    $$(".talle", grupo).forEach((btn) => {
       if (btn.disabled) return;
       btn.addEventListener("click", () => {
-        $$(".talle", tallesProducto).forEach((b) => b.setAttribute("aria-pressed", "false"));
+        $$(".talle").forEach((b) => b.setAttribute("aria-pressed", "false"));
         btn.setAttribute("aria-pressed", "true");
-        if (oculto) oculto.value = btn.dataset.talle;
-        if (boton) {
-          boton.disabled = false;
-          boton.textContent = `Agregar talle ${btn.firstChild.textContent.trim()} a la bolsa`;
-        }
+        if (ocultoTalle) ocultoTalle.value = btn.dataset.talle;
+        textoBoton();
       });
-    });
+    })
+  );
+
+  // Galería: al elegir un color se muestran sus fotos y las que son "de todos".
+  const fotosFicha = $$("[data-foto-color]");
+  function filtrarFotos(colorId) {
+    const propias = fotosFicha.filter((f) => f.dataset.fotoColor === colorId);
+    if (!propias.length) {
+      fotosFicha.forEach((f) => (f.hidden = false));
+    } else {
+      fotosFicha.forEach((f) => (f.hidden = !(f.dataset.fotoColor === colorId || f.dataset.fotoColor === "")));
+    }
+    const visibles = fotosFicha.filter((f) => !f.hidden);
+    fotosFicha.forEach((f) => f.classList.remove("detalle__foto--principal"));
+    if (visibles[0]) visibles[0].classList.add("detalle__foto--principal");
+    const total = $("[data-galeria-total]");
+    if (total) total.textContent = String(visibles.length);
+    const actual = $("[data-galeria-actual]");
+    if (actual) actual.textContent = "1";
+    const galeriaFicha = $("[data-galeria]");
+    if (galeriaFicha) galeriaFicha.scrollLeft = 0;
   }
+
+  function elegirColor(btn) {
+    $$(".color-opcion").forEach((b) => b.setAttribute("aria-pressed", "false"));
+    btn.setAttribute("aria-pressed", "true");
+    if (ocultoColor) ocultoColor.value = btn.dataset.color;
+    const nombre = $("[data-color-nombre]");
+    if (nombre) nombre.textContent = `· ${btn.dataset.nombre}`;
+
+    // Solo los talles de este color; el talle elegido antes se resetea.
+    grupos.forEach((g) => (g.hidden = g.dataset.tallesColor !== btn.dataset.color));
+    $$(".talle").forEach((b) => b.setAttribute("aria-pressed", "false"));
+    if (ocultoTalle) ocultoTalle.value = "";
+
+    // Un color con un solo talle se elige solo. Si ese talle es "Único" (un
+    // bolso), además se esconde: no hay nada que mirar. Si es un talle de
+    // verdad (solo M), queda a la vista para que se sepa qué talle es.
+    const grupo = grupos.find((g) => g.dataset.tallesColor === btn.dataset.color);
+    const disponibles = grupo ? $$(".talle:not([disabled])", grupo) : [];
+    const todos = grupo ? $$(".talle", grupo) : [];
+    const cabeza = $("[data-cabeza-talles]");
+    const esUnico = todos.length === 1 && /^[úu]nico$/i.test(todos[0].firstChild.textContent.trim());
+    if (todos.length === 1 && disponibles.length === 1) {
+      disponibles[0].setAttribute("aria-pressed", "true");
+      if (ocultoTalle) ocultoTalle.value = disponibles[0].dataset.talle;
+    }
+    if (grupo) grupo.hidden = esUnico;
+    if (cabeza) cabeza.hidden = esUnico;
+    filtrarFotos(btn.dataset.color);
+    textoBoton();
+  }
+
+  const opcionesColor = $$(".color-opcion");
+  opcionesColor.forEach((btn) => btn.addEventListener("click", () => elegirColor(btn)));
+  // Arranca con el primer color que tenga stock (o el primero, si no hay ninguno).
+  const inicial = opcionesColor.find((b) => !b.hasAttribute("data-agotado")) || opcionesColor[0];
+  if (inicial) elegirColor(inicial);
 
   /* --- Galería de la ficha: contador en el carrusel del celular ----------- */
   const galeria = $("[data-galeria]");

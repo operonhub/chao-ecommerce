@@ -11,6 +11,7 @@ se ve en la web al instante. Solo entra personal (is_staff).
 
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
@@ -32,7 +33,16 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from PIL import Image, ImageOps
 
-from catalogo.models import Categoria, Look, Portada, Producto, ProductoImagen, Talle, Variante
+from catalogo.models import (
+    Categoria,
+    ColorPrenda,
+    Look,
+    Portada,
+    Producto,
+    ProductoImagen,
+    Talle,
+    Variante,
+)
 from pedidos.models import Cobros, ConexionMP, Pedido, ZonaEnvio
 from pedidos.services import mercadopago
 
@@ -179,22 +189,34 @@ def _guardar_fotos(archivos, prenda) -> list[str]:
     return errores
 
 
+def _guardar_stock(post, clave, prenda, talle, color):
+    """
+    Una casilla de stock. Que no venga la casilla = no se toca (por ejemplo, un
+    color recién agregado todavía no tiene casillas). Vacía = la prenda no viene
+    en ese talle (y color); 0 = viene, pero no hay stock ahora. La diferencia
+    importa en la tienda: el talle agotado aparece tachado, el que no existe no.
+    """
+    if clave not in post:
+        return
+    crudo = (post.get(clave) or "").strip()
+    if crudo == "":
+        Variante.objects.filter(producto=prenda, talle=talle, color=color).delete()
+        return
+    try:
+        stock = max(0, int(crudo))
+    except ValueError:
+        return
+    Variante.objects.update_or_create(producto=prenda, talle=talle, color=color, defaults={"stock": stock})
+
+
 def _guardar_talles(post, prenda, talles):
-    """
-    Una fila por talle existente. Vacío = la prenda no viene en ese talle;
-    0 = viene, pero no hay stock ahora. La diferencia importa en la tienda: el
-    talle agotado aparece tachado, el que no existe no aparece.
-    """
+    # Sin colores: una casilla por talle (stock_<talle>). Con colores: una por
+    # color y talle (stock_<color>_<talle>).
+    colores = list(prenda.colores.all())
     for talle in talles:
-        crudo = (post.get(f"stock_{talle.pk}") or "").strip()
-        if crudo == "":
-            Variante.objects.filter(producto=prenda, talle=talle).delete()
-            continue
-        try:
-            stock = max(0, int(crudo))
-        except ValueError:
-            continue
-        Variante.objects.update_or_create(producto=prenda, talle=talle, defaults={"stock": stock})
+        _guardar_stock(post, f"stock_{talle.pk}", prenda, talle, None)
+        for color in colores:
+            _guardar_stock(post, f"stock_{color.pk}_{talle.pk}", prenda, talle, color)
 
     nuevo = (post.get("talle_nuevo") or "").strip()[:10]
     if nuevo:
@@ -203,7 +225,81 @@ def _guardar_talles(post, prenda, talles):
             stock = max(0, int(post.get("talle_nuevo_stock") or 0))
         except ValueError:
             stock = 0
-        Variante.objects.update_or_create(producto=prenda, talle=talle, defaults={"stock": stock})
+        if prenda.colores.exists():
+            # Con colores, el talle nuevo aparece en cada color para cargarle stock.
+            return
+        Variante.objects.update_or_create(producto=prenda, talle=talle, color=None, defaults={"stock": stock})
+
+
+HEX_VALIDO = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _guardar_colores(post, prenda) -> list[str]:
+    """
+    Colores de la prenda: renombrar, cambiar el circulito, quitar y agregar.
+    Devuelve avisos para la dueña. Si la prenda recibe su PRIMER color y ya
+    tenía stock por talle, ese stock pasa a ese color: no se pierde nada.
+    """
+    avisos = []
+    tenia_colores = prenda.colores.exists()
+
+    for color in list(prenda.colores.all()):
+        if post.get(f"color_borrar_{color.pk}"):
+            color.delete()  # sus talles y stock se van con él
+            continue
+        nombre = (post.get(f"color_nombre_{color.pk}") or "").strip()[:40]
+        hex_ = (post.get(f"color_hex_{color.pk}") or "").strip()
+        cambios = []
+        if nombre and nombre != color.nombre:
+            if prenda.colores.filter(nombre__iexact=nombre).exclude(pk=color.pk).exists():
+                avisos.append(f"Ya hay un color «{nombre}» en esta prenda.")
+            else:
+                color.nombre = nombre
+                cambios.append("nombre")
+        if HEX_VALIDO.match(hex_) and hex_.lower() != color.hex.lower():
+            color.hex = hex_.lower()
+            cambios.append("hex")
+        if cambios:
+            color.save(update_fields=cambios)
+
+    nuevos = []
+    orden = prenda.colores.count()
+    for nombre, hex_ in zip(post.getlist("color_nuevo_nombre"), post.getlist("color_nuevo_hex")):
+        nombre = (nombre or "").strip()[:40]
+        if not nombre:
+            continue
+        if prenda.colores.filter(nombre__iexact=nombre).exists():
+            avisos.append(f"Ya hay un color «{nombre}» en esta prenda.")
+            continue
+        orden += 1
+        nuevos.append(
+            ColorPrenda.objects.create(
+                producto=prenda, nombre=nombre, hex=hex_.lower() if HEX_VALIDO.match(hex_ or "") else "#b1cfd1",
+                orden=orden,
+            )
+        )
+
+    if nuevos and not tenia_colores:
+        sin_color = Variante.objects.filter(producto=prenda, color__isnull=True)
+        if sin_color.exists():
+            sin_color.update(color=nuevos[0])
+            avisos.append(f"El stock que ya tenía la prenda quedó en el color «{nuevos[0].nombre}».")
+    if nuevos:
+        avisos.append("Cargá el stock de los colores nuevos en «Talles y stock».")
+    return avisos
+
+
+def _guardar_colores_de_fotos(post, prenda):
+    """Cada foto puede ser de un color (o de todos, si queda vacío)."""
+    colores = {str(c.pk): c for c in prenda.colores.all()}
+    for foto in prenda.imagenes.all():
+        clave = f"foto_color_{foto.pk}"
+        if clave not in post:
+            continue
+        color = colores.get(post.get(clave) or "")
+        if foto.color_id != (color.pk if color else None):
+            foto.color = color
+            foto.save(update_fields=["color"])
 
 
 @solo_duena
@@ -216,8 +312,14 @@ def prenda_editar(request, pk=None):
         if form.is_valid():
             with transaction.atomic():
                 prenda = form.save()
+                # Primero el stock tal como se veía en pantalla y después los
+                # cambios de colores (un color nuevo todavía no tenía casillas).
                 _guardar_talles(request.POST, prenda, talles)
+                avisos = _guardar_colores(request.POST, prenda)
+                _guardar_colores_de_fotos(request.POST, prenda)
                 errores = _guardar_fotos(request.FILES.getlist("fotos"), prenda)
+            for aviso in avisos:
+                messages.info(request, aviso)
             for error in errores:
                 messages.warning(request, error)
             messages.success(request, f"Guardamos «{prenda.nombre}».")
@@ -228,8 +330,20 @@ def prenda_editar(request, pk=None):
     else:
         form = ProductoForm(instance=prenda)
 
-    stock_por_talle = {v.talle_id: v.stock for v in prenda.variantes.all()} if prenda else {}
+    variantes = list(prenda.variantes.all()) if prenda else []
+    stock_por_talle = {v.talle_id: v.stock for v in variantes if v.color_id is None}
     filas_talle = [{"talle": t, "stock": stock_por_talle.get(t.pk, "")} for t in talles]
+
+    # Con colores: un bloque por color con una casilla por talle.
+    colores = list(prenda.colores.all()) if prenda else []
+    stock_color = {(v.color_id, v.talle_id): v.stock for v in variantes if v.color_id}
+    bloques_color = [
+        {
+            "color": col,
+            "filas": [{"talle": t, "stock": stock_color.get((col.pk, t.pk), "")} for t in talles],
+        }
+        for col in colores
+    ]
 
     return render(
         request,
@@ -240,6 +354,8 @@ def prenda_editar(request, pk=None):
             "prenda": prenda,
             "fotos": prenda.imagenes.all() if prenda else [],
             "filas_talle": filas_talle,
+            "colores": colores,
+            "bloques_color": bloques_color,
             "categorias": Categoria.objects.all(),
             "vendida": prenda.items_pedido.exists() if prenda else False,
         },

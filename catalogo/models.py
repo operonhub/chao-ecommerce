@@ -137,6 +137,26 @@ class Producto(models.Model):
         directo y el talle se adjunta solo, así el stock se sigue descontando bien."""
         return len(list(self.variantes.all())) > 1
 
+    # -- Colores ---------------------------------------------------------------
+    @property
+    def tiene_colores(self):
+        return bool(self.colores.all())
+
+    @property
+    def colores_con_stock(self):
+        """Los colores en orden, cada uno con sus talles (y stock) ya resueltos,
+        para que la ficha y la tarjeta no consulten color por color."""
+        por_color = {}
+        for v in self.variantes.all():
+            por_color.setdefault(v.color_id, []).append(v)
+        resultado = []
+        for color in self.colores.all():
+            variantes = sorted(por_color.get(color.pk, []), key=lambda v: (v.talle.orden, v.talle.nombre))
+            resultado.append(
+                {"color": color, "variantes": variantes, "hay_stock": any(v.stock > 0 for v in variantes)}
+            )
+        return resultado
+
     @property
     def ultimas_unidades(self):
         """True cuando queda poco y conviene decirlo. Umbral bajo a propósito: un
@@ -179,6 +199,10 @@ class ProductoImagen(models.Model):
     imagen = models.ImageField(upload_to="productos/", blank=True)
     alt = models.CharField(max_length=180, blank=True)
     orden = models.PositiveSmallIntegerField(default=0)
+    # Vacío = la foto vale para todos los colores (una de detalle, la percha…).
+    color = models.ForeignKey(
+        "ColorPrenda", on_delete=models.SET_NULL, null=True, blank=True, related_name="fotos"
+    )
 
     class Meta:
         ordering = ["orden", "id"]
@@ -200,21 +224,62 @@ class ProductoImagen(models.Model):
         return ""
 
 
+class ColorPrenda(models.Model):
+    """
+    Un color en el que viene una prenda ("Crudo", "Bordó"…). Es de esa prenda y
+    no una lista global: el "crudo" de un sweater no es el mismo que el de un jean.
+    El círculo de la tienda se pinta con `hex`.
+    """
+
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="colores")
+    nombre = models.CharField(max_length=40)
+    hex = models.CharField(max_length=7, default="#b1cfd1", help_text="Color del circulito, ej. #6f2a33.")
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["orden", "id"]
+        verbose_name = "color"
+        verbose_name_plural = "colores"
+        constraints = [
+            models.UniqueConstraint(fields=["producto", "nombre"], name="color_unico_por_prenda"),
+        ]
+
+    def __str__(self):
+        return f"{self.producto.nombre} · {self.nombre}"
+
+
 class Variante(models.Model):
+    """
+    Lo que se vende y tiene stock: un talle de una prenda, y si la prenda tiene
+    colores, un talle de ESE color (Bordó M, Crudo L…). Las prendas sin colores
+    siguen teniendo una variante por talle con color vacío.
+    """
+
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="variantes")
     talle = models.ForeignKey(Talle, on_delete=models.PROTECT, related_name="variantes")
+    color = models.ForeignKey(
+        ColorPrenda, on_delete=models.CASCADE, null=True, blank=True, related_name="variantes"
+    )
     stock = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
-        # Un producto no puede tener dos filas del mismo talle: si no, el stock
-        # queda partido en dos lugares y ninguno es la verdad.
+        # Nunca dos filas para el mismo talle (y color): si no, el stock queda
+        # partido en dos lugares y ninguno es la verdad. Son dos reglas porque en
+        # Postgres dos colores vacíos (NULL) no cuentan como iguales.
         constraints = [
-            models.UniqueConstraint(fields=["producto", "talle"], name="variante_unica_por_talle"),
+            models.UniqueConstraint(
+                fields=["producto", "talle"], condition=models.Q(color__isnull=True),
+                name="variante_unica_por_talle",
+            ),
+            models.UniqueConstraint(
+                fields=["producto", "color", "talle"], condition=models.Q(color__isnull=False),
+                name="variante_unica_por_color_y_talle",
+            ),
         ]
-        ordering = ["talle__orden", "talle__nombre"]
+        ordering = ["color__orden", "color_id", "talle__orden", "talle__nombre"]
 
     def __str__(self):
-        return f"{self.producto.nombre} · {self.talle}"
+        return f"{self.producto.nombre} · {self.color.nombre + ' · ' if self.color_id else ''}{self.talle}"
 
 
 class Look(models.Model):

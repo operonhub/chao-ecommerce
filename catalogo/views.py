@@ -9,7 +9,7 @@ def _productos_visibles():
     return (
         Producto.objects.filter(activo=True)
         .select_related("categoria")
-        .prefetch_related("imagenes", "variantes__talle")
+        .prefetch_related("imagenes", "variantes__talle", "colores")
     )
 
 
@@ -150,6 +150,8 @@ def looks(request):
             # `necesitaElegir` y no `tieneTalles`: un bolso con una sola variante
             # "Único" tiene talle pero no hay nada que elegir.
             "necesitaElegir": p.necesita_elegir_talle,
+            # Con más de un color, la ficha del look manda a la prenda a elegir.
+            "colores": len(p.colores.all()),
             "talleUnico": p.variante_unica.talle.pk if p.variante_unica else None,
             "talles": [
                 {"id": v.talle.pk, "nombre": v.talle.nombre, "stock": v.stock}

@@ -38,9 +38,23 @@
       <span {% if prenda.en_oferta %}class="card__precio--oferta"{% endif %}>${{ prenda.precio|pesos }}</span>
     </p>
     <p class="card__cuotas">3 x ${{ prenda.precio|cuota:3 }} sin interés</p>
+    {% if prenda.tiene_colores %}
+      {% with colores=prenda.colores.all %}
+      <p class="card__colores" aria-label="{{ colores|length }} color{{ colores|length|pluralize:'es' }}">
+        {% for c in colores|slice:":5" %}<span class="punto-color" style="--c: {{ c.hex }}" title="{{ c.nombre }}"></span>{% endfor %}
+        {% if colores|length > 5 %}<span class="card__colores-mas">+{{ colores|length|add:"-5" }}</span>{% endif %}
+        {% if colores|length > 1 %}<span class="card__colores-txt">{{ colores|length }} colores</span>{% endif %}
+      </p>
+      {% endwith %}
+    {% endif %}
   </div>
 
-  {% if prenda.tiene_talles and prenda.hay_stock %}
+  {% if prenda.tiene_colores and prenda.colores.all|length > 1 %}
+    {# Con varios colores no se adivina: se elige color y talle en la ficha. #}
+    <a href="{{ prenda.get_absolute_url }}" class="card__agregar{% if not prenda.hay_stock %} card__agregar--off{% endif %}">
+      {% if prenda.hay_stock %}Elegí color y talle <span aria-hidden="true">→</span>{% else %}Sin stock por ahora{% endif %}
+    </a>
+  {% elif prenda.tiene_talles and prenda.hay_stock %}
     <form method="post" action="{% url 'carrito:agregar' %}" class="card__rapido" data-form-carrito>
       {% csrf_token %}
       <input type="hidden" name="producto" value="{{ prenda.pk }}">

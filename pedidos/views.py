@@ -142,6 +142,8 @@ def _crear_pedido(form, lineas) -> Pedido:
                     pedido=pedido,
                     producto=l["producto"],
                     talle=l["talle"],
+                    color=l["color"],
+                    color_nombre=l["color"].nombre if l["color"] else "",
                     cantidad=l["cantidad"],
                     precio_unitario=l["precio"],
                 )

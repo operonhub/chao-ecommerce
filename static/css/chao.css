@@ -629,6 +629,22 @@ button {
   gap: 0.8rem;
 }
 
+/* Cuando es un <button> (en el panel): sin el fondo y el borde del navegador. */
+button.cta-ghost {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  padding: 0 0 0.3rem;
+  font: inherit;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 /* --- Encabezado de sección ------------------------------------------------ */
 .seccion {
   padding: clamp(3rem, 7vw, 6rem) 0;
@@ -3409,4 +3425,98 @@ button {
   .checkout__total-movil {
     display: flex;
   }
+}
+
+/* --- Colores de una prenda (circulitos) ---------------------------------------- */
+.punto-color {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--c, #ccc);
+  box-shadow: inset 0 0 0 1px rgba(36, 27, 22, 0.2);
+  vertical-align: middle;
+}
+
+.punto-color--grande {
+  width: 26px;
+  height: 26px;
+}
+
+.card__colores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.45rem 0 0;
+}
+
+.card__colores-mas,
+.card__colores-txt {
+  font-size: 0.68rem;
+  color: var(--tinta-mute);
+}
+
+.card__colores-txt {
+  margin-left: 0.25rem;
+}
+
+.detalle__colores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.4rem 0 1.25rem;
+}
+
+.color-opcion {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.color-opcion:hover {
+  border-color: rgba(36, 27, 22, 0.3);
+}
+
+.color-opcion[aria-pressed="true"] {
+  border-color: var(--tinta);
+  box-shadow: inset 0 0 0 2px var(--fondo);
+}
+
+/* Color sin stock: se puede mirar, pero se ve tachado. */
+.color-opcion[data-agotado] {
+  position: relative;
+  opacity: 0.55;
+}
+
+.color-opcion[data-agotado]::after {
+  content: "";
+  position: absolute;
+  width: 30px;
+  height: 1px;
+  background: var(--tinta);
+  rotate: -45deg;
+}
+
+.detalle__color-nombre {
+  margin-left: 0.35rem;
+  color: var(--tinta);
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.detalle__sin-talles {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--tinta-mute);
 }

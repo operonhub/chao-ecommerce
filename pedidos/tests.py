@@ -349,3 +349,113 @@ class PaginasTests(Base):
 
     def test_codigo_ajeno_da_404(self):
         self.assertEqual(self.client.get(reverse("pedidos:pedido", args=["noexiste"])).status_code, 404)
+
+
+class ColoresTests(Base):
+    """Una prenda en varios colores, cada uno con sus talles y su stock."""
+
+    def setUp(self):
+        super().setUp()
+        from catalogo.models import ColorPrenda
+
+        self.variante.delete()  # la del Base es sin color
+        self.l = Talle.objects.create(nombre="L", orden=2)
+        self.bordo = ColorPrenda.objects.create(producto=self.prenda, nombre="Bordó", hex="#6f2a33", orden=1)
+        self.crudo = ColorPrenda.objects.create(producto=self.prenda, nombre="Crudo", hex="#efe6d6", orden=2)
+        self.bordo_m = Variante.objects.create(producto=self.prenda, talle=self.talle, color=self.bordo, stock=2)
+        self.crudo_m = Variante.objects.create(producto=self.prenda, talle=self.talle, color=self.crudo, stock=5)
+        self.crudo_l = Variante.objects.create(producto=self.prenda, talle=self.l, color=self.crudo, stock=1)
+
+    def agregar(self, **extra):
+        return self.client.post(reverse("carrito:agregar"), {"producto": self.prenda.pk, **extra})
+
+    def test_sin_color_no_se_agrega(self):
+        r = self.agregar(talle=self.talle.pk)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("color", r.content.decode())
+
+    def test_talle_que_no_viene_en_ese_color(self):
+        r = self.agregar(talle=self.l.pk, color=self.bordo.pk)
+        self.assertEqual(r.status_code, 400)
+
+    def test_color_de_otra_prenda_no_vale(self):
+        from catalogo.models import ColorPrenda
+
+        otra = Producto.objects.create(nombre="Otra", slug="otra", categoria=self.prenda.categoria, precio=1)
+        ajeno = ColorPrenda.objects.create(producto=otra, nombre="Negro")
+        r = self.agregar(talle=self.talle.pk, color=ajeno.pk)
+        self.assertEqual(r.status_code, 400)
+
+    def test_mismo_talle_dos_colores_son_dos_lineas_y_respeta_stock(self):
+        self.agregar(talle=self.talle.pk, color=self.bordo.pk, cantidad=9)
+        self.agregar(talle=self.talle.pk, color=self.crudo.pk)
+        carrito = self.client.session["carrito"]
+        self.assertEqual(len(carrito), 2)
+        bordo = next(l for l in carrito.values() if l["color_id"] == self.bordo.pk)
+        self.assertEqual(bordo["cantidad"], 2)  # no más que el stock de bordó M
+
+    def test_pedido_guarda_color_y_descuenta_solo_esa_variante(self):
+        self.agregar(talle=self.talle.pk, color=self.bordo.pk)
+        self.client.post(reverse("pedidos:checkout"), {
+            "nombre": "Ana", "telefono": "11 5555-5555", "email": "a@example.com",
+            "entrega": "retiro", "metodo_pago": "transferencia"})
+        p = Pedido.objects.get()
+        item = p.items.get()
+        self.assertEqual((item.color_id, item.color_nombre), (self.bordo.pk, "Bordó"))
+        self.assertIn("Bordó", p.resumen_whatsapp)
+        p.marcar_pagado()
+        self.bordo_m.refresh_from_db()
+        self.crudo_m.refresh_from_db()
+        self.assertEqual((self.bordo_m.stock, self.crudo_m.stock), (1, 5))
+
+    def test_ficha_y_tarjeta_muestran_colores(self):
+        r = self.client.get(self.prenda.get_absolute_url())
+        self.assertContains(r, 'data-colores')
+        self.assertContains(r, f'data-talles-color="{self.crudo.pk}"')
+        self.assertContains(r, 'name="color"')
+        r = self.client.get(reverse("catalogo:catalogo"))
+        self.assertContains(r, "2 colores")
+        self.assertContains(r, "Elegí color y talle")
+
+
+class ColoresPanelTests(Base):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(get_user_model().objects.create_user("clau-test", is_staff=True))
+        self.url = reverse("gestion:prenda_editar", args=[self.prenda.pk])
+        self.base = {"nombre": self.prenda.nombre, "categoria": self.prenda.categoria.pk, "precio": "50000",
+                     "activo": "on", "despues": "quedarse"}
+
+    def test_primer_color_se_lleva_el_stock_que_habia(self):
+        self.client.post(self.url, {**self.base, "color_nuevo_nombre": ["Crudo", "Bordó"],
+                                    "color_nuevo_hex": ["#efe6d6", "#6f2a33"]})
+        crudo = self.prenda.colores.get(nombre="Crudo")
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.color_id, crudo.pk)  # el stock de antes pasó al primer color
+        self.assertEqual(self.prenda.colores.count(), 2)
+
+    def test_stock_por_color_y_quitar_color(self):
+        from catalogo.models import ColorPrenda
+
+        bordo = ColorPrenda.objects.create(producto=self.prenda, nombre="Bordó")
+        self.variante.color = bordo
+        self.variante.save()
+        crudo = ColorPrenda.objects.create(producto=self.prenda, nombre="Crudo")
+        self.client.post(self.url, {**self.base, f"stock_{crudo.pk}_{self.talle.pk}": "4",
+                                    f"stock_{bordo.pk}_{self.talle.pk}": "", f"color_hex_{crudo.pk}": "#123456"})
+        self.assertEqual(Variante.objects.get(color=crudo, talle=self.talle).stock, 4)
+        self.assertFalse(Variante.objects.filter(color=bordo).exists())  # vacío = no viene
+        crudo.refresh_from_db()
+        self.assertEqual(crudo.hex, "#123456")
+        self.client.post(self.url, {**self.base, f"color_borrar_{crudo.pk}": "on"})
+        self.assertFalse(ColorPrenda.objects.filter(pk=crudo.pk).exists())
+
+    def test_pantalla_de_la_prenda_muestra_bloques_por_color(self):
+        from catalogo.models import ColorPrenda
+
+        bordo = ColorPrenda.objects.create(producto=self.prenda, nombre="Bordó")
+        r = self.client.get(self.url)
+        self.assertContains(r, f'name="stock_{bordo.pk}_{self.talle.pk}"')
+        self.assertContains(r, f'name="color_nombre_{bordo.pk}"')

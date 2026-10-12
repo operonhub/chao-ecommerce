@@ -225,7 +225,7 @@
   <aside class="resumen">
     <p class="resumen__titulo">Tu pedido</p>
     {% for linea in carrito %}
-      {% with foto=linea.producto.foto_principal %}
+      {% with foto=linea.foto %}
       <div class="resumen__item">
         <span class="resumen__foto">
           {% if foto %}<img src="{{ foto.url }}" alt="" loading="lazy">{% endif %}
@@ -233,7 +233,7 @@
         </span>
         <span class="resumen__nombre">
           {{ linea.producto.nombre }}
-          {% if linea.talle %}<small>Talle {{ linea.talle }}</small>{% endif %}
+          {% if linea.color or linea.talle %}<small>{% if linea.color %}{{ linea.color.nombre }}{% if linea.talle %} · {% endif %}{% endif %}{% if linea.talle %}Talle {{ linea.talle }}{% endif %}</small>{% endif %}
         </span>
         <span class="resumen__precio">${{ linea.subtotal|pesos }}</span>
       </div>

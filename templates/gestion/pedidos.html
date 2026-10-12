@@ -39,7 +39,7 @@
           {% with foto=it.producto.foto_principal %}
           <li>
             {% if foto %}<img src="{{ foto.url }}" alt="" loading="lazy">{% else %}<span class="g-pedido__sinfoto"></span>{% endif %}
-            <span>{{ it.cantidad }}× {{ it.producto.nombre }}{% if it.talle %} <em>· talle {{ it.talle }}</em>{% endif %}</span>
+            <span>{{ it.cantidad }}× {{ it.producto.nombre }}{% if it.color_nombre %} <em>· {{ it.color_nombre }}</em>{% endif %}{% if it.talle %} <em>· talle {{ it.talle }}</em>{% endif %}</span>
             <b>${{ it.subtotal|pesos }}</b>
           </li>
           {% endwith %}

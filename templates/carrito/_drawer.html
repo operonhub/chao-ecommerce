@@ -16,7 +16,7 @@
     </div>
   {% else %}
     {% for linea in carrito %}
-      {% with foto=linea.producto.foto_principal %}
+      {% with foto=linea.foto %}
       <div class="linea">
         <a href="{{ linea.producto.get_absolute_url }}" class="linea__foto">
           {% if foto %}<img src="{{ foto.url }}" alt="{{ foto.alt|default:linea.producto.nombre }}" loading="lazy">{% endif %}
@@ -27,6 +27,7 @@
             <span class="linea__subtotal">${{ linea.subtotal|pesos }}</span>
           </div>
           <p class="linea__meta">
+            {% if linea.color %}{{ linea.color.nombre }} · {% endif %}
             {% if linea.talle %}
               Talle {{ linea.talle }}
             {% else %}

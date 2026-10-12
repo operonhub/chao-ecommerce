@@ -10,7 +10,7 @@
       </span>
       <span class="resumen__nombre">
         {{ item.producto.nombre }}
-        {% if item.talle %}<small>Talle {{ item.talle }}</small>{% endif %}
+        {% if item.color_nombre or item.talle %}<small>{% if item.color_nombre %}{{ item.color_nombre }}{% if item.talle %} · {% endif %}{% endif %}{% if item.talle %}Talle {{ item.talle }}{% endif %}</small>{% endif %}
       </span>
       <span class="resumen__precio">${{ item.subtotal|pesos }}</span>
     </div>

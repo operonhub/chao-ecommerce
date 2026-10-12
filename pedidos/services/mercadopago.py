@@ -177,7 +177,11 @@ def _items(pedido) -> list[dict]:
     items = [
         {
             "id": str(item.producto.pk),
-            "title": f"{item.producto.nombre}{f' (T {item.talle})' if item.talle else ''}"[:250],
+            "title": (
+                f"{item.producto.nombre}"
+                f"{f' · {item.color_nombre}' if item.color_nombre else ''}"
+                f"{f' (T {item.talle})' if item.talle else ''}"
+            )[:250],
             "category_id": "fashion",
             "quantity": item.cantidad,
             "unit_price": float(item.precio_unitario),

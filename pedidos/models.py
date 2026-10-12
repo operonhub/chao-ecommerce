@@ -172,7 +172,9 @@ class Pedido(models.Model):
         for item in self.items.all():
             if not item.talle_id:
                 continue
-            variante = Variante.objects.filter(producto_id=item.producto_id, talle_id=item.talle_id)
+            variante = Variante.objects.filter(
+                producto_id=item.producto_id, talle_id=item.talle_id, color_id=item.color_id
+            )
             if signo < 0:
                 # Nunca por debajo de cero, aunque se haya vendido algo en el local.
                 variante.update(stock=Greatest(F("stock") - item.cantidad, 0))
@@ -202,8 +204,9 @@ class Pedido(models.Model):
         """Texto plano del pedido, para que la dueña lo lea de un vistazo en el chat."""
         lineas = [f"Pedido #{self.pk} — {self.nombre}"]
         for item in self.items.select_related("producto", "talle"):
+            color = f" · {item.color_nombre}" if item.color_nombre else ""
             talle = f" (T: {item.talle})" if item.talle else ""
-            lineas.append(f"{item.cantidad}x {item.producto.nombre}{talle}")
+            lineas.append(f"{item.cantidad}x {item.producto.nombre}{color}{talle}")
         lineas.append(f"Total: ${self.total:,.0f}".replace(",", "."))
         if self.entrega == self.Entrega.ENVIO:
             lineas.append(f"Envío: {self.zona_nombre} — {self.direccion_completa}")
@@ -239,6 +242,12 @@ class PedidoItem(models.Model):
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name="items")
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name="items_pedido")
     talle = models.ForeignKey(Talle, on_delete=models.PROTECT, null=True, blank=True)
+    color = models.ForeignKey(
+        "catalogo.ColorPrenda", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # El nombre se copia: si la dueña después borra o renombra el color, el
+    # pedido sigue diciendo lo que la clienta compró.
+    color_nombre = models.CharField(max_length=40, blank=True)
     cantidad = models.PositiveSmallIntegerField(default=1)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -247,7 +256,8 @@ class PedidoItem(models.Model):
         verbose_name_plural = "prendas del pedido"
 
     def __str__(self):
-        return f"{self.cantidad}x {self.producto.nombre}"
+        color = f" · {self.color_nombre}" if self.color_nombre else ""
+        return f"{self.cantidad}x {self.producto.nombre}{color}"
 
     @property
     def subtotal(self):

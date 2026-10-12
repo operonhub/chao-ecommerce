@@ -29,6 +29,16 @@ def ver(request):
 def agregar(request):
     producto = get_object_or_404(Producto, pk=request.POST.get("producto"), activo=True)
 
+    # Color: si la prenda tiene colores, es obligatorio y tiene que ser de ella.
+    color = None
+    colores = list(producto.colores.all())
+    if colores:
+        color = next((c for c in colores if str(c.pk) == request.POST.get("color")), None)
+        if color is None and len(colores) == 1:
+            color = colores[0]
+        if color is None:
+            return HttpResponseBadRequest("Falta elegir el color.")
+
     talle = None
     talle_id = request.POST.get("talle")
     if talle_id:
@@ -37,12 +47,15 @@ def agregar(request):
         # El producto tiene talles cargados y no eligieron ninguno: no se adivina.
         return HttpResponseBadRequest("Falta elegir el talle.")
 
+    if talle and not producto.variantes.filter(talle=talle, color=color).exists():
+        return HttpResponseBadRequest("Ese talle no viene en ese color.")
+
     try:
         cantidad = max(1, int(request.POST.get("cantidad", 1)))
     except (TypeError, ValueError):
         cantidad = 1
 
-    Cart(request).agregar(producto, talle, cantidad)
+    Cart(request).agregar(producto, talle, cantidad, color)
     return _respuesta_carrito(request)
 
 

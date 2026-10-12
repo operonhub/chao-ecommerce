@@ -18,7 +18,7 @@
   <div class="detalle__galeria">
     <div class="detalle__fotos" data-galeria>
       {% for foto in fotos %}
-        <figure class="detalle__foto {% if forloop.first %}detalle__foto--principal{% endif %}">
+        <figure class="detalle__foto {% if forloop.first %}detalle__foto--principal{% endif %}" data-foto-color="{{ foto.color_id|default_if_none:'' }}">
           <img src="{{ foto.url }}" alt="{{ foto.alt|default:prenda.nombre }}"
                width="900" height="1200" {% if forloop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %}>
         </figure>
@@ -27,7 +27,7 @@
       {% endfor %}
     </div>
     {% if fotos|length > 1 %}
-      <p class="detalle__contador" aria-hidden="true"><span data-galeria-actual>1</span> / {{ fotos|length }}</p>
+      <p class="detalle__contador" aria-hidden="true"><span data-galeria-actual>1</span> / <span data-galeria-total>{{ fotos|length }}</span></p>
     {% endif %}
   </div>
 
@@ -58,7 +58,47 @@
         {% csrf_token %}
         <input type="hidden" name="producto" value="{{ prenda.pk }}">
 
-        {% if prenda.necesita_elegir_talle %}
+        {% if prenda.tiene_colores %}
+          {% with opciones=prenda.colores_con_stock %}
+          <div class="detalle__talles-cabeza">
+            <p class="sup">Color <span class="detalle__color-nombre" data-color-nombre></span></p>
+          </div>
+          <div class="detalle__colores" data-colores>
+            {% for o in opciones %}
+              <button type="button" class="color-opcion" data-color="{{ o.color.pk }}" data-nombre="{{ o.color.nombre }}"
+                      aria-pressed="false" aria-label="{{ o.color.nombre }}{% if not o.hay_stock %} (sin stock){% endif %}"
+                      title="{{ o.color.nombre }}" {% if not o.hay_stock %}data-agotado{% endif %}>
+                <span class="punto-color punto-color--grande" style="--c: {{ o.color.hex }}"></span>
+              </button>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="color" value="" data-color-elegido>
+
+          <div class="detalle__talles-cabeza" data-cabeza-talles>
+            <p class="sup">Talle</p>
+            <a href="#guia-talles" class="detalle__guia">Guía de talles</a>
+          </div>
+          {% for o in opciones %}
+            <div class="detalle__talles" data-talles-producto data-talles-color="{{ o.color.pk }}" hidden>
+              {% for variante in o.variantes %}
+                <button type="button" class="talle" data-talle="{{ variante.talle.pk }}" aria-pressed="false"
+                        {% if variante.stock <= 0 %}disabled title="Sin stock"{% endif %}>
+                  {{ variante.talle }}
+                  {% if variante.stock > 0 and variante.stock <= 2 %}<small>queda{{ variante.stock|pluralize:"n" }} {{ variante.stock }}</small>{% endif %}
+                </button>
+              {% empty %}
+                <p class="detalle__sin-talles">Este color todavía no tiene talles cargados.</p>
+              {% endfor %}
+            </div>
+          {% endfor %}
+          <input type="hidden" name="talle" value="" data-talle-elegido>
+          {% if prenda.hay_stock %}
+            <button type="submit" class="btn btn--primario btn--bloque detalle__boton" data-agregar-producto disabled>Elegí color y talle</button>
+          {% else %}
+            <button type="button" class="btn btn--primario btn--bloque detalle__boton" disabled>Sin stock por ahora</button>
+          {% endif %}
+          {% endwith %}
+        {% elif prenda.necesita_elegir_talle %}
           <div class="detalle__talles-cabeza">
             <p class="sup">Talle</p>
             <a href="#guia-talles" class="detalle__guia">Guía de talles</a>
@@ -113,9 +153,9 @@
         <details>
           <summary>Retiro y cambios</summary>
           <p>Retirás en el local de {{ negocio.dias|lower }}, de {{ negocio.horario_manana }} y de
-            {{ negocio.horario_tarde }} hs. Los envíos se coordinan por WhatsApp. Para cambiar,
-            la prenda tiene que estar sin usar y con su etiqueta.
-            <em>Plazos y zona de envío a confirmar con CHAO.</em></p>
+            {{ negocio.horario_tarde }} hs. También enviamos: las opciones, el costo y la demora
+            los ves antes de pagar. Para cambiar, la prenda tiene que estar sin usar y con su
+            etiqueta.</p>
         </details>
       </div>
     </div>

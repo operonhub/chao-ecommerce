@@ -30,6 +30,17 @@
                   data-url-borrar="{% url 'gestion:foto_borrar' f.pk %}">
             <img src="{{ f.url }}" alt="">
             <span class="g-foto__principal">Principal</span>
+            {% if colores %}
+              <label class="g-foto__color">
+                <span class="solo-lectores">Color de esta foto</span>
+                <select name="foto_color_{{ f.pk }}">
+                  <option value="">Todos los colores</option>
+                  {% for col in colores %}
+                    <option value="{{ col.pk }}" {% if f.color_id == col.pk %}selected{% endif %}>{{ col.nombre }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            {% endif %}
             <div class="g-foto__acciones">
               <button type="button" data-foto-accion="izq" aria-label="Mover a la izquierda" title="Mover a la izquierda">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
@@ -147,18 +158,60 @@
       </label>
     </section>
 
+    <section class="g-bloque" id="colores">
+      <h2 class="g-bloque__titulo">Colores</h2>
+      <p class="g-ayuda">
+        Si la prenda viene en varios colores, cargalos acá: en la tienda aparecen como circulitos y cada color
+        tiene sus talles y su stock. Si viene en un solo color, no hace falta cargar nada.
+      </p>
+      <div class="g-colores" data-colores-panel>
+        {% for col in colores %}
+          <div class="g-color">
+            <input type="color" name="color_hex_{{ col.pk }}" value="{{ col.hex }}" aria-label="Color del circulito de {{ col.nombre }}">
+            <input type="text" name="color_nombre_{{ col.pk }}" value="{{ col.nombre }}" maxlength="40" aria-label="Nombre del color">
+            <label class="g-color__quitar">
+              <input type="checkbox" name="color_borrar_{{ col.pk }}"> Quitar
+            </label>
+          </div>
+        {% endfor %}
+        <div class="g-color g-color--nuevo" data-color-nuevo>
+          <input type="color" name="color_nuevo_hex" value="#b1cfd1" aria-label="Color del circulito">
+          <input type="text" name="color_nuevo_nombre" maxlength="40" placeholder="{% if colores %}Otro color{% else %}Ej: Crudo{% endif %}" aria-label="Nombre del color nuevo">
+        </div>
+      </div>
+      <button type="button" class="cta-ghost g-color__mas" data-color-mas>+ Agregar otro color</button>
+      {% if colores %}<p class="g-ayuda">Quitar un color borra también su stock.</p>{% endif %}
+    </section>
+
     <section class="g-bloque">
       <h2 class="g-bloque__titulo">Talles y stock</h2>
       <p class="g-ayuda">Dejá vacío el talle en que no viene. Con <b>0</b> aparece tachado como "sin stock".</p>
-      <div class="g-talles">
-        {% for fila in filas_talle %}
-          <label class="g-talle {% if fila.stock != '' %}g-talle--on{% endif %}">
-            <span>{{ fila.talle.nombre }}</span>
-            <input type="number" name="stock_{{ fila.talle.pk }}" value="{{ fila.stock }}" min="0" step="1" inputmode="numeric" placeholder="—"
-                   aria-label="Stock talle {{ fila.talle.nombre }}" data-stock-input>
-          </label>
+      {% if bloques_color %}
+        {% for bloque in bloques_color %}
+          <div class="g-stock-color">
+            <p class="g-stock-color__titulo"><span class="g-punto" style="--c: {{ bloque.color.hex }}"></span>{{ bloque.color.nombre }}</p>
+            <div class="g-talles">
+              {% for fila in bloque.filas %}
+                <label class="g-talle {% if fila.stock != '' %}g-talle--on{% endif %}">
+                  <span>{{ fila.talle.nombre }}</span>
+                  <input type="number" name="stock_{{ bloque.color.pk }}_{{ fila.talle.pk }}" value="{{ fila.stock }}" min="0" step="1"
+                         inputmode="numeric" placeholder="—" aria-label="Stock {{ bloque.color.nombre }} talle {{ fila.talle.nombre }}" data-stock-input>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
         {% endfor %}
-      </div>
+      {% else %}
+        <div class="g-talles">
+          {% for fila in filas_talle %}
+            <label class="g-talle {% if fila.stock != '' %}g-talle--on{% endif %}">
+              <span>{{ fila.talle.nombre }}</span>
+              <input type="number" name="stock_{{ fila.talle.pk }}" value="{{ fila.stock }}" min="0" step="1" inputmode="numeric" placeholder="—"
+                     aria-label="Stock talle {{ fila.talle.nombre }}" data-stock-input>
+            </label>
+          {% endfor %}
+        </div>
+      {% endif %}
       <div class="g-fila g-talle-nuevo">
         <label class="g-campo">
           <span>Talle nuevo</span>
@@ -166,7 +219,8 @@
         </label>
         <label class="g-campo">
           <span>Stock</span>
-          <input type="number" name="talle_nuevo_stock" min="0" step="1" inputmode="numeric" placeholder="0">
+          <input type="number" name="talle_nuevo_stock" min="0" step="1" inputmode="numeric" placeholder="0"
+                 {% if colores %}disabled title="Con colores, el stock se carga en cada color"{% endif %}>
         </label>
       </div>
     </section>

@@ -76,17 +76,7 @@
           <a href="{% url 'gestion:prendas' %}">Ver</a>
         </li>
       {% endif %}
-      {% if n_a_confirmar %}
-        <li>
-          <span class="g-punto g-punto--ambar" aria-hidden="true"></span>
-          <div>
-            <b>{{ n_a_confirmar }} precio{{ n_a_confirmar|pluralize }} a confirmar</b>
-            <span>La tienda avisa que son estimados hasta que los confirmes.</span>
-          </div>
-          <a href="{% url 'gestion:prendas' %}?ver=a-confirmar">Ver</a>
-        </li>
-      {% endif %}
-      {% if not sin_stock and not pocas and not n_a_confirmar %}
+      {% if not sin_stock and not pocas %}
         <li>
           <span class="g-punto g-punto--verde" aria-hidden="true"></span>
           <div><b>Todo en orden</b><span>No hay nada urgente en el catálogo.</span></div>

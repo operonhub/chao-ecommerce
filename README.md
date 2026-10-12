@@ -66,10 +66,8 @@ ficha del look.
 
 Nada de esto está inventado como si fuera dato del cliente; todo está marcado en pantalla.
 
-- **Precios.** No publican ninguno. Los del seed son estimaciones de mercado y llevan
-  `precio_a_confirmar=True`, que es lo que hace aparecer el aviso. Cuando manden la
-  lista: se cambian los números y se destilda el campo (se puede hacer en lote desde el
-  panel).
+- **Precios.** Los del seed son de muestra; los reales los carga la dueña desde el panel
+  y se publican tal cual (no hay aviso de "precio de referencia").
 - **Stock y talles.** Los talles S/M/L y 36/38/40/42 son los habituales del rubro; las
   cantidades son de relleno.
 - **Envíos.** No dicen en ningún lado que hagan envíos, así que la web no lo afirma: la

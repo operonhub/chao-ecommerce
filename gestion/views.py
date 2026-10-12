@@ -91,7 +91,6 @@ def inicio(request):
         "n_ocultas": len(prendas) - len(activas),
         "sin_stock": [p for p in activas if p.variantes.all() and p.stock_total == 0],
         "pocas": [p for p in activas if 0 < p.stock_total <= 3],
-        "n_a_confirmar": sum(1 for p in activas if p.precio_a_confirmar),
         "n_destacadas": sum(1 for p in activas if p.destacado),
         "n_pendientes": Pedido.objects.filter(estado=Pedido.Estado.PENDIENTE).count(),
         "n_sin_entregar": Pedido.objects.filter(estado=Pedido.Estado.PAGADO, entregado=False).count(),
@@ -131,7 +130,6 @@ def prendas(request):
         "destacadas": Q(destacado=True),
         "oferta": Q(precio_anterior__isnull=False, precio_anterior__gt=F("precio")),
         "sin-stock": Q(n_var__gt=0, stock_sum=0),
-        "a-confirmar": Q(precio_a_confirmar=True),
     }
     if ver in filtros:
         qs = qs.filter(filtros[ver])
@@ -389,7 +387,7 @@ def prenda_borrar(request, pk):
 
 
 # --- Acciones rápidas (fetch, JSON) ---------------------------------------------
-CAMPOS_TOGGLE = {"activo", "destacado", "precio_a_confirmar"}
+CAMPOS_TOGGLE = {"activo", "destacado"}
 
 
 @solo_duena
@@ -416,9 +414,7 @@ def prenda_precio(request, pk):
     if precio <= 0:
         return JsonResponse({"ok": False, "error": "El precio tiene que ser mayor a cero."}, status=400)
     prenda.precio = precio
-    # Si la dueña escribe el precio a mano, ya no es una estimación.
-    prenda.precio_a_confirmar = False
-    prenda.save(update_fields=["precio", "precio_a_confirmar"])
+    prenda.save(update_fields=["precio"])
     return JsonResponse({"ok": True, "precio": int(precio)})
 
 

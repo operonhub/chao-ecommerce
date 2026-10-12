@@ -67,7 +67,6 @@ class ProductoAdmin(admin.ModelAdmin):
         "nombre",
         "categoria",
         "precio",
-        "precio_a_confirmar",
         "stock_total",
         "activo",
         "destacado",
@@ -76,13 +75,13 @@ class ProductoAdmin(admin.ModelAdmin):
     # El día a día es cambiar precios y prender/apagar prendas: se edita en la lista,
     # sin entrar a cada ficha.
     list_editable = ("precio", "activo", "destacado")
-    list_filter = ("categoria", "activo", "destacado", "precio_a_confirmar")
+    list_filter = ("categoria", "activo", "destacado")
     search_fields = ("nombre", "descripcion")
     prepopulated_fields = {"slug": ("nombre",)}
     inlines = [ProductoImagenInline, ColorPrendaInline, VarianteInline]
     fieldsets = (
         (None, {"fields": ("nombre", "categoria", "descripcion")}),
-        ("Precio", {"fields": ("precio", "precio_a_confirmar")}),
+        ("Precio", {"fields": ("precio", "precio_anterior")}),
         ("Visibilidad", {"fields": ("activo", "destacado", "orden", "slug")}),
     )
     list_per_page = 50

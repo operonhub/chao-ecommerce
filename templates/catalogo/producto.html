@@ -50,10 +50,6 @@
       </p>
       <p class="detalle__cuotas">3 cuotas sin interés de <b>${{ prenda.precio|cuota:3 }}</b></p>
 
-      {% if prenda.precio_a_confirmar %}
-        <p class="tienda-aviso"><span aria-hidden="true">⚠</span><span>Precio de referencia: falta que CHAO lo confirme.</span></p>
-      {% endif %}
-
       <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito class="detalle__compra">
         {% csrf_token %}
         <input type="hidden" name="producto" value="{{ prenda.pk }}">

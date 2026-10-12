@@ -4,10 +4,7 @@ Carga el catálogo de la demo.
 Idempotente: se puede correr muchas veces sin duplicar nada, así que sirve tanto para
 levantar el proyecto de cero como para reflejar un cambio en los datos.
 
-Sobre los precios: CHAO no publica precios en ningún posteo ("consultanos por precios
-y disponibilidad" es literalmente su copy). Los de acá son estimaciones de mercado y
-quedan marcados con `precio_a_confirmar=True`, que es lo que hace aparecer el aviso en
-pantalla. Cuando manden la lista real, se cambian los números y se destilda el campo.
+Sobre los precios: son de muestra. Los reales los carga la dueña desde el panel.
 
 Las posiciones de los hotspots NO están escritas acá: salen de tools/hotspots.json,
 que genera el mismo script que recorta las fotos. Así el marcador sobre la foto y el
@@ -250,7 +247,6 @@ class Command(BaseCommand):
                     "categoria": categorias[categoria],
                     "precio": precio,
                     "descripcion": descripcion,
-                    "precio_a_confirmar": True,
                     "activo": True,
                     "orden": orden,
                 },

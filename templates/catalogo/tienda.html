@@ -43,13 +43,6 @@
 </nav>
 
 <section class="contenido tienda-cuerpo">
-  {% if hay_precios_a_confirmar %}
-    <p class="tienda-aviso" style="margin:0 0 1.75rem">
-      <span aria-hidden="true">⚠</span>
-      <span>Algunos precios son de referencia: CHAO todavía no confirmó toda su lista.</span>
-    </p>
-  {% endif %}
-
   <div class="grilla">
     {% for prenda in productos %}
       {% include "catalogo/_card.html" with prenda=prenda %}

@@ -55,7 +55,6 @@
   const ETIQUETAS_TOGGLE = {
     activo: ["Visible en la tienda", "Oculta de la tienda"],
     destacado: ["Marcada como destacada", "Ya no es destacada"],
-    precio_a_confirmar: ["Precio marcado como estimado", "Precio confirmado"],
   };
 
   document.addEventListener("click", async (e) => {
@@ -106,9 +105,6 @@
         original = input.value;
         caja.dataset.guardado = "1";
         setTimeout(() => delete caja.dataset.guardado, 1600);
-        // Escribirlo a mano lo confirma: el servidor apaga "precio a confirmar".
-        const conf = $('[data-toggle-campo="precio_a_confirmar"]', card);
-        if (conf) conf.setAttribute("aria-pressed", "false");
         toast("Precio actualizado en la tienda");
       } catch (err) {
         caja.dataset.error = "1";

@@ -160,11 +160,6 @@
           {% for e in form.precio_anterior.errors %}<small class="g-error">{{ e }}</small>{% endfor %}
         </label>
       </div>
-      <label class="g-check">
-        <input type="checkbox" name="precio_a_confirmar" {% if form.precio_a_confirmar.value %}checked{% endif %}>
-        <i aria-hidden="true"></i>
-        <span><b>Precio a confirmar</b> La tienda avisa que es un precio estimado.</span>
-      </label>
     </section>
 
     <section class="g-bloque">

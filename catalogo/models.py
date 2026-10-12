@@ -52,14 +52,6 @@ class Producto(models.Model):
     descripcion = models.TextField(blank=True)
     precio = models.DecimalField(max_digits=10, decimal_places=2)
 
-    # Mientras CHAO no pase su lista, los precios son de referencia y la web lo dice
-    # en pantalla. Cuando manden la lista real, se destilda y desaparece el cartel.
-    precio_a_confirmar = models.BooleanField(
-        default=True,
-        verbose_name="precio de referencia",
-        help_text="Tildado = se muestra el aviso de que el precio es estimado y falta confirmarlo.",
-    )
-
     activo = models.BooleanField(default=True)
     destacado = models.BooleanField(default=False, help_text="Aparece primero en el catálogo.")
     orden = models.PositiveSmallIntegerField(default=0)

@@ -143,8 +143,8 @@ def _mensaje_error(status: int, error: dict) -> str:
     texto = (error.get("message") or "").lower()
     if status in (401, 403) or "api key" in texto:
         return "La clave de Gemini no es válida o no tiene permiso. Revisala en Vercel."
-    if status == 429 or "quota" in texto or "billing" in texto:
-        return "Gemini no tiene crédito o llegó al límite. Revisá la facturación en Google AI Studio."
+    if status in (402, 429) or "quota" in texto or "billing" in texto or "credit" in texto:
+        return "Se terminó el crédito de la IA (o llegó al límite). Hay que cargar más en Google AI Studio → Billing."
     if status == 404:
         return "El modelo de IA no está disponible para esta clave."
     return "La IA no pudo editar la foto ahora. Probá de nuevo en un rato."
@@ -250,7 +250,7 @@ def describir(fotos: list[bytes], nombre: str = "", categoria: str = "", notas: 
                 error = {}
             logger.error("Gemini %s respondió %s: %s", modelo, r.status_code, (error.get("message") or r.text)[:300])
             ultimo_error = ErrorIA(_mensaje_error(r.status_code, error))
-            if r.status_code in (401, 403, 429):
+            if r.status_code in (401, 402, 403, 429):
                 break
             continue
         texto = "".join(

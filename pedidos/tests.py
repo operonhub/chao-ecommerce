@@ -668,6 +668,14 @@ class FotosIATests(Base):
         self.prenda.refresh_from_db()
         self.assertNotEqual(self.prenda.descripcion, "Remera clarita con estampa de tigre. Va con un jean.")  # no guarda
 
+    def test_sin_saldo_402_avisa_que_hay_que_cargar_credito(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(402)) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.status_code, 502)
+        self.assertIn("crédito", r.json()["error"])
+        self.assertIn("Billing", r.json()["error"])
+        self.assertEqual(post.call_count, 1)  # el respaldo usa la misma cuenta: no tiene sentido
+
     def test_descripcion_prueba_el_respaldo_y_avisa_errores(self):
         texto = {"candidates": [{"content": {"parts": [{"text": "Texto del respaldo."}]}}]}
         with mock.patch("gestion.ia.requests.post", side_effect=[self.gemini(500), respuesta(200, texto)]):

@@ -108,10 +108,13 @@ _por_pooler = ":6543/" in _url_db
 DATABASES = {
     "default": dj_database_url.parse(
         _url_db,
-        # Detrás del pooler cada pedido toma una conexión prestada y la devuelve:
-        # no tiene sentido mantenerla abierta (y en serverless, menos).
-        conn_max_age=0 if _por_pooler else 600,
-        conn_health_checks=not _por_pooler,
+        # La conexión se reusa entre pedidos mientras la instancia siga viva:
+        # abrir una conexión segura nueva en cada página costaba varios viajes
+        # de ida y vuelta a la base. El pooler (modo transacción) multiplexa
+        # igual, y el chequeo de salud descarta una conexión que se cortó
+        # mientras la instancia dormía.
+        conn_max_age=60 if _por_pooler else 600,
+        conn_health_checks=True,
     )
 }
 

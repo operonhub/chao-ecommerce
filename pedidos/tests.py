@@ -618,6 +618,37 @@ class FotosIATests(Base):
         self.assertIn("Más luz 'por favor'", texto)  # el pedido viaja, sin romper las comillas
         self.assertNotIn("Keep the brand label", texto)
 
+    def test_descripcion_usa_fotos_y_notas_y_no_inventa_tela(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        texto = {"candidates": [{"content": {"parts": [{"text": ' "Remera clarita con estampa de tigre.  Va con un jean." '}]}}]}
+        nueva = SimpleUploadedFile("nueva.jpg", self.jpeg((10, 10, 10)), content_type="image/jpeg")
+        with mock.patch("gestion.ia.requests.post", return_value=respuesta(200, texto)) as post:
+            r = self.client.post(
+                reverse("gestion:descripcion_ia"),
+                {"prenda": self.prenda.pk, "nombre": "Remera Fearless", "notas": "algodón, oversize", "fotos": nueva},
+            )
+        self.assertEqual(r.json(), {"ok": True, "texto": "Remera clarita con estampa de tigre. Va con un jean."})
+        partes = post.call_args.kwargs["json"]["contents"][0]["parts"]
+        self.assertEqual(len(partes), 3)  # la foto nueva + la guardada
+        self.assertIn("Remera Fearless", partes[0]["text"])
+        self.assertIn("algodón, oversize", partes[0]["text"])
+        self.assertIn("Ni composición de la tela", partes[0]["text"])
+        self.assertNotIn("imageConfig", post.call_args.kwargs["json"]["generationConfig"])
+        self.prenda.refresh_from_db()
+        self.assertNotEqual(self.prenda.descripcion, "Remera clarita con estampa de tigre. Va con un jean.")  # no guarda
+
+    def test_descripcion_prueba_el_respaldo_y_avisa_errores(self):
+        texto = {"candidates": [{"content": {"parts": [{"text": "Texto del respaldo."}]}}]}
+        with mock.patch("gestion.ia.requests.post", side_effect=[self.gemini(500), respuesta(200, texto)]):
+            r = self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
+        self.assertEqual(r.json()["texto"], "Texto del respaldo.")
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(429)) as post:
+            r = self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
+        self.assertEqual(r.status_code, 502)
+        self.assertIn("crédito", r.json()["error"])
+        self.assertEqual(post.call_count, 1)  # sin crédito no tiene sentido el respaldo
+
     def test_segunda_edicion_parte_de_la_original(self):
         import base64
 

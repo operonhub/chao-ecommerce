@@ -580,6 +580,44 @@ def foto_ia_original(request, pk):
 
 
 @solo_duena
+@require_POST
+def descripcion_ia(request):
+    """
+    Propone la descripción de una prenda. Mira las fotos que se están por subir y
+    las ya guardadas (hasta 3) y lo que la dueña escribió en el campo, que la IA
+    toma como datos ciertos. Devuelve el texto; no guarda nada.
+    """
+    fotos = []
+    for archivo in request.FILES.getlist("fotos")[:3]:
+        if archivo.size <= 15 * 1024 * 1024:
+            fotos.append(archivo.read())
+    pk = request.POST.get("prenda") or ""
+    if pk.isdigit() and len(fotos) < 3:
+        for foto in ProductoImagen.objects.filter(producto_id=int(pk))[: 3 - len(fotos)]:
+            try:
+                fotos.append(_leer_foto(foto))
+            except Exception:  # noqa: BLE001 — una foto que no se lee no frena la descripción
+                logger.warning("No se pudo leer la foto %s para describir", foto.pk)
+
+    categoria = (request.POST.get("nueva_categoria") or "").strip()
+    if not categoria and (request.POST.get("categoria") or "").isdigit():
+        categoria = Categoria.objects.filter(pk=request.POST["categoria"]).values_list("nombre", flat=True).first() or ""
+    try:
+        texto = ia.describir(
+            fotos,
+            nombre=request.POST.get("nombre", ""),
+            categoria=categoria,
+            notas=request.POST.get("notas", ""),
+        )
+    except ia.ErrorIA as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falló la descripción con IA")
+        return JsonResponse({"ok": False, "error": "No pudimos escribir la descripción. Probá de nuevo."}, status=500)
+    return JsonResponse({"ok": True, "texto": texto})
+
+
+@solo_duena
 def ia_diagnostico(request):
     """Para Operon: si la IA está configurada y qué modelos de imagen ve la clave."""
     if not ia.configurada():

@@ -367,6 +367,62 @@
     });
   }
 
+  /* --- Ficha: descripción con IA ---------------------------------------------- */
+  // Manda nombre, categoría, lo que ya está escrito (como notas) y las fotos que
+  // se están por subir; las guardadas las busca el servidor. El texto cae en el
+  // campo y se puede deshacer: nada se guarda hasta tocar "Guardar".
+  const descIA = $("[data-desc-ia]");
+  if (descIA) {
+    const form = descIA.closest("form");
+    const campo = $("[data-descripcion]", form);
+    const boton = $("[data-desc-ia-boton]", descIA);
+    const rotulo = $("[data-desc-ia-texto]", descIA);
+    const deshacer = $("[data-desc-ia-deshacer]", descIA);
+    let anterior = null;
+
+    boton.addEventListener("click", async () => {
+      const datos = new FormData();
+      datos.append("prenda", descIA.dataset.prenda);
+      ["nombre", "categoria", "nueva_categoria"].forEach((n) => datos.append(n, form.elements[n]?.value || ""));
+      datos.append("notas", campo.value.trim());
+      Array.from(inputFotos?.files || [])
+        .slice(0, 3)
+        .forEach((f) => datos.append("fotos", f));
+
+      boton.disabled = true;
+      descIA.dataset.cargando = "";
+      rotulo.textContent = "Escribiendo…";
+      try {
+        const res = await fetch(descIA.dataset.url, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrf(), "X-Requested-With": "fetch" },
+          body: datos,
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.ok) throw new Error(json.error || "No se pudo escribir la descripción.");
+        anterior = campo.value;
+        campo.value = json.texto;
+        campo.dispatchEvent(new Event("input", { bubbles: true }));
+        deshacer.hidden = false;
+        rotulo.textContent = "Escribir otra";
+      } catch (err) {
+        toast(err.message, "error");
+        rotulo.textContent = "Escribir con IA";
+      } finally {
+        boton.disabled = false;
+        delete descIA.dataset.cargando;
+      }
+    });
+
+    deshacer.addEventListener("click", () => {
+      if (anterior === null) return;
+      campo.value = anterior;
+      anterior = null;
+      deshacer.hidden = true;
+      rotulo.textContent = "Escribir con IA";
+    });
+  }
+
   /* --- Ficha: etiquetas sugeridas ---------------------------------------------- */
   const inputEtiqueta = $("[data-etiqueta-input]");
   if (inputEtiqueta) {

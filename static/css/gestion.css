@@ -2570,3 +2570,52 @@
   font: inherit;
   font-size: 1rem;
 }
+
+/* Descripción con IA */
+.g-desc-ia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: -0.35rem;
+}
+
+.g-desc-ia .g-ayuda {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.g-desc-ia__boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem 0.55rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--aqua);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--tinta);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.g-desc-ia__boton:hover {
+  transform: translateY(-1px);
+}
+
+.g-desc-ia__boton svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.g-desc-ia__boton:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.g-desc-ia[data-cargando] .g-desc-ia__boton {
+  animation: g-ia-latido 1.1s ease-in-out infinite;
+}

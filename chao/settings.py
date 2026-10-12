@@ -216,6 +216,8 @@ MP_WEBHOOK_SECRET = os.getenv("MP_WEBHOOK_SECRET", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODELO = os.getenv("GEMINI_MODELO", "gemini-3-pro-image")
 GEMINI_MODELO_RESPALDO = os.getenv("GEMINI_MODELO_RESPALDO", "gemini-nano-banana-2.1")
+GEMINI_MODELO_TEXTO = os.getenv("GEMINI_MODELO_TEXTO", "gemini-flash-latest")  # descripciones
+GEMINI_MODELO_TEXTO_RESPALDO = os.getenv("GEMINI_MODELO_TEXTO_RESPALDO", "gemini-2.5-flash")
 GEMINI_PLAZO = float(os.getenv("GEMINI_PLAZO", "280"))  # segundos; debajo del límite de la función
 # Dirección pública canónica (https://chao-ecommerce.vercel.app). La URL de vuelta
 # del botón de MP tiene que ser EXACTAMENTE la registrada en la app, aunque se

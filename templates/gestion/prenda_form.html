@@ -127,8 +127,21 @@
 
       <label class="g-campo">
         <span>Descripción</span>
-        <textarea name="descripcion" rows="3" placeholder="Tela, calce, con qué combina…">{{ form.descripcion.value|default_if_none:'' }}</textarea>
+        <textarea name="descripcion" rows="3" placeholder="Tela, calce, con qué combina…" data-descripcion>{{ form.descripcion.value|default_if_none:'' }}</textarea>
       </label>
+      {% if ia_activa %}
+        <div class="g-desc-ia" data-desc-ia data-url="{% url 'gestion:descripcion_ia' %}" data-prenda="{{ prenda.pk|default_if_none:'' }}">
+          <button type="button" class="g-desc-ia__boton" data-desc-ia-boton>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6zM18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+            <span data-desc-ia-texto>Escribir con IA</span>
+          </button>
+          <button type="button" class="cta-ghost g-desc-ia__deshacer" data-desc-ia-deshacer hidden>Deshacer</button>
+          <p class="g-ayuda">
+            La IA mira las fotos y escribe una propuesta. Si antes anotás datos que no se ven (la tela, el calce),
+            los usa. Leela y corregí lo que haga falta antes de guardar.
+          </p>
+        </div>
+      {% endif %}
     </section>
 
     <section class="g-bloque">

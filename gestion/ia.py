@@ -81,12 +81,12 @@ def configurada() -> bool:
     return bool(settings.GEMINI_API_KEY)
 
 
-def _preparar(imagen_bytes: bytes) -> tuple[str, str]:
+def _preparar(imagen_bytes: bytes, lado: int = TAMANO_ENTRADA) -> tuple[str, str]:
     """Endereza (EXIF), achica y pasa a JPEG la foto que se manda."""
     img = ImageOps.exif_transpose(Image.open(BytesIO(imagen_bytes)))
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
-    img.thumbnail((TAMANO_ENTRADA, TAMANO_ENTRADA), Image.Resampling.LANCZOS)
+    img.thumbnail((lado, lado), Image.Resampling.LANCZOS)
     salida = BytesIO()
     img.convert("RGB").save(salida, format="JPEG", quality=92)
     return base64.b64encode(salida.getvalue()).decode(), "image/jpeg"
@@ -181,6 +181,89 @@ def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "") -
             if "clave" in str(exc) or "crédito" in str(exc):
                 break
     raise ultimo_error or ErrorIA("La IA no pudo editar la foto.")
+
+
+# --- Descripción de la prenda -------------------------------------------------
+# A la dueña le cuesta escribirlas: la IA mira las fotos (y lo que ella anote,
+# "algodón, oversize") y propone dos o tres oraciones en el tono de la tienda.
+# Nada se guarda solo: el texto cae en el campo y ella lo corrige o lo borra.
+DESCRIBIR = """Sos quien escribe las fichas de CHAO Indumentaria, una tienda de ropa de mujer de Villa Bosch (Buenos Aires).
+Escribí la descripción de esta prenda para la tienda online, mirando la(s) foto(s).
+
+Prenda: {nombre}
+Categoría: {categoria}
+Lo que anotó la dueña (es verdad, usalo): {notas}
+
+Cómo escribir:
+- Español rioplatense, de vos, cercano y simple, como habla la dueña en el local. Nada de lenguaje de catálogo ni palabras rebuscadas.
+- Entre 2 y 3 oraciones cortas, máximo 300 caracteres en total.
+- Contá lo que se ve: color, corte, cuello, mangas, largo, estampa o detalle, textura (tejido, punto fino, denim).
+- Podés cerrar con una idea de con qué combinarla o cuándo usarla.
+
+Nunca inventes datos que no se ven en la foto ni anotó la dueña:
+- Ni composición de la tela (algodón, lana, lino, poliéster…), ni medidas, talles, calce exacto, cuidados, origen ni marca.
+- Ni precios, ofertas, stock, envíos ni promesas ("no se deforma", "dura años").
+- Si la foto es de cerca y no se ve la prenda entera, no describas el largo ni lo que no se ve.
+
+Sin emojis, sin hashtags, sin comillas, sin signos de exclamación y sin título. Devolvé solo el texto de la descripción."""
+
+LARGO_NOTAS = 400
+LARGO_DESCRIPCION = 600  # tope duro por si el modelo se va de largo
+
+
+def describir(fotos: list[bytes], nombre: str = "", categoria: str = "", notas: str = "") -> str:
+    """Propone una descripción a partir de hasta 3 fotos y lo que anotó la dueña."""
+    if not configurada():
+        raise ErrorIA("Falta configurar la IA (GEMINI_API_KEY en Vercel).")
+    if not fotos and not (nombre or notas):
+        raise ErrorIA("Subí una foto o escribí el nombre de la prenda primero.")
+
+    limpio = lambda t, n: " ".join((t or "").split())[:n] or "(nada)"  # noqa: E731
+    partes = [
+        {
+            "text": DESCRIBIR.format(
+                nombre=limpio(nombre, 120), categoria=limpio(categoria, 60), notas=limpio(notas, LARGO_NOTAS)
+            )
+        }
+    ]
+    for foto in fotos[:3]:
+        datos, mime = _preparar(foto, lado=1024)
+        partes.append({"inline_data": {"mime_type": mime, "data": datos}})
+    cuerpo = {"contents": [{"role": "user", "parts": partes}], "generationConfig": {"temperature": 0.7}}
+
+    ultimo_error = None
+    for modelo in [m for m in (settings.GEMINI_MODELO_TEXTO, settings.GEMINI_MODELO_TEXTO_RESPALDO) if m]:
+        try:
+            r = requests.post(
+                f"{API}/models/{modelo}:generateContent",
+                json=cuerpo,
+                headers={"x-goog-api-key": settings.GEMINI_API_KEY, "Content-Type": "application/json"},
+                timeout=60,
+            )
+        except requests.RequestException as exc:
+            ultimo_error = ErrorIA(f"No se pudo contactar a la IA: {exc.__class__.__name__}.")
+            continue
+        if r.status_code >= 400:
+            try:
+                error = r.json().get("error", {})
+            except ValueError:
+                error = {}
+            logger.error("Gemini %s respondió %s: %s", modelo, r.status_code, (error.get("message") or r.text)[:300])
+            ultimo_error = ErrorIA(_mensaje_error(r.status_code, error))
+            if r.status_code in (401, 403, 429):
+                break
+            continue
+        texto = "".join(
+            p.get("text", "")
+            for c in r.json().get("candidates") or []
+            for p in (c.get("content") or {}).get("parts") or []
+            if not p.get("thought")
+        )
+        texto = " ".join(texto.split()).strip().strip('"«»“”').strip()
+        if texto:
+            return texto[:LARGO_DESCRIPCION]
+        ultimo_error = ErrorIA("La IA no devolvió un texto esta vez. Probá de nuevo.")
+    raise ultimo_error or ErrorIA("La IA no pudo escribir la descripción.")
 
 
 def modelos_disponibles() -> list[dict]:

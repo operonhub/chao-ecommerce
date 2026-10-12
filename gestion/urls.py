@@ -20,6 +20,7 @@ urlpatterns = [
     path("fotos/<int:pk>/ia/usar/", views.foto_ia_usar, name="foto_ia_usar"),
     path("fotos/<int:pk>/ia/descartar/", views.foto_ia_descartar, name="foto_ia_descartar"),
     path("fotos/<int:pk>/ia/original/", views.foto_ia_original, name="foto_ia_original"),
+    path("ia/descripcion/", views.descripcion_ia, name="descripcion_ia"),
     path("ia/diagnostico/", views.ia_diagnostico, name="ia_diagnostico"),
     path("pedidos/", views.pedidos, name="pedidos"),
     path("pedidos/<int:pk>/", views.pedido_actualizar, name="pedido_actualizar"),

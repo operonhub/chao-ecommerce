@@ -34,7 +34,7 @@ class Base(TestCase):
         self.talle = Talle.objects.create(nombre="M", orden=1)
         self.prenda = Producto.objects.create(
             nombre="Sweater de prueba", slug="sweater-prueba", categoria=self.cat,
-            precio=Decimal("50000"), precio_a_confirmar=False, descripcion="Tejido </script> grueso.",
+            precio=Decimal("50000"), descripcion="Tejido </script> grueso.",
         )
         self.variante = Variante.objects.create(producto=self.prenda, talle=self.talle, stock=2)
         self.url_prenda = reverse("catalogo:producto", args=[self.prenda.slug])
@@ -109,13 +109,6 @@ class TiendaAbiertaTests(Base):
         self.assertTrue(datos["offers"]["availability"].endswith("InStock"))
         # La descripción no puede cerrar la etiqueta <script>.
         self.assertEqual(html.count("</script>"), html.count("<script"))
-
-    def test_precio_de_referencia_no_se_declara(self):
-        self.prenda.precio_a_confirmar = True
-        self.prenda.save()
-        datos = datos_estructurados(self.client.get(self.url_prenda).content.decode())
-        self.assertEqual(datos["@type"], "Product")
-        self.assertNotIn("offers", datos)
 
     def test_sin_stock_se_declara_agotada(self):
         self.variante.stock = 0

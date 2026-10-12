@@ -73,15 +73,13 @@ dirección, horarios, teléfono, el aqua `#b1cfd1` del logo, las prendas del cat
 inicial (salen de sus fotos) y las cuotas sin interés pintadas en la vitrina. Viven en
 `settings.NEGOCIO`: no hay un teléfono ni una dirección escritos en un template.
 
-**A confirmar con CHAO** (la tienda lo dice en pantalla, no lo esconde):
+**A confirmar con CHAO:**
 
-- **Precios del catálogo inicial.** Las prendas del seed llevan `precio_a_confirmar=True`,
-  que muestra el aviso "precio de referencia". La dueña carga el precio real desde
-  `/gestion/` y el aviso desaparece.
+- **Precios, stock y talles del catálogo inicial.** Los del seed son de muestra; los
+  reales los carga la dueña desde `/gestion/` y se publican tal cual.
 - **"3 cuotas sin interés".** El beneficio está en la vitrina; la cantidad de cuotas que
   muestra cada tarjeta es una estimación. Lo que cobra de verdad lo decide la
   configuración de cuotas de su cuenta de Mercado Pago.
-- **Stock y talles** del catálogo inicial: son de relleno hasta que los cargue.
 - **Permiso de uso de las fotos** tomadas de su Instagram.
 
 ---
@@ -129,13 +127,10 @@ Instagram) salen siempre.
 
 1. Definir el dominio definitivo y cargarlo en `SITIO_URL`. Si cambia, hay que
    actualizar también la URL de vuelta y el webhook en la app de Mercado Pago.
-2. Confirmar que no queden precios de referencia ni prendas de prueba.
+2. Confirmar que no queden precios de muestra ni prendas de prueba.
 3. Poner `PERMITIR_INDEXADO=True` en las variables del hosting y redeployar.
 4. Verificar el dominio en Google Search Console (con la cuenta de CHAO) y enviar
    `/sitemap.xml`.
-
-Una prenda con precio de referencia nunca declara su precio a Google, aunque el
-interruptor esté prendido.
 
 ---
 
@@ -146,6 +141,10 @@ interruptor esté prendido.
   estar: `DJANGO_SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, `POSTGRES_URL` (o
   `DATABASE_URL`), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITIO_URL`, las de
   Mercado Pago y `GESTION_USUARIO` / `GESTION_CLAVE`.
+- `vercel.json` fija la región de las funciones en **São Paulo (gru1)**, al lado de la
+  base. Sin eso Vercel las corre en EE.UU. y cada consulta cruza el continente: la home
+  pasaba de menos de 1 s a más de 5 s.
+- El editor de fotos y las descripciones con IA del panel usan `GEMINI_API_KEY`.
 - `render.yaml` quedó de la primera versión (deploy en Render). No se usa hoy.
 
 ---

@@ -136,6 +136,36 @@ class StockTests(Base):
         self.variante.refresh_from_db()
         self.assertEqual(self.variante.stock, 3)
 
+    def test_eliminar_pedido_devuelve_stock_y_libera_la_prenda(self):
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(get_user_model().objects.create_user("clau-borra", is_staff=True))
+        p = self.pedido(cantidad=2)
+        p.marcar_pagado("1")
+        r = self.client.post(reverse("gestion:pedido_borrar", args=[p.pk]))
+        self.assertRedirects(r, reverse("gestion:pedidos"), fetch_redirect_response=False)
+        self.assertFalse(Pedido.objects.filter(pk=p.pk).exists())
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 3)
+        # Sin pedidos, la prenda ya se puede borrar de verdad (no solo ocultar).
+        self.client.post(reverse("gestion:prenda_borrar", args=[self.prenda.pk]))
+        self.assertFalse(Producto.objects.filter(pk=self.prenda.pk).exists())
+
+    def test_eliminar_pedido_entregado_o_sin_pagar_no_toca_stock(self):
+        entregado = self.pedido()
+        entregado.marcar_pagado("1")
+        entregado.entregado = True
+        entregado.save()
+        self.assertFalse(entregado.eliminar())  # la prenda ya se fue del local
+        self.assertFalse(self.pedido().eliminar())  # pendiente: nunca descontó
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 2)
+
+    def test_eliminar_pedido_pide_login(self):
+        p = self.pedido()
+        self.client.post(reverse("gestion:pedido_borrar", args=[p.pk]))
+        self.assertTrue(Pedido.objects.filter(pk=p.pk).exists())
+
     def test_stock_nunca_negativo(self):
         p = self.pedido(cantidad=5)
         p.marcar_pagado()
@@ -512,3 +542,196 @@ class LookCompletoTests(Base):
         self.assertContains(r, f'name="talle_{self.prenda.pk}"')
         self.assertContains(r, "data-look-talle")
         self.assertContains(r, "Sin stock por ahora")
+
+
+@override_settings(GEMINI_API_KEY="clave-test", GEMINI_MODELO="pro-test", GEMINI_MODELO_RESPALDO="rapido-test")
+class FotosIATests(Base):
+    """Editor de fotos con IA, con Gemini simulado."""
+
+    @staticmethod
+    def jpeg(color=(200, 120, 90), tam=(60, 80)):
+        from io import BytesIO
+        from PIL import Image
+
+        b = BytesIO()
+        Image.new("RGB", tam, color).save(b, format="JPEG")
+        return b.getvalue()
+
+    def gemini(self, status=200):
+        import base64
+
+        cuerpo = {"candidates": [{"content": {"parts": [
+            {"inlineData": {"mimeType": "image/jpeg", "data": base64.b64encode(self.jpeg((240, 230, 210))).decode()}}
+        ]}}]}
+        if status == 429:
+            cuerpo = {"error": {"message": "Quota exceeded / billing"}}
+        elif status != 200:
+            cuerpo = {"error": {"message": "Internal error"}}
+        return respuesta(status, cuerpo)
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from django.core.files.base import ContentFile
+        from catalogo.models import ProductoImagen
+
+        self.client.force_login(get_user_model().objects.create_user("clau-ia", is_staff=True))
+        self.foto = ProductoImagen(producto=self.prenda)
+        self.foto.imagen.save("productos/original.jpg", ContentFile(self.jpeg()), save=True)
+        self.original_nombre = self.foto.imagen.name
+
+    def post(self, nombre):
+        return self.client.post(reverse(nombre, args=[self.foto.pk]))
+
+    def test_mejorar_deja_propuesta_sin_reemplazar(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(post.call_args.args[0].endswith("/models/pro-test:generateContent"))
+        cuerpo = post.call_args.kwargs["json"]
+        self.assertIn("EXACTLY the same", cuerpo["contents"][0]["parts"][0]["text"])
+        self.assertEqual(cuerpo["generationConfig"]["imageConfig"], {"aspectRatio": "3:4", "imageSize": "2K"})
+        self.foto.refresh_from_db()
+        self.assertTrue(self.foto.ia_pendiente)
+        self.assertEqual(self.foto.imagen.name, self.original_nombre)  # la tienda sigue con la original
+
+    def test_usar_y_volver_a_la_original(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        self.foto.refresh_from_db()
+        pendiente = self.foto.ia_pendiente
+        self.assertEqual(self.post("gestion:foto_ia_usar").status_code, 200)
+        self.foto.refresh_from_db()
+        self.assertEqual(self.foto.imagen.name, pendiente)
+        self.assertEqual(self.foto.original, f"img:{self.original_nombre}")
+        self.assertEqual(self.post("gestion:foto_ia_original").status_code, 200)
+        self.foto.refresh_from_db()
+        self.assertEqual(self.foto.imagen.name, self.original_nombre)
+        self.assertFalse(self.foto.original)
+
+    def test_respaldo_si_la_pro_falla(self):
+        with mock.patch("gestion.ia.requests.post", side_effect=[self.gemini(500), self.gemini()]) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.json()["modelo"], "rapido-test")
+        self.assertEqual(post.call_count, 2)
+
+    def test_sin_credito_explica_y_no_reintenta(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(429)) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.status_code, 502)
+        self.assertIn("crédito", r.json()["error"])
+        self.assertEqual(post.call_count, 1)
+
+    def test_descartar(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        self.post("gestion:foto_ia_descartar")
+        self.foto.refresh_from_db()
+        self.assertFalse(self.foto.ia_pendiente)
+
+    def test_boton_solo_con_clave(self):
+        url = reverse("gestion:prenda_editar", args=[self.prenda.pk])
+        self.assertContains(self.client.get(url), "data-foto-ia")
+        with override_settings(GEMINI_API_KEY=""):
+            self.assertNotContains(self.client.get(url), "data-foto-ia ")
+
+
+    def test_no_inventa_etiquetas_y_suma_el_pedido(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            self.client.post(reverse("gestion:foto_ia", args=[self.foto.pk]), {"pedido": 'Más luz "por favor"'})
+        texto = post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
+        self.assertIn("NO INVENTED LABELS", texto)
+        self.assertIn("must show NO label", texto)
+        self.assertIn("PLAIN patch of the same color with NO letters", texto)
+        self.assertIn("Remove ALL hang tags", texto)
+        self.assertIn("Never draw the missing parts", texto)
+        self.assertIn("Más luz 'por favor'", texto)  # el pedido viaja, sin romper las comillas
+        self.assertNotIn("Keep the brand label", texto)
+
+    def test_descripcion_usa_fotos_y_notas_y_no_inventa_tela(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        texto = {"candidates": [{"content": {"parts": [{"text": ' "Remera clarita con estampa de tigre.  Va con un jean." '}]}}]}
+        nueva = SimpleUploadedFile("nueva.jpg", self.jpeg((10, 10, 10)), content_type="image/jpeg")
+        with mock.patch("gestion.ia.requests.post", return_value=respuesta(200, texto)) as post:
+            r = self.client.post(
+                reverse("gestion:descripcion_ia"),
+                {"prenda": self.prenda.pk, "nombre": "Remera Fearless", "notas": "algodón, oversize", "fotos": nueva},
+            )
+        self.assertEqual(r.json(), {"ok": True, "texto": "Remera clarita con estampa de tigre. Va con un jean."})
+        partes = post.call_args.kwargs["json"]["contents"][0]["parts"]
+        self.assertEqual(len(partes), 3)  # la foto nueva + la guardada
+        self.assertIn("Remera Fearless", partes[0]["text"])
+        self.assertIn("algodón, oversize", partes[0]["text"])
+        self.assertIn("Ni composición de la tela", partes[0]["text"])
+        self.assertNotIn("imageConfig", post.call_args.kwargs["json"]["generationConfig"])
+        self.prenda.refresh_from_db()
+        self.assertNotEqual(self.prenda.descripcion, "Remera clarita con estampa de tigre. Va con un jean.")  # no guarda
+
+    def test_sin_saldo_402_avisa_que_hay_que_cargar_credito(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(402)) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.status_code, 502)
+        self.assertIn("crédito", r.json()["error"])
+        self.assertIn("Billing", r.json()["error"])
+        self.assertEqual(post.call_count, 1)  # el respaldo usa la misma cuenta: no tiene sentido
+
+    def test_contador_de_credito_descuenta_y_avisa_sin_saldo(self):
+        from gestion.models import CreditoIA
+
+        r = self.client.get(reverse("gestion:inicio"))
+        self.assertContains(r, "Anotá cuánto crédito hay")
+        self.client.post(reverse("gestion:credito_ia"), {"saldo": "10,00"})
+        credito = CreditoIA.actual()
+        self.assertEqual(credito.saldo_usd, Decimal("10.00"))
+        self.assertEqual(credito.fotos_restantes, 74)
+
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        texto = {"candidates": [{"content": {"parts": [{"text": "Una descripción."}]}}]}
+        with mock.patch("gestion.ia.requests.post", return_value=respuesta(200, texto)):
+            self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(500)):
+            self.post("gestion:foto_ia")  # una que falla no gasta
+        credito = CreditoIA.actual()
+        self.assertEqual(credito.restante_usd, Decimal("9.8640"))
+        self.assertEqual(credito.fotos_restantes, 73)
+        r = self.client.get(reverse("gestion:inicio"))
+        self.assertContains(r, "unas <b>73 fotos</b>")
+
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(402)):
+            self.post("gestion:foto_ia")
+        self.assertEqual(CreditoIA.actual().estado, "agotado")
+        self.assertContains(self.client.get(reverse("gestion:inicio")), "Sin crédito")
+        # Al anotar la recarga vuelve a contar desde cero.
+        self.client.post(reverse("gestion:credito_ia"), {"saldo": "20"})
+        credito = CreditoIA.actual()
+        self.assertEqual((credito.estado, credito.restante_usd), ("ok", Decimal("20.00")))
+        self.client.post(reverse("gestion:credito_ia"), {"saldo": "mucho"})
+        self.assertEqual(CreditoIA.actual().saldo_usd, Decimal("20.00"))
+
+    def test_descripcion_prueba_el_respaldo_y_avisa_errores(self):
+        texto = {"candidates": [{"content": {"parts": [{"text": "Texto del respaldo."}]}}]}
+        with mock.patch("gestion.ia.requests.post", side_effect=[self.gemini(500), respuesta(200, texto)]):
+            r = self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
+        self.assertEqual(r.json()["texto"], "Texto del respaldo.")
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(429)) as post:
+            r = self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
+        self.assertEqual(r.status_code, 502)
+        self.assertIn("crédito", r.json()["error"])
+        self.assertEqual(post.call_count, 1)  # sin crédito no tiene sentido el respaldo
+
+    def test_segunda_edicion_parte_de_la_original(self):
+        import base64
+
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        self.post("gestion:foto_ia_usar")
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            self.post("gestion:foto_ia")
+        enviada = base64.b64decode(post.call_args.kwargs["json"]["contents"][0]["parts"][1]["inline_data"]["data"])
+        from io import BytesIO
+        from PIL import Image
+
+        color = Image.open(BytesIO(enviada)).convert("RGB").getpixel((5, 5))
+        self.assertLess(abs(color[0] - 200) + abs(color[1] - 120), 40)  # el color de la ORIGINAL, no el de la IA

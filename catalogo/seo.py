@@ -110,18 +110,15 @@ def producto_jsonld(request, prenda, fotos) -> dict | None:
     imagenes = [absoluta(request, f.url) for f in fotos if f.url]
     if imagenes:
         datos["image"] = imagenes
-    # Un precio de referencia no es una oferta: no se le declara a Google un
-    # precio que CHAO todavía no confirmó.
-    if not prenda.precio_a_confirmar:
-        con_stock = prenda.hay_stock or not prenda.tiene_talles
-        datos["offers"] = {
-            "@type": "Offer",
-            "url": url,
-            "price": f"{prenda.precio:.2f}",
-            "priceCurrency": "ARS",
-            "availability": f"https://schema.org/{'InStock' if con_stock else 'OutOfStock'}",
-            "seller": {"@id": f"{base}/#tienda"},
-        }
+    con_stock = prenda.hay_stock or not prenda.tiene_talles
+    datos["offers"] = {
+        "@type": "Offer",
+        "url": url,
+        "price": f"{prenda.precio:.2f}",
+        "priceCurrency": "ARS",
+        "availability": f"https://schema.org/{'InStock' if con_stock else 'OutOfStock'}",
+        "seller": {"@id": f"{base}/#tienda"},
+    }
     return datos
 
 

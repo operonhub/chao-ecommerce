@@ -131,7 +131,6 @@ def catalogo(request, categoria_slug=None):
             "look_destacado": Look.objects.filter(activo=True).order_by("?").first()
             if not categoria_actual and len(productos) >= 6
             else None,
-            "hay_precios_a_confirmar": any(p.precio_a_confirmar for p in productos),
         },
     )
 

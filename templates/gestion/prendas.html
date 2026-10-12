@@ -33,7 +33,6 @@
   <a href="?{{ base_filtros }}&ver=destacadas" {% if ver == 'destacadas' %}aria-current="true"{% endif %}>Destacadas</a>
   <a href="?{{ base_filtros }}&ver=oferta" {% if ver == 'oferta' %}aria-current="true"{% endif %}>En oferta</a>
   <a href="?{{ base_filtros }}&ver=sin-stock" {% if ver == 'sin-stock' %}aria-current="true"{% endif %}>Sin stock</a>
-  <a href="?{{ base_filtros }}&ver=a-confirmar" {% if ver == 'a-confirmar' %}aria-current="true"{% endif %}>Precio a confirmar</a>
 </nav>
 
 <p class="g-conteo">{{ prendas|length }} prenda{{ prendas|length|pluralize }}</p>
@@ -79,9 +78,6 @@
           </button>
           <button type="button" class="g-switch" data-toggle-campo="destacado" aria-pressed="{{ p.destacado|yesno:'true,false' }}">
             <i aria-hidden="true"></i>Destacada
-          </button>
-          <button type="button" class="g-switch" data-toggle-campo="precio_a_confirmar" aria-pressed="{{ p.precio_a_confirmar|yesno:'true,false' }}">
-            <i aria-hidden="true"></i>Precio a confirmar
           </button>
         </div>
       </div>

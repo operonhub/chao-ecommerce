@@ -11,6 +11,7 @@ se ve en la web al instante. Solo entra personal (is_staff).
 
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 from datetime import timedelta
@@ -19,6 +20,7 @@ from io import BytesIO
 from urllib.parse import urlencode
 
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import user_passes_test
@@ -46,7 +48,12 @@ from catalogo.models import (
 from pedidos.models import Cobros, ConexionMP, Pedido, ZonaEnvio
 from pedidos.services import mercadopago
 
+from . import ia
+from .models import CreditoIA, UsoIA
 from .forms import CobrosForm, PortadaForm, ProductoForm, ZonaForm
+
+
+logger = logging.getLogger(__name__)
 
 
 def _es_staff(usuario):
@@ -85,7 +92,6 @@ def inicio(request):
         "n_ocultas": len(prendas) - len(activas),
         "sin_stock": [p for p in activas if p.variantes.all() and p.stock_total == 0],
         "pocas": [p for p in activas if 0 < p.stock_total <= 3],
-        "n_a_confirmar": sum(1 for p in activas if p.precio_a_confirmar),
         "n_destacadas": sum(1 for p in activas if p.destacado),
         "n_pendientes": Pedido.objects.filter(estado=Pedido.Estado.PENDIENTE).count(),
         "n_sin_entregar": Pedido.objects.filter(estado=Pedido.Estado.PAGADO, entregado=False).count(),
@@ -96,6 +102,7 @@ def inicio(request):
         "falta_mp": not ConexionMP.actual(),
         "falta_transferencia": not Cobros.actual().transferencia_lista,
         "app_mp": mercadopago.app_configurada(),
+        "credito_ia": CreditoIA.actual() if ia.configurada() else None,
     }
     return render(request, "gestion/inicio.html", contexto)
 
@@ -125,7 +132,6 @@ def prendas(request):
         "destacadas": Q(destacado=True),
         "oferta": Q(precio_anterior__isnull=False, precio_anterior__gt=F("precio")),
         "sin-stock": Q(n_var__gt=0, stock_sum=0),
-        "a-confirmar": Q(precio_a_confirmar=True),
     }
     if ver in filtros:
         qs = qs.filter(filtros[ver])
@@ -356,6 +362,8 @@ def prenda_editar(request, pk=None):
             "filas_talle": filas_talle,
             "colores": colores,
             "bloques_color": bloques_color,
+            "ia_activa": ia.configurada(),
+            "credito_ia": CreditoIA.actual() if ia.configurada() else None,
             "categorias": Categoria.objects.all(),
             "vendida": prenda.items_pedido.exists() if prenda else False,
         },
@@ -382,7 +390,7 @@ def prenda_borrar(request, pk):
 
 
 # --- Acciones rápidas (fetch, JSON) ---------------------------------------------
-CAMPOS_TOGGLE = {"activo", "destacado", "precio_a_confirmar"}
+CAMPOS_TOGGLE = {"activo", "destacado"}
 
 
 @solo_duena
@@ -409,9 +417,7 @@ def prenda_precio(request, pk):
     if precio <= 0:
         return JsonResponse({"ok": False, "error": "El precio tiene que ser mayor a cero."}, status=400)
     prenda.precio = precio
-    # Si la dueña escribe el precio a mano, ya no es una estimación.
-    prenda.precio_a_confirmar = False
-    prenda.save(update_fields=["precio", "precio_a_confirmar"])
+    prenda.save(update_fields=["precio"])
     return JsonResponse({"ok": True, "precio": int(precio)})
 
 
@@ -449,6 +455,215 @@ def foto_borrar(request, pk):
         foto.imagen.delete(save=False)
     foto.delete()
     return JsonResponse({"ok": True})
+
+
+# --- Fotos con IA (Gemini) ----------------------------------------------------------
+def _leer_foto(foto) -> bytes:
+    """
+    Los bytes de la foto ORIGINAL (la que sacó la dueña), venga del storage o de
+    static/. Si la foto publicada ya es una versión con IA, se parte de la
+    original guardada: editar lo ya editado va acumulando inventos.
+    """
+    from django.core.files.storage import default_storage
+
+    if foto.original:
+        tipo, _, ruta = foto.original.partition(":")
+        if tipo == "img":
+            with default_storage.open(ruta, "rb") as f:
+                return f.read()
+        return _leer_estatica(ruta)
+    if foto.imagen:
+        with foto.imagen.open("rb") as f:
+            return f.read()
+    return _leer_estatica(foto.ruta_estatica)
+
+
+def _leer_estatica(ruta_estatica: str) -> bytes:
+    if ruta_estatica:
+        from django.contrib.staticfiles import finders
+        from django.contrib.staticfiles.storage import staticfiles_storage
+
+        try:
+            with staticfiles_storage.open(ruta_estatica) as f:
+                return f.read()
+        except (FileNotFoundError, OSError):
+            ruta = finders.find(ruta_estatica)  # en desarrollo, sin collectstatic
+            if ruta:
+                with open(ruta, "rb") as f:
+                    return f.read()
+    raise ia.ErrorIA("No encontramos el archivo de esta foto.")
+
+
+def _borrar_archivo(nombre: str) -> None:
+    from django.core.files.storage import default_storage
+
+    if nombre:
+        try:
+            default_storage.delete(nombre)
+        except Exception:  # noqa: BLE001 — un archivo huérfano no es motivo para fallar
+            pass
+
+
+@solo_duena
+@require_POST
+def foto_ia(request, pk):
+    """Pide a la IA la versión de catálogo de la foto. Queda pendiente de aprobar."""
+    from django.core.files.storage import default_storage
+
+    foto = get_object_or_404(ProductoImagen.objects.select_related("producto"), pk=pk)
+    try:
+        editada, modelo = ia.mejorar(_leer_foto(foto), pedido=request.POST.get("pedido", ""))
+        archivo = _normalizar_imagen(BytesIO(editada))
+    except ia.ErrorIA as exc:
+        _si_es_sin_credito(exc)
+        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falló la edición con IA de la foto %s", pk)
+        return JsonResponse({"ok": False, "error": "No pudimos editar la foto. Probá de nuevo."}, status=500)
+
+    _borrar_archivo(foto.ia_pendiente)  # si había una propuesta anterior sin usar
+    nombre = default_storage.save(f"productos/ia/{foto.producto.slug[:60]}.jpg", archivo)
+    foto.ia_pendiente = nombre
+    foto.save(update_fields=["ia_pendiente"])
+    UsoIA.anotar(UsoIA.Tipo.FOTO, modelo)
+    logger.info("Foto %s editada con %s", pk, modelo)
+    return JsonResponse({"ok": True, "url": foto.url_ia_pendiente, "original": foto.url, "modelo": modelo})
+
+
+@solo_duena
+@require_POST
+def foto_ia_usar(request, pk):
+    """Reemplaza la foto por la versión de la IA y guarda la original."""
+    foto = get_object_or_404(ProductoImagen, pk=pk)
+    if not foto.ia_pendiente:
+        return JsonResponse({"ok": False, "error": "No hay una versión con IA para usar."}, status=400)
+    # Si la foto ya era una versión con IA, la original verdadera sigue siendo la primera.
+    if not foto.original:
+        foto.original = f"img:{foto.imagen.name}" if foto.imagen else f"static:{foto.ruta_estatica}"
+    elif foto.imagen:
+        _borrar_archivo(foto.imagen.name)
+    foto.imagen.name = foto.ia_pendiente
+    foto.ruta_estatica = ""
+    foto.ia_pendiente = ""
+    foto.save(update_fields=["imagen", "ruta_estatica", "ia_pendiente", "original"])
+    return JsonResponse({"ok": True, "url": foto.url})
+
+
+@solo_duena
+@require_POST
+def foto_ia_descartar(request, pk):
+    foto = get_object_or_404(ProductoImagen, pk=pk)
+    _borrar_archivo(foto.ia_pendiente)
+    foto.ia_pendiente = ""
+    foto.save(update_fields=["ia_pendiente"])
+    return JsonResponse({"ok": True})
+
+
+@solo_duena
+@require_POST
+def foto_ia_original(request, pk):
+    """Vuelve a la foto original (la versión con IA se borra)."""
+    foto = get_object_or_404(ProductoImagen, pk=pk)
+    if not foto.original:
+        return JsonResponse({"ok": False, "error": "Esta foto ya es la original."}, status=400)
+    tipo, _, ruta = foto.original.partition(":")
+    if foto.imagen:
+        _borrar_archivo(foto.imagen.name)
+    if tipo == "static":
+        foto.imagen.name = ""
+        foto.ruta_estatica = ruta
+    else:
+        foto.imagen.name = ruta
+        foto.ruta_estatica = ""
+    foto.original = ""
+    foto.save(update_fields=["imagen", "ruta_estatica", "original"])
+    return JsonResponse({"ok": True, "url": foto.url})
+
+
+@solo_duena
+@require_POST
+def descripcion_ia(request):
+    """
+    Propone la descripción de una prenda. Mira las fotos que se están por subir y
+    las ya guardadas (hasta 3) y lo que la dueña escribió en el campo, que la IA
+    toma como datos ciertos. Devuelve el texto; no guarda nada.
+    """
+    fotos = []
+    for archivo in request.FILES.getlist("fotos")[:3]:
+        if archivo.size <= 15 * 1024 * 1024:
+            fotos.append(archivo.read())
+    pk = request.POST.get("prenda") or ""
+    if pk.isdigit() and len(fotos) < 3:
+        for foto in ProductoImagen.objects.filter(producto_id=int(pk))[: 3 - len(fotos)]:
+            try:
+                fotos.append(_leer_foto(foto))
+            except Exception:  # noqa: BLE001 — una foto que no se lee no frena la descripción
+                logger.warning("No se pudo leer la foto %s para describir", foto.pk)
+
+    categoria = (request.POST.get("nueva_categoria") or "").strip()
+    if not categoria and (request.POST.get("categoria") or "").isdigit():
+        categoria = Categoria.objects.filter(pk=request.POST["categoria"]).values_list("nombre", flat=True).first() or ""
+    try:
+        texto = ia.describir(
+            fotos,
+            nombre=request.POST.get("nombre", ""),
+            categoria=categoria,
+            notas=request.POST.get("notas", ""),
+        )
+    except ia.ErrorIA as exc:
+        _si_es_sin_credito(exc)
+        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falló la descripción con IA")
+        return JsonResponse({"ok": False, "error": "No pudimos escribir la descripción. Probá de nuevo."}, status=500)
+    UsoIA.anotar(UsoIA.Tipo.DESCRIPCION, settings.GEMINI_MODELO_TEXTO)
+    return JsonResponse({"ok": True, "texto": texto})
+
+
+def _si_es_sin_credito(exc) -> None:
+    """Google avisó que no hay saldo: el contador pasa a "sin crédito" hasta que se anote uno nuevo."""
+    if "crédito" in str(exc):
+        CreditoIA.objects.update_or_create(pk=1, defaults={"sin_credito": True})
+
+
+@solo_duena
+@require_POST
+def credito_ia(request):
+    """Anota el saldo que figura hoy en AI Studio → Billing; desde ahí se descuenta."""
+    crudo = (request.POST.get("saldo") or "").replace("US$", "").replace("$", "").replace(",", ".").strip()
+    try:
+        saldo = Decimal(crudo)
+    except InvalidOperation:
+        saldo = None
+    if saldo is None or saldo < 0 or saldo > 10000:
+        messages.error(request, "Escribí el saldo en dólares, por ejemplo 10 o 7.50.")
+        return redirect(reverse("gestion:inicio") + "#credito-ia")
+    credito = CreditoIA.actual()
+    credito.saldo_usd = saldo.quantize(Decimal("0.01"))
+    credito.anotado = timezone.now()
+    credito.sin_credito = False
+    credito.save()
+    messages.success(request, f"Listo: anotamos USD {credito.saldo_usd} de crédito para la IA.")
+    return redirect(reverse("gestion:inicio") + "#credito-ia")
+
+
+@solo_duena
+def ia_diagnostico(request):
+    """Para Operon: si la IA está configurada y qué modelos de imagen ve la clave."""
+    if not ia.configurada():
+        return JsonResponse({"configurada": False})
+    try:
+        modelos = ia.modelos_disponibles()
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({"configurada": True, "error": exc.__class__.__name__}, status=502)
+    return JsonResponse(
+        {
+            "configurada": True,
+            "modelo": settings.GEMINI_MODELO,
+            "respaldo": settings.GEMINI_MODELO_RESPALDO,
+            "modelos_de_imagen": modelos,
+        }
+    )
 
 
 # --- Pedidos -----------------------------------------------------------------
@@ -509,6 +724,18 @@ def pedido_actualizar(request, pk):
             "link_seguimiento": pedido.link_whatsapp_seguimiento if pedido.seguimiento else "",
         }
     )
+
+
+@solo_duena
+@require_POST
+def pedido_borrar(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    numero = pedido.pk
+    if pedido.eliminar():
+        messages.success(request, f"Eliminamos el pedido #{numero} y el stock volvió a la tienda.")
+    else:
+        messages.success(request, f"Eliminamos el pedido #{numero}.")
+    return redirect(reverse("gestion:pedidos") + (f"?ver={request.POST['ver']}" if request.POST.get("ver") else ""))
 
 
 # --- Portada -------------------------------------------------------------------

@@ -52,6 +52,52 @@
   </a>
 </section>
 
+{% if credito_ia %}
+  {% with c=credito_ia %}
+  <section class="g-bloque g-credito g-credito--{{ c.estado }}" id="credito-ia">
+    <div class="g-credito__cabeza">
+      <span class="g-credito__icono" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6zM18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+      </span>
+      <div class="g-credito__texto">
+        <h2 class="g-bloque__titulo">Crédito de la IA</h2>
+        {% if c.estado == "agotado" %}
+          <p class="g-credito__num">Sin crédito</p>
+          <p>La IA está pausada: no edita fotos ni escribe descripciones. Hay que cargar más en
+            Google AI Studio → Billing y anotar el saldo nuevo acá abajo.</p>
+        {% elif c.estado == "sin-dato" %}
+          <p>Anotá cuánto crédito hay en Google AI Studio y acá vas a ver cuánto queda y para cuántas fotos alcanza.</p>
+        {% else %}
+          <p class="g-credito__num">USD {{ c.restante_usd|floatformat:2 }} <small>de {{ c.saldo_usd|floatformat:2 }}</small></p>
+          <p>Alcanza para unas <b>{{ c.fotos_restantes }} foto{{ c.fotos_restantes|pluralize }}</b> con IA.
+            {% if c.estado == "bajo" %}<b>Queda poco: avisale a Operon para recargar.</b>{% else %}Las descripciones casi no gastan.{% endif %}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% if c.con_dato and c.estado != "agotado" %}
+      <div class="g-credito__barra" role="img" aria-label="Queda el {{ c.porcentaje }}% del crédito">
+        <span style="width: {{ c.porcentaje }}%"></span>
+      </div>
+    {% endif %}
+    <details class="g-credito__anotar" {% if c.estado == "sin-dato" or c.estado == "agotado" %}open{% endif %}>
+      <summary>{% if c.con_dato %}Se recargó: anotar el saldo nuevo{% else %}Anotar el saldo{% endif %}</summary>
+      <form method="post" action="{% url 'gestion:credito_ia' %}" class="g-credito__form">
+        {% csrf_token %}
+        <label class="g-campo">
+          <span>Saldo que figura en AI Studio → Billing <em>(en dólares)</em></span>
+          <span class="g-pesos"><i>US$</i><input type="text" name="saldo" inputmode="decimal" placeholder="Ej: 10" required></span>
+        </label>
+        <button type="submit" class="btn btn--secundario">Guardar</button>
+      </form>
+      <p class="g-ayuda">
+        Es una cuenta aproximada que lleva la tienda: cada foto con IA resta unos USD 0,13. El número exacto siempre
+        está en AI Studio; si no coincide, anotá el de ahí.
+      </p>
+    </details>
+  </section>
+  {% endwith %}
+{% endif %}
+
 <div class="g-dos">
   <section class="g-bloque">
     <h2 class="g-bloque__titulo">Para mirar hoy</h2>
@@ -76,17 +122,7 @@
           <a href="{% url 'gestion:prendas' %}">Ver</a>
         </li>
       {% endif %}
-      {% if n_a_confirmar %}
-        <li>
-          <span class="g-punto g-punto--ambar" aria-hidden="true"></span>
-          <div>
-            <b>{{ n_a_confirmar }} precio{{ n_a_confirmar|pluralize }} a confirmar</b>
-            <span>La tienda avisa que son estimados hasta que los confirmes.</span>
-          </div>
-          <a href="{% url 'gestion:prendas' %}?ver=a-confirmar">Ver</a>
-        </li>
-      {% endif %}
-      {% if not sin_stock and not pocas and not n_a_confirmar %}
+      {% if not sin_stock and not pocas %}
         <li>
           <span class="g-punto g-punto--verde" aria-hidden="true"></span>
           <div><b>Todo en orden</b><span>No hay nada urgente en el catálogo.</span></div>

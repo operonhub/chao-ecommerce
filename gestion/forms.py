@@ -25,7 +25,6 @@ class ProductoForm(forms.ModelForm):
             "descripcion",
             "precio",
             "precio_anterior",
-            "precio_a_confirmar",
             "etiqueta",
             "activo",
             "destacado",

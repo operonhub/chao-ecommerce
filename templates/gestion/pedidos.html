@@ -95,6 +95,13 @@
           </a>
         </div>
       </footer>
+
+      <form method="post" action="{% url 'gestion:pedido_borrar' p.pk %}" class="g-pedido__borrar"
+            data-confirmar="¿Eliminar el pedido #{{ p.pk }} para siempre? No se puede deshacer.{% if p.stock_descontado and not p.entregado %} El stock vuelve a la tienda.{% endif %}{% if p.estado == 'pagado' and p.metodo_pago == 'mercadopago' %} Ojo: si el pago fue real, la plata se devuelve desde Mercado Pago, no desde acá.{% endif %}">
+        {% csrf_token %}
+        {% if ver %}<input type="hidden" name="ver" value="{{ ver }}">{% endif %}
+        <button type="submit">Eliminar pedido</button>
+      </form>
     </article>
   {% empty %}
     <p class="g-vacio">No hay pedidos con ese filtro.</p>

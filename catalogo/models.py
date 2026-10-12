@@ -52,14 +52,6 @@ class Producto(models.Model):
     descripcion = models.TextField(blank=True)
     precio = models.DecimalField(max_digits=10, decimal_places=2)
 
-    # Mientras CHAO no pase su lista, los precios son de referencia y la web lo dice
-    # en pantalla. Cuando manden la lista real, se destilda y desaparece el cartel.
-    precio_a_confirmar = models.BooleanField(
-        default=True,
-        verbose_name="precio de referencia",
-        help_text="Tildado = se muestra el aviso de que el precio es estimado y falta confirmarlo.",
-    )
-
     activo = models.BooleanField(default=True)
     destacado = models.BooleanField(default=False, help_text="Aparece primero en el catálogo.")
     orden = models.PositiveSmallIntegerField(default=0)
@@ -203,6 +195,31 @@ class ProductoImagen(models.Model):
     color = models.ForeignKey(
         "ColorPrenda", on_delete=models.SET_NULL, null=True, blank=True, related_name="fotos"
     )
+    # Editor con IA (/gestion/): la propuesta que todavía no se aprobó, y la
+    # foto original cuando se usa la mejorada, para poder volver a ella.
+    # Formato: "img:<ruta en el storage>" o "static:<ruta en static/>".
+    ia_pendiente = models.CharField(max_length=220, blank=True)
+    original = models.CharField(max_length=220, blank=True)
+
+    @property
+    def url_original(self):
+        """La foto que sacó la dueña, aunque la publicada sea la versión con IA."""
+        if not self.original:
+            return self.url
+        tipo, _, ruta = self.original.partition(":")
+        if tipo == "static":
+            from django.templatetags.static import static
+
+            return static(ruta)
+        from django.core.files.storage import default_storage
+
+        return default_storage.url(ruta)
+
+    @property
+    def url_ia_pendiente(self):
+        from django.core.files.storage import default_storage
+
+        return default_storage.url(self.ia_pendiente) if self.ia_pendiente else ""
 
     class Meta:
         ordering = ["orden", "id"]

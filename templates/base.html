@@ -158,8 +158,11 @@
     <p class="pie__palabra" aria-hidden="true">Chao <em>Indumentaria</em></p>
     <div class="contenido pie__base">
       <span>© {% now "Y" %} CHAO Indumentaria · Villa Bosch, Tres de Febrero</span>
-      <a class="operon" href="https://operonhub.com/" target="_blank" rel="noopener">
-        <span class="operon__marca" aria-hidden="true"></span> Hecho por Operon
+      {% comment %} La marca real de Operon (la O con el punto amarillo y la
+        colita), igual que en el resto de los sitios: no un circulito genérico. {% endcomment %}
+      <a class="operon" href="https://operonhub.com/" target="_blank" rel="noopener" aria-label="Hecho por Operon">
+        <span>Hecho por</span>
+        <span class="operon__logo" aria-hidden="true"><svg viewBox="0 0 64 74" fill="none"><circle cx="32" cy="28" r="20" stroke="currentColor" stroke-width="6"/><circle cx="32" cy="28" r="6" fill="#F2C94C"/><path d="M25 47 L39 47 L32 56 Z" fill="currentColor"/><path d="M32 56 C 30 63, 36 65, 33 73" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg>peron</span>
       </a>
     </div>
   </footer>

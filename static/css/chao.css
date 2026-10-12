@@ -1953,30 +1953,38 @@ button.cta-ghost {
 }
 
 /* Sello Operon: chico y discreto, en una esquina. */
+/* Firma de Operon: "Hecho por" en el tono del pie y la marca un paso más clara.
+   Sin mayúsculas ni tracking: es un logotipo, no una etiqueta. */
 .operon {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.66rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(242, 234, 220, 0.45);
+  gap: 0.45em;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  color: rgba(242, 234, 220, 0.55);
+  transition: color 0.2s ease;
 }
 
-.operon__marca {
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-  position: relative;
+.operon__logo {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: rgba(242, 234, 220, 0.86);
 }
 
-.operon__marca::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  background: currentColor;
-  border-radius: 50%;
+.operon__logo svg {
+  height: 1.5em;
+  width: auto;
+  /* La O del isotipo hace de inicial: "peron" se le pega. */
+  margin-right: -0.05em;
+}
+
+@media (hover: hover) {
+  .operon:hover,
+  .operon:hover .operon__logo {
+    color: var(--fondo-hueso);
+  }
 }
 
 /* --- Cajón del carrito ("la bolsa") ------------------------------------------ */

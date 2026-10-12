@@ -346,11 +346,50 @@
     });
   }
 
+  // Las fotos del celular pesan 3–6 MB cada una y Vercel corta cualquier envío
+  // de más de 4,5 MB (error 413: la página queda colgada). Se achican acá, antes
+  // de mandarlas, al mismo tamaño que igual deja el servidor (1600 px).
+  const LADO_FOTO = 1600;
+  const TOPE_ENVIO = 4 * 1024 * 1024;
+
+  async function achicarFoto(archivo) {
+    if (!archivo.type.startsWith("image/") || archivo.type === "image/gif") return archivo;
+    let fuente;
+    try {
+      fuente = await createImageBitmap(archivo, { imageOrientation: "from-image" });
+    } catch {
+      fuente = await new Promise((ok, mal) => {
+        const img = new Image();
+        img.onload = () => ok(img);
+        img.onerror = mal;
+        img.src = URL.createObjectURL(archivo);
+      });
+    }
+    const ancho = fuente.width;
+    const alto = fuente.height;
+    const escala = Math.min(1, LADO_FOTO / Math.max(ancho, alto));
+    if (escala === 1 && archivo.size < 900 * 1024 && archivo.type === "image/jpeg") return archivo;
+    const lienzo = document.createElement("canvas");
+    lienzo.width = Math.round(ancho * escala);
+    lienzo.height = Math.round(alto * escala);
+    const ctx = lienzo.getContext("2d");
+    ctx.fillStyle = "#faf6ee"; // las PNG con transparencia quedan sobre crema, como en el servidor
+    ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+    ctx.drawImage(fuente, 0, 0, lienzo.width, lienzo.height);
+    const blob = await new Promise((ok) => lienzo.toBlob(ok, "image/jpeg", 0.88));
+    if (!blob) return archivo;
+    const nombre = archivo.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], nombre, { type: "image/jpeg", lastModified: Date.now() });
+  }
+
   const inputFotos = $("[data-fotos-input]");
   if (inputFotos) {
     const caja = $("[data-fotos-preview]");
     const grilla = $("[data-fotos-preview-grilla]");
-    inputFotos.addEventListener("change", () => {
+    const formFotos = inputFotos.closest("form");
+    const botonesGuardar = $$('button[type="submit"]', formFotos);
+
+    const mostrar = () => {
       grilla.replaceChildren(
         ...Array.from(inputFotos.files).map((f) => {
           const img = document.createElement("img");
@@ -360,6 +399,50 @@
         })
       );
       caja.hidden = inputFotos.files.length === 0;
+    };
+
+    inputFotos.addEventListener("change", async () => {
+      const elegidas = Array.from(inputFotos.files);
+      if (!elegidas.length) return mostrar();
+      inputFotos.dataset.preparando = "";
+      botonesGuardar.forEach((b) => (b.disabled = true));
+      caja.hidden = false;
+      grilla.replaceChildren(Object.assign(document.createElement("p"), {
+        className: "g-ayuda",
+        textContent: `Preparando ${elegidas.length === 1 ? "la foto" : `${elegidas.length} fotos`}…`,
+      }));
+      try {
+        const listas = [];
+        for (const f of elegidas) {
+          try {
+            listas.push(await achicarFoto(f));
+          } catch {
+            listas.push(f); // si el navegador no la puede leer, va como está y la valida el servidor
+          }
+        }
+        const dt = new DataTransfer();
+        listas.forEach((f) => dt.items.add(f));
+        inputFotos.files = dt.files;
+      } catch {
+        /* navegador sin DataTransfer: quedan las originales */
+      } finally {
+        delete inputFotos.dataset.preparando;
+        botonesGuardar.forEach((b) => (b.disabled = false));
+        mostrar();
+      }
+    });
+
+    formFotos.addEventListener("submit", (e) => {
+      if ("preparando" in inputFotos.dataset) {
+        e.preventDefault();
+        toast("Esperá un segundo: estamos preparando las fotos.", "error");
+        return;
+      }
+      const total = Array.from(inputFotos.files).reduce((s, f) => s + f.size, 0);
+      if (total > TOPE_ENVIO) {
+        e.preventDefault();
+        toast("Son muchas fotos para subir juntas. Guardá con menos y después agregá el resto.", "error");
+      }
     });
   }
 

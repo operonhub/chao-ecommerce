@@ -203,6 +203,17 @@ class ProductoImagen(models.Model):
     color = models.ForeignKey(
         "ColorPrenda", on_delete=models.SET_NULL, null=True, blank=True, related_name="fotos"
     )
+    # Editor con IA (/gestion/): la propuesta que todavía no se aprobó, y la
+    # foto original cuando se usa la mejorada, para poder volver a ella.
+    # Formato: "img:<ruta en el storage>" o "static:<ruta en static/>".
+    ia_pendiente = models.CharField(max_length=220, blank=True)
+    original = models.CharField(max_length=220, blank=True)
+
+    @property
+    def url_ia_pendiente(self):
+        from django.core.files.storage import default_storage
+
+        return default_storage.url(self.ia_pendiente) if self.ia_pendiente else ""
 
     class Meta:
         ordering = ["orden", "id"]

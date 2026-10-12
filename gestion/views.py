@@ -11,6 +11,7 @@ se ve en la web al instante. Solo entra personal (is_staff).
 
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 from datetime import timedelta
@@ -19,6 +20,7 @@ from io import BytesIO
 from urllib.parse import urlencode
 
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import user_passes_test
@@ -46,7 +48,11 @@ from catalogo.models import (
 from pedidos.models import Cobros, ConexionMP, Pedido, ZonaEnvio
 from pedidos.services import mercadopago
 
+from . import ia
 from .forms import CobrosForm, PortadaForm, ProductoForm, ZonaForm
+
+
+logger = logging.getLogger(__name__)
 
 
 def _es_staff(usuario):
@@ -356,6 +362,7 @@ def prenda_editar(request, pk=None):
             "filas_talle": filas_talle,
             "colores": colores,
             "bloques_color": bloques_color,
+            "ia_activa": ia.configurada(),
             "categorias": Categoria.objects.all(),
             "vendida": prenda.items_pedido.exists() if prenda else False,
         },
@@ -449,6 +456,130 @@ def foto_borrar(request, pk):
         foto.imagen.delete(save=False)
     foto.delete()
     return JsonResponse({"ok": True})
+
+
+# --- Fotos con IA (Gemini) ----------------------------------------------------------
+def _leer_foto(foto) -> bytes:
+    """Los bytes de la foto actual, venga del storage o de static/."""
+    if foto.imagen:
+        with foto.imagen.open("rb") as f:
+            return f.read()
+    if foto.ruta_estatica:
+        from django.contrib.staticfiles import finders
+        from django.contrib.staticfiles.storage import staticfiles_storage
+
+        try:
+            with staticfiles_storage.open(foto.ruta_estatica) as f:
+                return f.read()
+        except (FileNotFoundError, OSError):
+            ruta = finders.find(foto.ruta_estatica)  # en desarrollo, sin collectstatic
+            if ruta:
+                with open(ruta, "rb") as f:
+                    return f.read()
+    raise ia.ErrorIA("No encontramos el archivo de esta foto.")
+
+
+def _borrar_archivo(nombre: str) -> None:
+    from django.core.files.storage import default_storage
+
+    if nombre:
+        try:
+            default_storage.delete(nombre)
+        except Exception:  # noqa: BLE001 — un archivo huérfano no es motivo para fallar
+            pass
+
+
+@solo_duena
+@require_POST
+def foto_ia(request, pk):
+    """Pide a la IA la versión de catálogo de la foto. Queda pendiente de aprobar."""
+    from django.core.files.storage import default_storage
+
+    foto = get_object_or_404(ProductoImagen.objects.select_related("producto"), pk=pk)
+    try:
+        editada, modelo = ia.mejorar(_leer_foto(foto))
+        archivo = _normalizar_imagen(BytesIO(editada))
+    except ia.ErrorIA as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falló la edición con IA de la foto %s", pk)
+        return JsonResponse({"ok": False, "error": "No pudimos editar la foto. Probá de nuevo."}, status=500)
+
+    _borrar_archivo(foto.ia_pendiente)  # si había una propuesta anterior sin usar
+    nombre = default_storage.save(f"productos/ia/{foto.producto.slug[:60]}.jpg", archivo)
+    foto.ia_pendiente = nombre
+    foto.save(update_fields=["ia_pendiente"])
+    logger.info("Foto %s editada con %s", pk, modelo)
+    return JsonResponse({"ok": True, "url": foto.url_ia_pendiente, "original": foto.url, "modelo": modelo})
+
+
+@solo_duena
+@require_POST
+def foto_ia_usar(request, pk):
+    """Reemplaza la foto por la versión de la IA y guarda la original."""
+    foto = get_object_or_404(ProductoImagen, pk=pk)
+    if not foto.ia_pendiente:
+        return JsonResponse({"ok": False, "error": "No hay una versión con IA para usar."}, status=400)
+    # Si la foto ya era una versión con IA, la original verdadera sigue siendo la primera.
+    if not foto.original:
+        foto.original = f"img:{foto.imagen.name}" if foto.imagen else f"static:{foto.ruta_estatica}"
+    elif foto.imagen:
+        _borrar_archivo(foto.imagen.name)
+    foto.imagen.name = foto.ia_pendiente
+    foto.ruta_estatica = ""
+    foto.ia_pendiente = ""
+    foto.save(update_fields=["imagen", "ruta_estatica", "ia_pendiente", "original"])
+    return JsonResponse({"ok": True, "url": foto.url})
+
+
+@solo_duena
+@require_POST
+def foto_ia_descartar(request, pk):
+    foto = get_object_or_404(ProductoImagen, pk=pk)
+    _borrar_archivo(foto.ia_pendiente)
+    foto.ia_pendiente = ""
+    foto.save(update_fields=["ia_pendiente"])
+    return JsonResponse({"ok": True})
+
+
+@solo_duena
+@require_POST
+def foto_ia_original(request, pk):
+    """Vuelve a la foto original (la versión con IA se borra)."""
+    foto = get_object_or_404(ProductoImagen, pk=pk)
+    if not foto.original:
+        return JsonResponse({"ok": False, "error": "Esta foto ya es la original."}, status=400)
+    tipo, _, ruta = foto.original.partition(":")
+    if foto.imagen:
+        _borrar_archivo(foto.imagen.name)
+    if tipo == "static":
+        foto.imagen.name = ""
+        foto.ruta_estatica = ruta
+    else:
+        foto.imagen.name = ruta
+        foto.ruta_estatica = ""
+    foto.original = ""
+    foto.save(update_fields=["imagen", "ruta_estatica", "original"])
+    return JsonResponse({"ok": True, "url": foto.url})
+
+
+@solo_duena
+def ia_diagnostico(request):
+    """Para Operon: si la IA está configurada y qué modelos de imagen ve la clave."""
+    if not ia.configurada():
+        return JsonResponse({"configurada": False})
+    try:
+        modelos = ia.modelos_disponibles()
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({"configurada": True, "error": exc.__class__.__name__}, status=502)
+    return JsonResponse(
+        {
+            "configurada": True,
+            "modelo": settings.GEMINI_MODELO,
+            "respaldo": settings.GEMINI_MODELO_RESPALDO,
+            "modelos_de_imagen": modelos,
+        }
+    )
 
 
 # --- Pedidos -----------------------------------------------------------------

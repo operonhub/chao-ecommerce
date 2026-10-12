@@ -2272,3 +2272,242 @@
   font-size: 0.75rem;
   color: var(--tinta);
 }
+
+/* --- Fotos con IA ------------------------------------------------------------------ */
+.g-foto__boton-ia {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--aqua);
+  color: var(--tinta);
+  box-shadow: 0 4px 14px rgba(36, 27, 22, 0.25);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.g-foto__boton-ia:hover {
+  transform: scale(1.08);
+}
+
+.g-foto__boton-ia svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.g-foto__ia-lista {
+  position: absolute;
+  z-index: 2;
+  left: 0.4rem;
+  right: 0.4rem;
+  bottom: 2.6rem;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tinta);
+  color: var(--fondo);
+  font-size: 0.68rem;
+  font-weight: 500;
+  cursor: pointer;
+  animation: g-ia-latido 2.4s ease-in-out infinite;
+}
+
+.g-foto__ia-lista--original {
+  background: rgba(255, 252, 246, 0.94);
+  color: var(--tinta-suave);
+  animation: none;
+}
+
+/* Con selector de color también abajo: el aviso sube un poco. */
+.g-foto:has(.g-foto__color) .g-foto__ia-lista {
+  bottom: 4.6rem;
+}
+
+@keyframes g-ia-latido {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(177, 207, 209, 0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(177, 207, 209, 0); }
+}
+
+.g-ayuda--ia {
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--g-campo-radio);
+  background: #eef4f4;
+}
+
+.g-ia {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.g-ia[hidden] {
+  display: none;
+}
+
+.g-ia__velo {
+  position: absolute;
+  inset: 0;
+  background: rgba(36, 27, 22, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.g-ia__caja {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  border-radius: 20px;
+  background: var(--g-card);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+}
+
+.g-ia__titulo {
+  margin: 0 0 1rem;
+  font-family: var(--serif);
+  font-size: 1.7rem;
+}
+
+.g-ia__titulo em {
+  font-style: italic;
+  color: var(--sage-deep);
+}
+
+.g-ia__fotos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.g-ia__fotos figure {
+  position: relative;
+  margin: 0;
+}
+
+.g-ia__fotos img,
+.g-ia__editando {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.g-ia__fotos figcaption {
+  margin-top: 0.4rem;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--tinta-mute);
+}
+
+.g-ia__editando {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  text-align: center;
+}
+
+.g-ia__editando[hidden] {
+  display: none;
+}
+
+.g-ia__editando p {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+}
+
+.g-ia__editando p span {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--tinta-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.g-ia__editando small {
+  position: relative;
+  z-index: 1;
+  max-width: 22ch;
+  font-size: 0.72rem;
+  color: var(--tinta-mute);
+}
+
+/* El "editando": un barrido de luz que cruza la foto, como un escáner. */
+.g-ia__brillo {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.65) 50%, transparent 70%),
+    radial-gradient(circle at 30% 20%, rgba(177, 207, 209, 0.55), transparent 55%),
+    radial-gradient(circle at 70% 80%, rgba(242, 234, 220, 0.9), transparent 60%);
+  background-size: 250% 100%, 100% 100%, 100% 100%;
+  animation: g-ia-barrido 1.8s linear infinite;
+}
+
+@keyframes g-ia-barrido {
+  from { background-position: 120% 0, 0 0, 0 0; }
+  to { background-position: -120% 0, 0 0, 0 0; }
+}
+
+.g-ia__error {
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--g-campo-radio);
+  background: #f6e3e3;
+  color: var(--bordo);
+  font-size: 0.9rem;
+}
+
+.g-ia__error[hidden],
+.g-ia__aviso[hidden] {
+  display: none;
+}
+
+.g-ia__aviso {
+  margin: 1rem 0 0;
+}
+
+.g-ia__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.1rem;
+  margin-top: 1.1rem;
+}
+
+.g-ia__acciones .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-ia__brillo,
+  .g-foto__ia-lista {
+    animation: none;
+  }
+}

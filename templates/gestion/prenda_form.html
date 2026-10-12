@@ -22,14 +22,37 @@
     <section class="g-bloque">
       <h2 class="g-bloque__titulo">Fotos</h2>
       <p class="g-ayuda">La primera es la que se ve en el catálogo; la segunda aparece al pasar el mouse. Las fotos del celular se achican solas.</p>
+      {% if ia_activa %}
+        <p class="g-ayuda g-ayuda--ia">
+          <b>✨ Mejorar con IA:</b> tocá la estrellita de una foto y la IA la deja como foto de estudio (fondo crema,
+          buena luz). Para que salga fiel, sacá la prenda <b>entera</b> y bien iluminada: lo que no se ve en la foto, la
+          IA lo inventa. Siempre vas a ver las dos y elegís.
+        </p>
+      {% endif %}
 
       <div class="g-fotos" data-fotos>
         {% for f in fotos %}
           <figure class="g-foto" data-foto="{{ f.pk }}"
                   data-url-mover="{% url 'gestion:foto_mover' f.pk %}"
-                  data-url-borrar="{% url 'gestion:foto_borrar' f.pk %}">
+                  data-url-borrar="{% url 'gestion:foto_borrar' f.pk %}"
+                  data-url-ia="{% url 'gestion:foto_ia' f.pk %}"
+                  data-url-ia-usar="{% url 'gestion:foto_ia_usar' f.pk %}"
+                  data-url-ia-descartar="{% url 'gestion:foto_ia_descartar' f.pk %}"
+                  data-url-ia-original="{% url 'gestion:foto_ia_original' f.pk %}"
+                  data-ia-pendiente="{{ f.url_ia_pendiente }}">
             <img src="{{ f.url }}" alt="">
             <span class="g-foto__principal">Principal</span>
+            {% if ia_activa %}
+              <button type="button" data-foto-ia aria-label="Mejorar con IA" title="Mejorar con IA" class="g-foto__boton-ia">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6zM18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+              </button>
+            {% endif %}
+            {% if f.ia_pendiente %}
+              <button type="button" class="g-foto__ia-lista" data-foto-ia-ver>✨ Versión con IA lista</button>
+            {% elif f.original %}
+              <button type="button" class="g-foto__ia-lista g-foto__ia-lista--original" data-foto-ia-original
+                      title="Esta foto está mejorada con IA">✨ IA · volver a la original</button>
+            {% endif %}
             {% if colores %}
               <label class="g-foto__color">
                 <span class="solo-lectores">Color de esta foto</span>
@@ -231,6 +254,39 @@
     <button type="submit" name="despues" value="otra" class="btn btn--secundario">Guardar y cargar otra</button>
   </div>
 </form>
+
+{% if ia_activa %}
+<div class="g-ia" data-ia-modal hidden role="dialog" aria-modal="true" aria-labelledby="g-ia-titulo">
+  <div class="g-ia__velo" data-ia-cerrar></div>
+  <div class="g-ia__caja">
+    <p class="g-ia__titulo" id="g-ia-titulo">Foto con <em>IA</em></p>
+    <div class="g-ia__fotos">
+      <figure>
+        <img data-ia-antes alt="Foto original">
+        <figcaption>Original</figcaption>
+      </figure>
+      <figure class="g-ia__despues" data-ia-figura>
+        <img data-ia-despues alt="Foto mejorada con IA" hidden>
+        <div class="g-ia__editando" data-ia-editando>
+          <span class="g-ia__brillo" aria-hidden="true"></span>
+          <p><b>Editando con IA…</b><span data-ia-segundos>0 s</span></p>
+          <small>Suele tardar entre 20 y 60 segundos.</small>
+        </div>
+        <figcaption>Con IA</figcaption>
+      </figure>
+    </div>
+    <p class="g-ia__error" data-ia-error hidden role="alert"></p>
+    <p class="g-ayuda g-ia__aviso" data-ia-aviso hidden>
+      Antes de usarla, mirá que la prenda sea <b>igual a la real</b>: color, estampado, largo y etiqueta.
+    </p>
+    <div class="g-ia__acciones">
+      <button type="button" class="btn btn--primario" data-ia-usar disabled>Usar la mejorada</button>
+      <button type="button" class="btn btn--secundario" data-ia-otra disabled>Probar otra vez</button>
+      <button type="button" class="cta-ghost" data-ia-descartar>Quedarme con la original</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% if prenda %}
   <form method="post" action="{% url 'gestion:prenda_borrar' prenda.pk %}" class="g-zona-peligro"

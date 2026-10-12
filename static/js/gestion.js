@@ -118,6 +118,168 @@
     });
   });
 
+  /* --- Fotos con IA ------------------------------------------------------------
+     La estrellita de una foto pide la versión de estudio. Se abre una ventana
+     con la original y, al lado, la edición en curso (con un contador, porque
+     tarda). Después: usar la mejorada, probar otra vez o quedarse con la
+     original. Nada se publica sin que la dueña elija. */
+  const modalIA = $("[data-ia-modal]");
+  if (modalIA) {
+    const antes = $("[data-ia-antes]", modalIA);
+    const despues = $("[data-ia-despues]", modalIA);
+    const editando = $("[data-ia-editando]", modalIA);
+    const segundos = $("[data-ia-segundos]", modalIA);
+    const error = $("[data-ia-error]", modalIA);
+    const aviso = $("[data-ia-aviso]", modalIA);
+    const usar = $("[data-ia-usar]", modalIA);
+    const otra = $("[data-ia-otra]", modalIA);
+    const descartar = $("[data-ia-descartar]", modalIA);
+    let fig = null;
+    let reloj = null;
+    let ocupado = false;
+
+    const abrir = () => {
+      modalIA.hidden = false;
+      document.body.style.overflow = "hidden";
+    };
+    const cerrar = () => {
+      if (ocupado) return; // mientras edita no se cierra: se perdería el resultado
+      modalIA.hidden = true;
+      document.body.style.overflow = "";
+      clearInterval(reloj);
+    };
+
+    function mostrarResultado(url) {
+      clearInterval(reloj);
+      editando.hidden = true;
+      despues.src = url;
+      despues.hidden = false;
+      aviso.hidden = false;
+      usar.disabled = false;
+      otra.disabled = false;
+    }
+
+    async function editar() {
+      ocupado = true;
+      error.hidden = true;
+      aviso.hidden = true;
+      despues.hidden = true;
+      editando.hidden = false;
+      usar.disabled = true;
+      otra.disabled = true;
+      descartar.disabled = true;
+      const inicio = Date.now();
+      segundos.textContent = "0 s";
+      clearInterval(reloj);
+      reloj = setInterval(() => (segundos.textContent = `${Math.round((Date.now() - inicio) / 1000)} s`), 1000);
+      try {
+        const res = await postear(fig.dataset.urlIa, {});
+        fig.dataset.iaPendiente = res.url;
+        mostrarResultado(res.url);
+        marcarLista(fig, true);
+      } catch (err) {
+        clearInterval(reloj);
+        editando.hidden = true;
+        error.textContent = err.message;
+        error.hidden = false;
+        otra.disabled = false;
+      } finally {
+        ocupado = false;
+        descartar.disabled = false;
+      }
+    }
+
+    function marcarLista(f, lista) {
+      let chip = $("[data-foto-ia-ver]", f);
+      if (lista && !chip) {
+        chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "g-foto__ia-lista";
+        chip.dataset.fotoIaVer = "";
+        chip.textContent = "✨ Versión con IA lista";
+        $("[data-foto-ia-original]", f)?.remove();
+        f.appendChild(chip);
+      } else if (!lista && chip) {
+        chip.remove();
+      }
+    }
+
+    document.addEventListener("click", async (e) => {
+      const pedir = e.target.closest("[data-foto-ia]");
+      const ver = e.target.closest("[data-foto-ia-ver]");
+      const original = e.target.closest("[data-foto-ia-original]");
+      if (!pedir && !ver && !original) return;
+      fig = e.target.closest("[data-foto]");
+      if (!fig) return;
+      e.preventDefault();
+
+      if (original) {
+        if (!confirm("¿Volver a la foto original? La versión con IA se borra.")) return;
+        try {
+          const res = await postear(fig.dataset.urlIaOriginal, {});
+          $("img", fig).src = res.url;
+          original.remove();
+          toast("Volvimos a la foto original");
+        } catch (err) {
+          toast(err.message, "error");
+        }
+        return;
+      }
+
+      antes.src = $("img", fig).src;
+      abrir();
+      if (ver && fig.dataset.iaPendiente) {
+        editando.hidden = true;
+        error.hidden = true;
+        mostrarResultado(fig.dataset.iaPendiente);
+        descartar.disabled = false;
+      } else {
+        editar();
+      }
+    });
+
+    otra.addEventListener("click", () => fig && editar());
+
+    usar.addEventListener("click", async () => {
+      usar.disabled = true;
+      try {
+        const res = await postear(fig.dataset.urlIaUsar, {});
+        $("img", fig).src = res.url;
+        fig.dataset.iaPendiente = "";
+        marcarLista(fig, false);
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "g-foto__ia-lista g-foto__ia-lista--original";
+        chip.dataset.fotoIaOriginal = "";
+        chip.textContent = "✨ IA · volver a la original";
+        fig.appendChild(chip);
+        cerrar();
+        toast("Listo: la tienda ya muestra la foto mejorada");
+      } catch (err) {
+        usar.disabled = false;
+        toast(err.message, "error");
+      }
+    });
+
+    descartar.addEventListener("click", async () => {
+      if (fig && fig.dataset.iaPendiente) {
+        try {
+          await postear(fig.dataset.urlIaDescartar, {});
+          fig.dataset.iaPendiente = "";
+          marcarLista(fig, false);
+        } catch (err) {
+          /* si falla, la propuesta queda guardada y se puede ver después */
+        }
+      }
+      cerrar();
+    });
+
+    $$("[data-ia-cerrar]", modalIA).forEach((el) => el.addEventListener("click", cerrar));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !modalIA.hidden) cerrar();
+    });
+  }
+
   /* --- Ficha: fotos ----------------------------------------------------------- */
   const grillaFotos = $("[data-fotos]");
   if (grillaFotos) {

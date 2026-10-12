@@ -512,3 +512,95 @@ class LookCompletoTests(Base):
         self.assertContains(r, f'name="talle_{self.prenda.pk}"')
         self.assertContains(r, "data-look-talle")
         self.assertContains(r, "Sin stock por ahora")
+
+
+@override_settings(GEMINI_API_KEY="clave-test", GEMINI_MODELO="pro-test", GEMINI_MODELO_RESPALDO="rapido-test")
+class FotosIATests(Base):
+    """Editor de fotos con IA, con Gemini simulado."""
+
+    @staticmethod
+    def jpeg(color=(200, 120, 90), tam=(60, 80)):
+        from io import BytesIO
+        from PIL import Image
+
+        b = BytesIO()
+        Image.new("RGB", tam, color).save(b, format="JPEG")
+        return b.getvalue()
+
+    def gemini(self, status=200):
+        import base64
+
+        cuerpo = {"candidates": [{"content": {"parts": [
+            {"inlineData": {"mimeType": "image/jpeg", "data": base64.b64encode(self.jpeg((240, 230, 210))).decode()}}
+        ]}}]}
+        if status == 429:
+            cuerpo = {"error": {"message": "Quota exceeded / billing"}}
+        elif status != 200:
+            cuerpo = {"error": {"message": "Internal error"}}
+        return respuesta(status, cuerpo)
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from django.core.files.base import ContentFile
+        from catalogo.models import ProductoImagen
+
+        self.client.force_login(get_user_model().objects.create_user("clau-ia", is_staff=True))
+        self.foto = ProductoImagen(producto=self.prenda)
+        self.foto.imagen.save("productos/original.jpg", ContentFile(self.jpeg()), save=True)
+        self.original_nombre = self.foto.imagen.name
+
+    def post(self, nombre):
+        return self.client.post(reverse(nombre, args=[self.foto.pk]))
+
+    def test_mejorar_deja_propuesta_sin_reemplazar(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(post.call_args.args[0].endswith("/models/pro-test:generateContent"))
+        cuerpo = post.call_args.kwargs["json"]
+        self.assertIn("EXACTLY the same", cuerpo["contents"][0]["parts"][0]["text"])
+        self.assertEqual(cuerpo["generationConfig"]["imageConfig"], {"aspectRatio": "3:4", "imageSize": "2K"})
+        self.foto.refresh_from_db()
+        self.assertTrue(self.foto.ia_pendiente)
+        self.assertEqual(self.foto.imagen.name, self.original_nombre)  # la tienda sigue con la original
+
+    def test_usar_y_volver_a_la_original(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        self.foto.refresh_from_db()
+        pendiente = self.foto.ia_pendiente
+        self.assertEqual(self.post("gestion:foto_ia_usar").status_code, 200)
+        self.foto.refresh_from_db()
+        self.assertEqual(self.foto.imagen.name, pendiente)
+        self.assertEqual(self.foto.original, f"img:{self.original_nombre}")
+        self.assertEqual(self.post("gestion:foto_ia_original").status_code, 200)
+        self.foto.refresh_from_db()
+        self.assertEqual(self.foto.imagen.name, self.original_nombre)
+        self.assertFalse(self.foto.original)
+
+    def test_respaldo_si_la_pro_falla(self):
+        with mock.patch("gestion.ia.requests.post", side_effect=[self.gemini(500), self.gemini()]) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.json()["modelo"], "rapido-test")
+        self.assertEqual(post.call_count, 2)
+
+    def test_sin_credito_explica_y_no_reintenta(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(429)) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertEqual(r.status_code, 502)
+        self.assertIn("crédito", r.json()["error"])
+        self.assertEqual(post.call_count, 1)
+
+    def test_descartar(self):
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        self.post("gestion:foto_ia_descartar")
+        self.foto.refresh_from_db()
+        self.assertFalse(self.foto.ia_pendiente)
+
+    def test_boton_solo_con_clave(self):
+        url = reverse("gestion:prenda_editar", args=[self.prenda.pk])
+        self.assertContains(self.client.get(url), "data-foto-ia")
+        with override_settings(GEMINI_API_KEY=""):
+            self.assertNotContains(self.client.get(url), "data-foto-ia ")

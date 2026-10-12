@@ -24,6 +24,7 @@ urlpatterns = [
     path("ia/diagnostico/", views.ia_diagnostico, name="ia_diagnostico"),
     path("pedidos/", views.pedidos, name="pedidos"),
     path("pedidos/<int:pk>/", views.pedido_actualizar, name="pedido_actualizar"),
+    path("pedidos/<int:pk>/borrar/", views.pedido_borrar, name="pedido_borrar"),
     path("portada/", views.portada, name="portada"),
     path("cobros/", views.cobros, name="cobros"),
     path("mercadopago/conectar/", views.mp_conectar, name="mp_conectar"),

@@ -692,6 +692,18 @@ def pedido_actualizar(request, pk):
     )
 
 
+@solo_duena
+@require_POST
+def pedido_borrar(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    numero = pedido.pk
+    if pedido.eliminar():
+        messages.success(request, f"Eliminamos el pedido #{numero} y el stock volvió a la tienda.")
+    else:
+        messages.success(request, f"Eliminamos el pedido #{numero}.")
+    return redirect(reverse("gestion:pedidos") + (f"?ver={request.POST['ver']}" if request.POST.get("ver") else ""))
+
+
 # --- Portada -------------------------------------------------------------------
 @solo_duena
 def portada(request):

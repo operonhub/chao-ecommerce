@@ -136,6 +136,36 @@ class StockTests(Base):
         self.variante.refresh_from_db()
         self.assertEqual(self.variante.stock, 3)
 
+    def test_eliminar_pedido_devuelve_stock_y_libera_la_prenda(self):
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(get_user_model().objects.create_user("clau-borra", is_staff=True))
+        p = self.pedido(cantidad=2)
+        p.marcar_pagado("1")
+        r = self.client.post(reverse("gestion:pedido_borrar", args=[p.pk]))
+        self.assertRedirects(r, reverse("gestion:pedidos"), fetch_redirect_response=False)
+        self.assertFalse(Pedido.objects.filter(pk=p.pk).exists())
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 3)
+        # Sin pedidos, la prenda ya se puede borrar de verdad (no solo ocultar).
+        self.client.post(reverse("gestion:prenda_borrar", args=[self.prenda.pk]))
+        self.assertFalse(Producto.objects.filter(pk=self.prenda.pk).exists())
+
+    def test_eliminar_pedido_entregado_o_sin_pagar_no_toca_stock(self):
+        entregado = self.pedido()
+        entregado.marcar_pagado("1")
+        entregado.entregado = True
+        entregado.save()
+        self.assertFalse(entregado.eliminar())  # la prenda ya se fue del local
+        self.assertFalse(self.pedido().eliminar())  # pendiente: nunca descontó
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 2)
+
+    def test_eliminar_pedido_pide_login(self):
+        p = self.pedido()
+        self.client.post(reverse("gestion:pedido_borrar", args=[p.pk]))
+        self.assertTrue(Pedido.objects.filter(pk=p.pk).exists())
+
     def test_stock_nunca_negativo(self):
         p = self.pedido(cantidad=5)
         p.marcar_pagado()

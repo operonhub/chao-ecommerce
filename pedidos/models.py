@@ -166,6 +166,20 @@ class Pedido(models.Model):
             pedido.save()
         self.refresh_from_db()
 
+    def eliminar(self) -> bool:
+        """
+        Borra el pedido (para pruebas o pedidos cargados por error). Si había
+        descontado stock y la prenda no se entregó, el stock vuelve. Devuelve si
+        devolvió stock.
+        """
+        with transaction.atomic():
+            pedido = Pedido.objects.select_for_update().get(pk=self.pk)
+            devuelve = pedido.stock_descontado and not pedido.entregado
+            if devuelve:
+                pedido._mover_stock(+1)
+            pedido.delete()
+        return devuelve
+
     def _mover_stock(self, signo: int) -> None:
         from catalogo.models import Variante
 

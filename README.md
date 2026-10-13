@@ -123,14 +123,39 @@ El carrito, el checkout, los pedidos y los paneles no se indexan nunca. Las etiq
 vista previa (Open Graph: título, descripción y foto al pegar el link en WhatsApp o
 Instagram) salen siempre.
 
-**Para abrir la tienda a Google**, cuando CHAO dé el visto bueno:
+**Abrir la tienda a Google** — hecho: `SITIO_URL=https://www.chaoindumentaria.com` y
+`PERMITIR_INDEXADO=True` ya están cargadas en Vercel, el sitemap responde y el apex
+redirige a `www` con un 308.
 
-1. Definir el dominio definitivo y cargarlo en `SITIO_URL`. Si cambia, hay que
-   actualizar también la URL de vuelta y el webhook en la app de Mercado Pago.
-2. Confirmar que no queden precios de muestra ni prendas de prueba.
-3. Poner `PERMITIR_INDEXADO=True` en las variables del hosting y redeployar.
-4. Verificar el dominio en Google Search Console (con la cuenta de CHAO) y enviar
-   `/sitemap.xml`.
+**Falta reclamar la propiedad en Search Console.** Lo tiene que hacer alguien con la
+cuenta de Google de CHAO:
+
+1. Entrar a [search.google.com/search-console](https://search.google.com/search-console)
+   → **Agregar propiedad** → **Prefijo de URL** → `https://www.chaoindumentaria.com`
+   (con `www`: es el dominio canónico, el apex solo redirige).
+2. Elegir **Etiqueta HTML** y copiar lo que está adentro de `content="..."`, sin la
+   etiqueta entera.
+3. Pegarlo en Vercel → Settings → Environment Variables → `GOOGLE_SITE_VERIFICATION`,
+   y **redeployar** (la variable se lee en el build).
+4. Volver a Search Console y tocar **Verificar**.
+5. Ya verificado: **Sitemaps** → enviar `sitemap.xml`. Y en **Inspección de URLs**,
+   pedir indexación de la home para acelerar la primera pasada.
+
+No borrar la variable después: Google revalida cada tanto y la propiedad se cae.
+
+### Pendiente: `<lastmod>` en el sitemap
+
+El sitemap no lleva `<lastmod>` porque `Producto` no guarda fecha de modificación.
+Poner la fecha de alta sería mentir y Google deja de confiar en el dato. Para
+agregarlo hace falta un campo `actualizado = models.DateTimeField(auto_now=True)`
+y su migración — ver la advertencia de abajo antes de hacerlo.
+
+> ⚠️ **Vercel no corre las migraciones en el deploy.** `render.yaml` las corría, pero
+> Render ya no se usa y `vercel.json` no tiene `buildCommand`. Como Django incluye
+> todos los campos declarados en cada `SELECT`, subir un modelo con un campo que no
+> existe en Supabase tira **500 en toda página que toque esa tabla**, no solo en la
+> nueva función. Cualquier cambio de modelo se aplica primero contra la base de
+> producción y recién después se deploya el código.
 
 ---
 

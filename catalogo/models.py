@@ -56,6 +56,9 @@ class Producto(models.Model):
     destacado = models.BooleanField(default=False, help_text="Aparece primero en el catálogo.")
     orden = models.PositiveSmallIntegerField(default=0)
     creado = models.DateTimeField(auto_now_add=True)
+    # Alimenta el <lastmod> del sitemap. Google solo le hace caso a esa fecha si
+    # es fiel, así que tiene que ser la de la última edición real y no la de alta.
+    actualizado = models.DateTimeField(auto_now=True)
 
     # Herramientas de vidriera que maneja la dueña desde /gestion/.
     etiqueta = models.CharField(

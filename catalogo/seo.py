@@ -49,6 +49,10 @@ def contexto(request):
             # Sin parámetros: /catalogo/?orden=nuevo es la misma página que /catalogo/.
             "canonical": f"{settings.SITIO_URL}{request.path}" if indexable else "",
             "url": f"{base_url(request)}{request.path}",
+            # Google pide la etiqueta en la home, pero la deja en todas las
+            # páginas sin problema: así la verificación no depende de que la
+            # home sea la que el bot visite primero.
+            "verificacion_google": settings.GOOGLE_SITE_VERIFICATION,
         }
     }
 
@@ -144,13 +148,30 @@ def sitemap_xml(request):
     if not settings.PERMITIR_INDEXADO:
         raise Http404("El sitemap se publica cuando la tienda se abre a los buscadores.")
     base = settings.SITIO_URL
-    rutas = [reverse("catalogo:home"), reverse("catalogo:catalogo"), reverse("catalogo:looks")]
-    rutas += [
-        reverse("catalogo:catalogo_categoria", args=[c.slug])
+    activos = list(Producto.objects.filter(activo=True).only("slug", "actualizado"))
+
+    # `lastmod` solo donde se puede decir la verdad. Para la home y los listados
+    # es la edición más reciente del catálogo: son páginas que se arman con las
+    # prendas, así que cuando cambia una, cambian ellas.
+    ultimo = max((p.actualizado for p in activos), default=None)
+
+    entradas = [
+        (reverse("catalogo:home"), ultimo),
+        (reverse("catalogo:catalogo"), ultimo),
+        (reverse("catalogo:looks"), ultimo),
+    ]
+    entradas += [
+        (reverse("catalogo:catalogo_categoria", args=[c.slug]), ultimo)
         for c in Categoria.objects.filter(productos__activo=True).distinct()
     ]
-    rutas += [p.get_absolute_url() for p in Producto.objects.filter(activo=True).only("slug")]
-    urls = "".join(f"<url><loc>{escape(base + ruta)}</loc></url>" for ruta in rutas)
+    entradas += [(p.get_absolute_url(), p.actualizado) for p in activos]
+
+    urls = "".join(
+        f"<url><loc>{escape(base + ruta)}</loc>"
+        + (f"<lastmod>{fecha.date().isoformat()}</lastmod>" if fecha else "")
+        + "</url>"
+        for ruta, fecha in entradas
+    )
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% load static humanize_ar editorial seo %}
+{% load static humanize_ar editorial %}
 
 {% block titulo %}{{ prenda.nombre }} — {{ negocio.nombre }}{% endblock %}
-{% block descripcion %}{% if prenda.descripcion %}{{ prenda.descripcion|meta_texto:110 }} {% endif %}{{ prenda.categoria.nombre }} en {{ negocio.nombre }}, {{ negocio.direccion }}.{% endblock %}
+{% block descripcion %}{% if prenda.descripcion %}{{ prenda.descripcion|truncatechars:110 }} {% endif %}{{ prenda.categoria.nombre }} en {{ negocio.nombre }}, {{ negocio.direccion }}.{% endblock %}
 {% block og_tipo %}product{% endblock %}
 {% block og_titulo %}{{ prenda.nombre }} — {{ negocio.nombre }}{% endblock %}
-{% block og_descripcion %}{% if prenda.descripcion %}{{ prenda.descripcion|meta_texto:140 }}{% else %}{{ prenda.categoria.nombre }} en {{ negocio.nombre }}, {{ negocio.direccion }}.{% endif %}{% endblock %}
+{% block og_descripcion %}{% if prenda.descripcion %}{{ prenda.descripcion|truncatechars:140 }}{% else %}{{ prenda.categoria.nombre }} en {{ negocio.nombre }}, {{ negocio.direccion }}.{% endif %}{% endblock %}
 
 {% block contenido %}
 <nav class="contenido migas" aria-label="Estás en">

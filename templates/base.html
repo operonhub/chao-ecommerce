@@ -13,12 +13,6 @@
   {% else %}
     <meta name="robots" content="noindex, nofollow">
   {% endif %}
-  {% comment %} Propiedad de Google Search Console. Va aunque la página sea
-    noindex: verificar la propiedad y permitir el indexado son cosas distintas,
-    y Google necesita leer la etiqueta para confirmar que el sitio es nuestro. {% endcomment %}
-  {% if seo.verificacion_google %}
-    <meta name="google-site-verification" content="{{ seo.verificacion_google }}">
-  {% endif %}
 
   {% comment %} Vista previa al compartir el link (WhatsApp, Instagram): es por
     donde CHAO vende, así que la foto y el título tienen que salir bien. {% endcomment %}

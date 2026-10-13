@@ -247,9 +247,3 @@ SITIO_URL = os.getenv("SITIO_URL", "").rstrip("/")
 # Se prende (PERMITIR_INDEXADO=True) recién con el dominio definitivo cargado en
 # SITIO_URL y el visto bueno de CHAO: ahí aparecen el canonical y el sitemap.
 PERMITIR_INDEXADO = env_bool("PERMITIR_INDEXADO", False) and bool(SITIO_URL)
-
-# Código de Google Search Console (solo el valor del `content`, no la etiqueta
-# entera). Se saca en search.google.com/search-console → Agregar propiedad →
-# Prefijo de URL → Etiqueta HTML. Verificado una vez, Google lo sigue
-# comprobando: si se borra la variable, la propiedad se cae.
-GOOGLE_SITE_VERIFICATION = os.getenv("GOOGLE_SITE_VERIFICATION", "").strip()

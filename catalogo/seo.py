@@ -49,6 +49,10 @@ def contexto(request):
             # Sin parámetros: /catalogo/?orden=nuevo es la misma página que /catalogo/.
             "canonical": f"{settings.SITIO_URL}{request.path}" if indexable else "",
             "url": f"{base_url(request)}{request.path}",
+            # Google pide la etiqueta en la home, pero la deja en todas las
+            # páginas sin problema: así la verificación no depende de que la
+            # home sea la que el bot visite primero.
+            "verificacion_google": settings.GOOGLE_SITE_VERIFICATION,
         }
     }
 
@@ -150,6 +154,9 @@ def sitemap_xml(request):
         for c in Categoria.objects.filter(productos__activo=True).distinct()
     ]
     rutas += [p.get_absolute_url() for p in Producto.objects.filter(activo=True).only("slug")]
+    # Sin <lastmod> a propósito: hoy Producto no guarda fecha de modificación, y
+    # una fecha inventada (la de alta) hace que Google deje de confiar en el dato.
+    # Se agrega junto con el campo `actualizado` — ver README.
     urls = "".join(f"<url><loc>{escape(base + ruta)}</loc></url>" for ruta in rutas)
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'

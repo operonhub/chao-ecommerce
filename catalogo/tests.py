@@ -193,3 +193,31 @@ class MetaDescripcionTests(Base):
         meta = re.search(r'<meta name="description" content="(.*?)">', html, re.S).group(1)
         self.assertNotIn("palabr…", meta)
         self.assertIn("…", meta)
+
+
+@override_settings(STORAGES=SIN_MANIFIESTO)
+class FaviconTests(Base):
+    """Google Search no acepta SVG y pide una URL estable: por eso hay .ico en la raíz."""
+
+    def test_favicon_ico_se_sirve_en_la_raiz(self):
+        r = self.client.get("/favicon.ico")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "image/x-icon")
+        # Firma de un .ico real: 00 00 01 00
+        self.assertEqual(r.content[:4], b"\x00\x00\x01\x00")
+
+    def test_apple_touch_icon_se_sirve_en_la_raiz(self):
+        r = self.client.get("/apple-touch-icon.png")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "image/png")
+
+    def test_la_home_declara_un_formato_que_google_lee(self):
+        html = self.client.get(reverse("catalogo:home")).content.decode()
+        # Sin hash: si lleva hash, la URL cambia en cada deploy y Google la descarta.
+        self.assertIn('<link rel="icon" href="/favicon.ico" sizes="any">', html)
+
+    def test_no_se_sirve_cualquier_archivo_desde_la_raiz(self):
+        # La vista toma el nombre de la URL: que no sea una puerta para leer otra cosa.
+        self.assertEqual(self.client.get("/robots.txt").status_code, 200)
+        for ruta in ("/favicon.png", "/apple-touch-icon.ico"):
+            self.assertEqual(self.client.get(ruta).status_code, 404, ruta)

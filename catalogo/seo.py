@@ -163,3 +163,29 @@ def sitemap_xml(request):
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
     )
     return HttpResponse(xml, content_type="application/xml; charset=utf-8")
+
+
+# --- Favicons en la raíz ------------------------------------------------------------
+# Google Search **no acepta SVG** como favicon: su lista es BMP, GIF, ICO, PNG, JPEG,
+# PPM y TIFF. Además pide que la URL sea estable, y `{% static %}` le mete un hash de
+# contenido al nombre. Por eso estos dos archivos se sirven desde la raíz, con su
+# nombre de siempre, en vez de pasar por WhiteNoise.
+_ICONOS = {
+    "favicon.ico": "image/x-icon",
+    "apple-touch-icon.png": "image/png",
+}
+
+
+def icono_raiz(request, nombre: str):
+    tipo = _ICONOS.get(nombre)
+    if not tipo:
+        raise Http404(nombre)
+    # Se lee del `static/` del repo y no de STATIC_ROOT: así no depende de que
+    # haya corrido collectstatic, que en Vercel pasa en otro momento del build.
+    ruta = settings.BASE_DIR / "static" / nombre
+    if not ruta.exists():
+        raise Http404(nombre)
+    respuesta = HttpResponse(ruta.read_bytes(), content_type=tipo)
+    # Un año: el contenido solo cambia si cambia la marca, y entonces se purga a mano.
+    respuesta["Cache-Control"] = "public, max-age=31536000, immutable"
+    return respuesta

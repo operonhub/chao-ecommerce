@@ -45,7 +45,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/chao.css' %}">
   {% block estilos %}{% endblock %}
-  <link rel="icon" href="{% static 'img/favicon.svg' %}">
+  {% comment %} El .ico va primero y sin hash porque es el que lee Google: Search no
+    acepta SVG y pide una URL estable. Los navegadores modernos igual se quedan con el
+    SVG, que es el que entienden por `type` y escala sin pixelarse. {% endcomment %}
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
   {% block intro %}{% endblock %}

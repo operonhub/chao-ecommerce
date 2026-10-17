@@ -29,6 +29,7 @@ urlpatterns = [
     path("looks/<int:pk>/activo/", views.look_toggle, name="look_toggle"),
     path("looks/<int:pk>/mover/", views.look_mover, name="look_mover"),
     path("looks/<int:pk>/borrar/", views.look_borrar, name="look_borrar"),
+    path("ventas/prendas/", views.venta_prendas, name="venta_prendas"),
     path("prendas/<int:pk>/venta/", views.venta_opciones, name="venta_opciones"),
     path("prendas/<int:pk>/vender/", views.venta_rapida, name="venta_rapida"),
     path("ventas/<int:pk>/deshacer/", views.venta_deshacer, name="venta_deshacer"),

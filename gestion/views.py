@@ -986,6 +986,35 @@ def _opciones_venta(prenda):
 
 
 @solo_duena
+def venta_prendas(request):
+    """Las prendas cargadas, para elegir cuál se vendió desde "Venta rápida"."""
+    prendas = (
+        Producto.objects.select_related("categoria")
+        .prefetch_related("imagenes", "variantes")
+        .order_by("-activo", "nombre")
+    )
+    lista = []
+    for p in prendas:
+        foto = p.foto_principal
+        con_talles = p.tiene_talles
+        lista.append(
+            {
+                "nombre": p.nombre,
+                "marca": p.marca,
+                "categoria": p.categoria.nombre,
+                "precio": int(p.precio),
+                "foto": foto.url if foto else "",
+                "stock": p.stock_total if con_talles else None,
+                "sin_stock": con_talles and not p.hay_stock,
+                "oculta": not p.activo,
+                "opciones": reverse("gestion:venta_opciones", args=[p.pk]),
+                "vender": reverse("gestion:venta_rapida", args=[p.pk]),
+            }
+        )
+    return JsonResponse({"ok": True, "prendas": lista})
+
+
+@solo_duena
 def venta_opciones(request, pk):
     prenda = get_object_or_404(Producto, pk=pk)
     return JsonResponse(

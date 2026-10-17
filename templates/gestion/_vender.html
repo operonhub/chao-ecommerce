@@ -4,6 +4,19 @@
   <form class="g-vender__caja" data-vender-form>
     <button type="button" class="g-vender__x" data-vender-cerrar aria-label="Cerrar">×</button>
     <p class="sup">Venta en el local</p>
+
+    {# Paso 1 (solo desde "Venta rápida"): elegir cuál de las prendas cargadas se vendió. #}
+    <div class="g-vender__elegir" data-vender-paso-elegir hidden>
+      <p class="g-vender__titulo">¿Qué vendiste?</p>
+      <label class="g-buscar g-vender__buscar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+        <input type="search" placeholder="Buscar por nombre, marca o categoría" aria-label="Buscar prenda" data-vender-buscar autocomplete="off">
+      </label>
+      <div class="g-vender__lista" data-vender-lista></div>
+    </div>
+
+    <div data-vender-paso-venta>
+    <button type="button" class="g-vender__volver" data-vender-volver hidden>← Elegir otra prenda</button>
     <p class="g-vender__titulo" id="g-vender-titulo" data-vender-nombre>…</p>
 
     <div class="g-vender__bloque" data-vender-opciones-caja>
@@ -34,5 +47,6 @@
     <p class="g-ia__error" data-vender-error hidden role="alert"></p>
     <button type="submit" class="btn btn--primario g-vender__ok" data-vender-ok>Registrar venta</button>
     <p class="g-ayuda g-vender__nota">El stock baja al toque y la venta suma en Finanzas. Si te equivocás, la podés deshacer.</p>
+    </div>
   </form>
 </div>

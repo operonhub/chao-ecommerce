@@ -394,6 +394,19 @@ class VentaLocalTests(Base):
         self.variante.refresh_from_db()
         self.assertEqual(self.variante.stock, 3)
 
+    def test_venta_rapida_lista_las_prendas_cargadas(self):
+        r = self.client.get(reverse("gestion:venta_prendas"))
+        prendas = r.json()["prendas"]
+        self.assertEqual(len(prendas), 1)
+        self.assertEqual(prendas[0]["nombre"], "Sweater de prueba")
+        self.assertEqual(prendas[0]["stock"], 3)
+        self.assertEqual(prendas[0]["vender"], reverse("gestion:venta_rapida", args=[self.prenda.pk]))
+        # El botón está arriba en Prendas, Inicio y Finanzas.
+        for nombre in ("gestion:prendas", "gestion:inicio", "gestion:finanzas"):
+            html = self.client.get(reverse(nombre)).content.decode()
+            self.assertIn("data-vender-elegir", html, nombre)
+            self.assertIn("data-vender-modal", html, nombre)
+
     def test_pide_talle_si_la_prenda_tiene_talles(self):
         r = self.vender(talle="")
         self.assertEqual(r.status_code, 400)

@@ -825,6 +825,12 @@
     const ok = $("[data-vender-ok]", modalVenta);
     let actual = null; // { boton, urlVender, elegido: {talle, color} }
     const MEDIO_KEY = "chao-ultimo-medio";
+    const pasoElegir = $("[data-vender-paso-elegir]", modalVenta);
+    const pasoVenta = $("[data-vender-paso-venta]", modalVenta);
+    const lista = $("[data-vender-lista]", modalVenta);
+    const buscar = $("[data-vender-buscar]", modalVenta);
+    const volver = $("[data-vender-volver]", modalVenta);
+    let prendasCargadas = null; // la lista para "Venta rápida", se pide una vez por página
 
     const cerrar = () => {
       modalVenta.hidden = true;
@@ -844,22 +850,115 @@
       return b;
     };
 
+    const abrir = () => {
+      modalVenta.hidden = false;
+      document.body.style.overflow = "hidden";
+    };
+
+    // "Venta rápida": primero se elige cuál de las prendas cargadas se vendió.
+    const dibujarLista = () => {
+      const q = buscar.value.trim().toLowerCase();
+      const filtradas = (prendasCargadas || []).filter(
+        (pr) => !q || `${pr.nombre} ${pr.marca} ${pr.categoria}`.toLowerCase().includes(q)
+      );
+      lista.replaceChildren(
+        ...filtradas.map((pr) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "g-vender__prenda";
+          b.disabled = pr.sin_stock;
+          b.dataset.urlOpciones = pr.opciones;
+          b.dataset.urlVender = pr.vender;
+          const foto = document.createElement("span");
+          foto.className = "g-vender__prenda-foto";
+          if (pr.foto) {
+            const img = document.createElement("img");
+            img.src = pr.foto;
+            img.alt = "";
+            img.loading = "lazy";
+            foto.append(img);
+          }
+          const datos = document.createElement("span");
+          datos.className = "g-vender__prenda-datos";
+          const n = document.createElement("b");
+          n.textContent = pr.nombre;
+          const extra = document.createElement("small");
+          extra.textContent = [
+            pr.marca,
+            `$${pesos(pr.precio)}`,
+            pr.sin_stock ? "sin stock" : pr.stock != null ? `quedan ${pr.stock}` : "",
+            pr.oculta ? "oculta" : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          datos.append(n, extra);
+          b.append(foto, datos);
+          return b;
+        })
+      );
+      if (!filtradas.length) {
+        const vacio = document.createElement("p");
+        vacio.className = "g-vacio";
+        vacio.textContent = prendasCargadas ? "No encontramos esa prenda." : "Cargando prendas…";
+        lista.append(vacio);
+      }
+    };
+    buscar.addEventListener("input", dibujarLista);
+    lista.addEventListener("click", (e) => {
+      const b = e.target.closest(".g-vender__prenda");
+      if (!b || b.disabled) return;
+      volver.hidden = false;
+      cargarPrenda(b, b.dataset.urlOpciones, b.dataset.urlVender);
+    });
+    volver.addEventListener("click", () => {
+      pasoVenta.hidden = true;
+      pasoElegir.hidden = false;
+      actual = null;
+      buscar.focus();
+    });
+
     document.addEventListener("click", async (e) => {
       const boton = e.target.closest("[data-vender]");
       if (!boton || boton.disabled) return;
       e.preventDefault();
+      if ("venderElegir" in boton.dataset) {
+        pasoElegir.hidden = false;
+        pasoVenta.hidden = true;
+        buscar.value = "";
+        abrir();
+        dibujarLista();
+        if (!prendasCargadas) {
+          try {
+            const res = await fetch(boton.dataset.urlPrendas, { headers: { "X-Requested-With": "fetch" } });
+            prendasCargadas = (await res.json()).prendas;
+          } catch {
+            prendasCargadas = [];
+          }
+          dibujarLista();
+        }
+        setTimeout(() => buscar.focus(), 50);
+        return;
+      }
+      volver.hidden = true;
+      cargarPrenda(boton, boton.dataset.urlOpciones, boton.dataset.urlVender);
+    });
+
+    async function cargarPrenda(boton, urlOpciones, urlVender) {
+      pasoElegir.hidden = true;
+      pasoVenta.hidden = false;
       error.hidden = true;
       cantidad.value = "1";
       nombre.textContent = "Cargando…";
       opciones.replaceChildren();
       medios.replaceChildren();
-      modalVenta.hidden = false;
-      document.body.style.overflow = "hidden";
+      abrir();
       ok.disabled = true;
       try {
-        const res = await fetch(boton.dataset.urlOpciones, { headers: { "X-Requested-With": "fetch" } });
+        const res = await fetch(urlOpciones, { headers: { "X-Requested-With": "fetch" } });
         const datos = await res.json();
-        actual = { boton, urlVender: boton.dataset.urlVender, elegido: null };
+        // Si en la página está la tarjeta de esa prenda, que se actualice su stock.
+        const enPagina = $(`[data-vender][data-url-vender="${urlVender}"]`);
+        actual = { boton: enPagina || boton, urlVender, elegido: null, desdeLista: boton.classList.contains("g-vender__prenda") };
         nombre.textContent = datos.nombre;
         precio.value = pesos(datos.precio);
         const conStock = datos.opciones.filter((o) => o.stock > 0);
@@ -903,7 +1002,7 @@
         error.textContent = "No pudimos cargar la prenda. Probá de nuevo.";
         error.hidden = false;
       }
-    });
+    }
 
     opciones.addEventListener("click", (e) => {
       const b = e.target.closest("[data-talle]");
@@ -950,6 +1049,7 @@
           medio,
         });
         cerrar();
+        prendasCargadas = null;
         actualizarStock(boton, res.stock);
         // En la ficha, la página se recarga para que el stock de los casilleros quede al día.
         const recargar = "recargar" in boton.dataset;

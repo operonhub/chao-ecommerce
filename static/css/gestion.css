@@ -3664,3 +3664,123 @@
   color: var(--tinta-mute);
   cursor: pointer;
 }
+
+/* "Venta rápida": botón de arriba y el paso de elegir la prenda */
+.g-btn-venta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.g-btn-venta svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.g-vender__elegir[hidden],
+[data-vender-paso-venta][hidden] {
+  display: none;
+}
+
+.g-vender__buscar {
+  margin-bottom: 0.75rem;
+}
+
+.g-vender__lista {
+  display: grid;
+  gap: 0.4rem;
+  max-height: min(55vh, 460px);
+  overflow-y: auto;
+  padding: 0.1rem;
+}
+
+.g-vender__prenda {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem;
+  border: 1px solid var(--linea);
+  border-radius: 14px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  color: var(--tinta);
+  cursor: pointer;
+}
+
+.g-vender__prenda:hover {
+  border-color: var(--tinta);
+}
+
+.g-vender__prenda:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.g-vender__prenda-foto {
+  width: 48px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--fondo);
+}
+
+.g-vender__prenda-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.g-vender__prenda-datos {
+  display: grid;
+  min-width: 0;
+}
+
+.g-vender__prenda-datos b {
+  overflow: hidden;
+  font-weight: 500;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.g-vender__prenda-datos small {
+  font-size: 0.74rem;
+  color: var(--tinta-mute);
+}
+
+.g-vender__volver {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--tinta-suave);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.g-vender__volver[hidden] {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .g-cabeza__acciones {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .g-cabeza__acciones .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    padding-left: 0.8rem;
+    padding-right: 0.8rem;
+    white-space: nowrap;
+  }
+}

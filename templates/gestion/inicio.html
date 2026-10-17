@@ -9,7 +9,14 @@
     <p class="sup">— {% now "l j \d\e F" %}</p>
     <h1 class="display g-titulo">Hola{% if user.first_name %}, <em>{{ user.first_name }}</em>{% endif %}.</h1>
   </div>
-  <a href="{% url 'gestion:prenda_nueva' %}" class="btn btn--primario">+ Cargar prenda</a>
+  <div class="g-cabeza__acciones">
+    <button type="button" class="btn btn--secundario g-btn-venta" data-vender data-vender-elegir
+          data-url-prendas="{% url 'gestion:venta_prendas' %}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/><path d="M9.5 13.5l2 2 3.5-4"/></svg>
+    Venta rápida
+  </button>
+    <a href="{% url 'gestion:prenda_nueva' %}" class="btn btn--primario">+ Cargar prenda</a>
+  </div>
 </header>
 
 {% if falta_mp or falta_transferencia %}
@@ -163,4 +170,5 @@
     {% endfor %}
   </section>
 </div>
+{% include "gestion/_vender.html" %}
 {% endblock %}

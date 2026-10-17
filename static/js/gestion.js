@@ -174,7 +174,10 @@
       clearInterval(reloj);
       reloj = setInterval(() => (segundos.textContent = `${Math.round((Date.now() - inicio) / 1000)} s`), 1000);
       try {
-        const res = await postear(fig.dataset.urlIa, { pedido: pedido.value.trim() });
+        const datos = { pedido: pedido.value.trim() };
+        const campoMarca = $("[data-marca-input]");
+        if (campoMarca) datos.marca = campoMarca.value.trim();
+        const res = await postear(fig.dataset.urlIa, datos);
         fig.dataset.iaPendiente = res.url;
         mostrarResultado(res.url);
         marcarLista(fig, true);
@@ -462,7 +465,7 @@
     boton.addEventListener("click", async () => {
       const datos = new FormData();
       datos.append("prenda", descIA.dataset.prenda);
-      ["nombre", "categoria", "nueva_categoria"].forEach((n) => datos.append(n, form.elements[n]?.value || ""));
+      ["nombre", "marca", "categoria", "nueva_categoria"].forEach((n) => datos.append(n, form.elements[n]?.value || ""));
       datos.append("notas", campo.value.trim());
       Array.from(inputFotos?.files || [])
         .slice(0, 3)
@@ -500,6 +503,17 @@
       deshacer.hidden = true;
       rotulo.textContent = "Escribir con IA";
     });
+  }
+
+  /* --- Ficha: marcas ya usadas ------------------------------------------------- */
+  const inputMarca = $("[data-marca-input]");
+  if (inputMarca) {
+    $$("[data-marca]").forEach((b) =>
+      b.addEventListener("click", () => {
+        inputMarca.value = b.dataset.marca;
+        inputMarca.dispatchEvent(new Event("input", { bubbles: true }));
+      })
+    );
   }
 
   /* --- Ficha: etiquetas sugeridas ---------------------------------------------- */

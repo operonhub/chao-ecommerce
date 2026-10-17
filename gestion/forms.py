@@ -21,6 +21,7 @@ class ProductoForm(forms.ModelForm):
         model = Producto
         fields = [
             "nombre",
+            "marca",
             "categoria",
             "descripcion",
             "precio",

@@ -119,7 +119,9 @@ def prendas(request):
 
     q = (request.GET.get("q") or "").strip()
     if q:
-        qs = qs.filter(Q(nombre__icontains=q) | Q(descripcion__icontains=q) | Q(etiqueta__icontains=q))
+        qs = qs.filter(
+            Q(nombre__icontains=q) | Q(marca__icontains=q) | Q(descripcion__icontains=q) | Q(etiqueta__icontains=q)
+        )
 
     cat = request.GET.get("cat") or ""
     if cat:
@@ -362,6 +364,8 @@ def prenda_editar(request, pk=None):
             "filas_talle": filas_talle,
             "colores": colores,
             "bloques_color": bloques_color,
+            # Las marcas ya usadas, para sugerirlas al escribir (St. Marie…).
+            "marcas": Producto.objects.exclude(marca="").values_list("marca", flat=True).distinct().order_by("marca"),
             "ia_activa": ia.configurada(),
             "credito_ia": CreditoIA.actual() if ia.configurada() else None,
             "categorias": Categoria.objects.all(),
@@ -512,7 +516,9 @@ def foto_ia(request, pk):
 
     foto = get_object_or_404(ProductoImagen.objects.select_related("producto"), pk=pk)
     try:
-        editada, modelo = ia.mejorar(_leer_foto(foto), pedido=request.POST.get("pedido", ""))
+        # La marca: la que está escrita en la ficha (aunque no se haya guardado) o la guardada.
+        marca = request.POST["marca"] if "marca" in request.POST else foto.producto.marca
+        editada, modelo = ia.mejorar(_leer_foto(foto), pedido=request.POST.get("pedido", ""), marca=marca)
         archivo = _normalizar_imagen(BytesIO(editada))
     except ia.ErrorIA as exc:
         _si_es_sin_credito(exc)
@@ -607,6 +613,7 @@ def descripcion_ia(request):
         texto = ia.describir(
             fotos,
             nombre=request.POST.get("nombre", ""),
+            marca=request.POST.get("marca", ""),
             categoria=categoria,
             notas=request.POST.get("notas", ""),
         )

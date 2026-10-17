@@ -52,9 +52,9 @@ NO INVENTED LABELS, TAGS OR TEXT — this is strict:
 - Remove ALL hang tags and price tags (cardboard or paper tags hanging on a string or plastic fastener). They are not part of the garment.
 - Do NOT add any label, neck label, care label, brand tag, sticker, logo, brand name or text that is not in the original photo.
 - If the original shows no sewn-in label, the result must show NO label.
-- A sewn-in label that IS in the original (neck, waistband) stays in the same place and size, but always as a PLAIN patch of the same color with NO letters, numbers or logos on it. Do not try to reproduce its text.
+{regla_etiqueta}
 - Buttons, rivets and zippers stay plain: no engraved or printed text on them unless it is huge and obvious in the original.
-- Never write or invent brand names anywhere. Text is only allowed where it is part of the garment's own big print or graphic (like a slogan printed on a t-shirt), copied exactly.
+{regla_marcas}
 
 DO NOT INVENT PARTS OF THE GARMENT:
 - If the garment is cut off by an edge of the original photo, it must be cut off at the same place in the result. Keep that same partial framing (for example just the waist and a pocket, or the t-shirt without its hem).
@@ -69,6 +69,30 @@ Apply it ONLY to the photo itself (background, light, framing, hanger, angle). I
 above: the garment must stay exactly the same and no labels, tags or text may be added."""
 
 LARGO_PEDIDO = 240
+
+# La etiqueta cosida. La IA no sabe leer la letra chica de una etiqueta e inventa
+# marcas ("ST. BARTH" por St. Marie): sin marca cargada sale lisa; con marca, se le
+# dicta el texto exacto, que es lo único que puede escribir ahí.
+ETIQUETA_LISA = (
+    "- A sewn-in label that IS in the original (neck, waistband) stays in the same place and size, but always as a "
+    "PLAIN patch of the same color with NO letters, numbers or logos on it. Do not try to reproduce its text."
+)
+MARCAS_NINGUNA = (
+    "- Never write or invent brand names anywhere. Text is only allowed where it is part of the garment's own big "
+    "print or graphic (like a slogan printed on a t-shirt), copied exactly."
+)
+ETIQUETA_CON_MARCA = (
+    '- A sewn-in label that IS in the original (neck, waistband) stays in the same place, size and colors. The brand '
+    'on it is "{marca}": write exactly "{rotulo}" on it, in small clean simple capital letters, centered, spelled '
+    "exactly like that, and nothing else (no sizes, numbers, logos or other words). Do not try to read the label in "
+    "the photo: use only this text."
+)
+MARCAS_SOLO_ESA = (
+    '- The only brand name allowed anywhere in the photo is "{rotulo}", and only on that sewn-in label. Never write '
+    "any other brand name. Other text is only allowed where it is part of the garment's own big print or graphic "
+    "(like a slogan printed on a t-shirt), copied exactly."
+)
+LARGO_MARCA = 40
 
 TAMANO_ENTRADA = 2048  # lado mayor de la foto que se manda (más no mejora y pesa más)
 
@@ -92,18 +116,30 @@ def _preparar(imagen_bytes: bytes, lado: int = TAMANO_ENTRADA) -> tuple[str, str
     return base64.b64encode(salida.getvalue()).decode(), "image/jpeg"
 
 
-def instrucciones(pedido: str = "") -> str:
+def instrucciones(pedido: str = "", marca: str = "") -> str:
     pedido = " ".join((pedido or "").split())[:LARGO_PEDIDO].replace('"', "'")
-    return INSTRUCCIONES + (PEDIDO_EXTRA.format(pedido=pedido) if pedido else "")
+    marca = " ".join((marca or "").split())[:LARGO_MARCA].replace('"', "'")
+    if marca:
+        rotulo = marca.upper()
+        reglas = {
+            "regla_etiqueta": ETIQUETA_CON_MARCA.format(marca=marca, rotulo=rotulo),
+            "regla_marcas": MARCAS_SOLO_ESA.format(rotulo=rotulo),
+        }
+    else:
+        reglas = {"regla_etiqueta": ETIQUETA_LISA, "regla_marcas": MARCAS_NINGUNA}
+    texto = INSTRUCCIONES.replace("{regla_etiqueta}", reglas["regla_etiqueta"]).replace(
+        "{regla_marcas}", reglas["regla_marcas"]
+    )
+    return texto + (PEDIDO_EXTRA.format(pedido=pedido) if pedido else "")
 
 
-def _pedir(modelo: str, datos: str, mime: str, timeout: float, pedido: str = "") -> bytes:
+def _pedir(modelo: str, datos: str, mime: str, timeout: float, pedido: str = "", marca: str = "") -> bytes:
     cuerpo = {
         "contents": [
             {
                 "role": "user",
                 "parts": [
-                    {"text": instrucciones(pedido)},
+                    {"text": instrucciones(pedido, marca)},
                     {"inline_data": {"mime_type": mime, "data": datos}},
                 ],
             }
@@ -150,11 +186,12 @@ def _mensaje_error(status: int, error: dict) -> str:
     return "La IA no pudo editar la foto ahora. Probá de nuevo en un rato."
 
 
-def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "") -> tuple[bytes, str]:
+def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "", marca: str = "") -> tuple[bytes, str]:
     """
     Devuelve (foto editada, modelo que la hizo). Prueba la Pro y, si falla o se
     queda sin tiempo, el modelo de respaldo con lo que queda del plazo.
     `pedido` es el cambio opcional que escribe la dueña ("más luz", "sin percha").
+    `marca` es la de la prenda: si la tiene, es el texto que va en la etiqueta.
     """
     if not configurada():
         raise ErrorIA("Falta configurar la IA (GEMINI_API_KEY en Vercel).")
@@ -169,7 +206,7 @@ def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "") -
         if restante < 20:
             break
         try:
-            return _pedir(modelo, datos, mime, timeout=restante - 5, pedido=pedido), modelo
+            return _pedir(modelo, datos, mime, timeout=restante - 5, pedido=pedido, marca=marca), modelo
         except requests.Timeout:
             logger.warning("Gemini %s tardó demasiado; pruebo el respaldo.", modelo)
             ultimo_error = ErrorIA("La IA tardó demasiado. Probá de nuevo.")
@@ -191,6 +228,7 @@ DESCRIBIR = """Sos quien escribe las fichas de CHAO Indumentaria, una tienda de 
 Escribí la descripción de esta prenda para la tienda online, mirando la(s) foto(s).
 
 Prenda: {nombre}
+Marca: {marca}
 Categoría: {categoria}
 Lo que anotó la dueña (es verdad, usalo): {notas}
 
@@ -201,7 +239,7 @@ Cómo escribir:
 - Podés cerrar con una idea de con qué combinarla o cuándo usarla.
 
 Nunca inventes datos que no se ven en la foto ni anotó la dueña:
-- Ni composición de la tela (algodón, lana, lino, poliéster…), ni medidas, talles, calce exacto, cuidados, origen ni marca.
+- Ni composición de la tela (algodón, lana, lino, poliéster…), ni medidas, talles, calce exacto, cuidados, origen ni marca (la única marca que podés nombrar es la de arriba, si hay).
 - Ni precios, ofertas, stock, envíos ni promesas ("no se deforma", "dura años").
 - Si la foto es de cerca y no se ve la prenda entera, no describas el largo ni lo que no se ve.
 
@@ -211,7 +249,7 @@ LARGO_NOTAS = 400
 LARGO_DESCRIPCION = 600  # tope duro por si el modelo se va de largo
 
 
-def describir(fotos: list[bytes], nombre: str = "", categoria: str = "", notas: str = "") -> str:
+def describir(fotos: list[bytes], nombre: str = "", categoria: str = "", notas: str = "", marca: str = "") -> str:
     """Propone una descripción a partir de hasta 3 fotos y lo que anotó la dueña."""
     if not configurada():
         raise ErrorIA("Falta configurar la IA (GEMINI_API_KEY en Vercel).")
@@ -222,7 +260,10 @@ def describir(fotos: list[bytes], nombre: str = "", categoria: str = "", notas: 
     partes = [
         {
             "text": DESCRIBIR.format(
-                nombre=limpio(nombre, 120), categoria=limpio(categoria, 60), notas=limpio(notas, LARGO_NOTAS)
+                nombre=limpio(nombre, 120),
+                marca=limpio(marca, LARGO_MARCA),
+                categoria=limpio(categoria, 60),
+                notas=limpio(notas, LARGO_NOTAS),
             )
         }
     ]

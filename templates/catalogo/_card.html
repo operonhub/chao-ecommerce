@@ -33,10 +33,14 @@
   <div class="card__info">
     <p class="card__cat">{{ prenda.categoria.nombre }}</p>
     <h3 class="card__nombre"><a href="{{ prenda.get_absolute_url }}">{{ prenda.nombre }}</a></h3>
+    {% if prenda.marca %}<p class="card__marca">{{ prenda.marca }}</p>{% endif %}
     <p class="card__precio">
       {% if prenda.en_oferta %}<s class="card__antes">${{ prenda.precio_anterior|pesos }}</s>{% endif %}
       <span {% if prenda.en_oferta %}class="card__precio--oferta"{% endif %}>${{ prenda.precio|pesos }}</span>
     </p>
+    {% if off_transferencia %}
+      <p class="card__transferencia"><b>${{ prenda.precio|con_descuento:off_transferencia }}</b> con transferencia</p>
+    {% endif %}
     <p class="card__cuotas">3 x ${{ prenda.precio|cuota:3 }} sin interés</p>
     {% if prenda.tiene_colores %}
       {% with colores=prenda.colores.all %}

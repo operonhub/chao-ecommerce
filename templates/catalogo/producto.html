@@ -46,11 +46,18 @@
       {% endif %}
 
       <h1 class="display detalle__nombre">{{ prenda.nombre|acento }}</h1>
+      {% if prenda.marca %}<p class="detalle__marca">{{ prenda.marca }}</p>{% endif %}
 
       <p class="detalle__precio">
         {% if prenda.en_oferta %}<s>${{ prenda.precio_anterior|pesos }}</s>{% endif %}
         <span {% if prenda.en_oferta %}class="detalle__precio--oferta"{% endif %}>${{ prenda.precio|pesos }}</span>
       </p>
+      {% if off_transferencia %}
+        <p class="detalle__transferencia">
+          <b>${{ prenda.precio|con_descuento:off_transferencia }}</b> con transferencia
+          <span class="detalle__transferencia-off">{{ off_transferencia }}% off</span>
+        </p>
+      {% endif %}
       <p class="detalle__cuotas">3 cuotas sin interés de <b>${{ prenda.precio|cuota:3 }}</b></p>
 
       <form method="post" action="{% url 'carrito:agregar' %}" data-form-carrito class="detalle__compra">

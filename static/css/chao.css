@@ -1000,6 +1000,16 @@ button.cta-ghost {
   line-height: 0.98;
 }
 
+/* La marca de la prenda (St. Marie…), debajo del nombre. */
+.detalle__marca {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+
 .detalle__precio {
   display: flex;
   align-items: baseline;
@@ -1028,6 +1038,34 @@ button.cta-ghost {
 
 .detalle__cuotas b {
   font-weight: 500;
+  color: var(--tinta);
+}
+
+/* Precio con transferencia: el gancho, más visible que las cuotas. */
+.detalle__transferencia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin: 0.45rem 0 0.35rem;
+  font-size: 0.95rem;
+  color: var(--tinta-suave);
+}
+
+.detalle__transferencia b {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--accion);
+}
+
+.detalle__transferencia-off {
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--pildora);
+  background: var(--aqua);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--tinta);
 }
 
@@ -1614,6 +1652,26 @@ button.cta-ghost {
   margin: 0.15rem 0 0;
   font-size: 0.7rem;
   color: var(--tinta-mute);
+}
+
+.card__marca {
+  margin: -0.15rem 0 0.4rem;
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+
+.card__transferencia {
+  margin: 0.2rem 0 0;
+  font-size: 0.76rem;
+  color: var(--tinta-suave);
+}
+
+.card__transferencia b {
+  font-weight: 500;
+  color: var(--accion);
 }
 
 /* Agregar rápido por talle: un toque y va al carrito, sin entrar a la ficha. */

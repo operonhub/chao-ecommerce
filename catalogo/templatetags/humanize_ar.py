@@ -28,6 +28,17 @@ def pesos(valor):
 
 
 @register.filter
+def con_descuento(valor, porcentaje=0):
+    """
+    Precio con el descuento por transferencia, redondeado como lo cobra el checkout
+    (Pedido.recalcular_total): 39000 con 20 → 31.200.
+    """
+    precio = _a_decimal(valor)
+    descuento = (precio * _a_decimal(porcentaje) / 100).quantize(Decimal("1"))
+    return pesos(precio - descuento)
+
+
+@register.filter
 def cuota(valor, cantidad=3):
     """Valor de cada cuota, redondeado. 48900 en 3 → 16.300"""
     try:

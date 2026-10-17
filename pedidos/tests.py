@@ -352,6 +352,37 @@ class ConexionTests(Base):
         self.assertEqual(cred.access_token, "nuevo")
 
 
+class MarcaYTransferenciaTests(Base):
+    """Marca debajo del nombre y precio con transferencia en la tienda."""
+
+    def test_ficha_y_tarjeta_muestran_marca_y_precio_con_transferencia(self):
+        self.prenda.marca = "St. Marie"
+        self.prenda.save()
+        ficha = self.client.get(self.prenda.get_absolute_url())
+        self.assertContains(ficha, '<p class="detalle__marca">St. Marie</p>', html=True)
+        self.assertContains(ficha, "$45.000</b> con transferencia")  # 50.000 − 10 %
+        self.assertContains(ficha, "10% off")
+        catalogo = self.client.get(reverse("catalogo:catalogo"))
+        self.assertContains(catalogo, '<p class="card__marca">St. Marie</p>', html=True)
+        self.assertContains(catalogo, "$45.000</b> con transferencia")
+
+    def test_sin_alias_no_se_anuncia_el_descuento(self):
+        self.cobros.alias = ""
+        self.cobros.save()
+        ficha = self.client.get(self.prenda.get_absolute_url())
+        self.assertNotContains(ficha, "con transferencia")
+        self.assertNotContains(ficha, "detalle__marca")  # sin marca, nada debajo del nombre
+
+    def test_precio_de_la_ficha_es_el_que_cobra_el_checkout(self):
+        from catalogo.templatetags.humanize_ar import con_descuento
+
+        self.prenda.precio = Decimal("38999")
+        self.prenda.save()
+        p = self.pedido(metodo=Pedido.Metodo.TRANSFERENCIA)
+        p.recalcular_total(descuento_pct=20)
+        self.assertEqual(con_descuento(self.prenda.precio, 20), f"{int(p.total):,}".replace(",", "."))
+
+
 @override_settings(MP_ACCESS_TOKEN="TEST-token", MP_PUBLIC_KEY="TEST-public-123")
 class PaginasTests(Base):
     def test_pagina_de_pago_carga_el_brick(self):
@@ -675,6 +706,24 @@ class FotosIATests(Base):
         self.assertIn("crédito", r.json()["error"])
         self.assertIn("Billing", r.json()["error"])
         self.assertEqual(post.call_count, 1)  # el respaldo usa la misma cuenta: no tiene sentido
+
+    def test_etiqueta_con_la_marca_cargada_y_lisa_sin_marca(self):
+        self.prenda.marca = "St. Marie"
+        self.prenda.save()
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            self.post("gestion:foto_ia")
+        texto = post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
+        self.assertIn('write exactly "ST. MARIE"', texto)
+        self.assertIn('The only brand name allowed anywhere in the photo is "ST. MARIE"', texto)
+        self.assertNotIn("PLAIN patch", texto)
+        self.assertNotIn("{regla", texto)
+        # Lo escrito en la ficha manda, aunque no se haya guardado: borrar la marca = etiqueta lisa.
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()) as post:
+            self.client.post(reverse("gestion:foto_ia", args=[self.foto.pk]), {"marca": ""})
+        texto = post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
+        self.assertIn("PLAIN patch of the same color with NO letters", texto)
+        self.assertIn("Never write or invent brand names anywhere", texto)
+        self.assertNotIn("ST. MARIE", texto)
 
     def test_contador_de_credito_descuenta_y_avisa_sin_saldo(self):
         from gestion.models import CreditoIA

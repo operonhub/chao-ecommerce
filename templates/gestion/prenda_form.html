@@ -27,6 +27,8 @@
           <b>✨ Mejorar con IA:</b> tocá la estrellita de una foto y la IA la deja como foto de estudio (fondo crema,
           buena luz). Para que salga fiel, sacá la prenda <b>entera</b> y bien iluminada: lo que no se ve en la foto, la
           IA lo inventa. Siempre vas a ver las dos y elegís.
+          <span class="g-ayuda__credito"><b>Etiqueta:</b> con la marca cargada (arriba, en Datos), la IA escribe esa marca
+            en la etiqueta del cuello; sin marca, la deja lisa.</span>
           {% if credito_ia.estado == "agotado" %}
             <b class="g-ayuda__alerta">Ahora no hay crédito: la IA está pausada hasta que se recargue.</b>
           {% elif credito_ia.con_dato %}
@@ -112,6 +114,23 @@
                placeholder="Ej: Sweater trenzado crudo">
         {% for e in form.nombre.errors %}<small class="g-error">{{ e }}</small>{% endfor %}
       </label>
+
+      <label class="g-campo">
+        <span>Marca <em>(opcional)</em></span>
+        <input type="text" name="marca" value="{{ form.marca.value|default_if_none:'' }}" maxlength="60" list="marcas-usadas"
+               placeholder="Ej: St. Marie" autocomplete="off" data-marca-input>
+        <datalist id="marcas-usadas">
+          {% for m in marcas %}<option value="{{ m }}">{% endfor %}
+        </datalist>
+        <small class="g-ayuda">Va debajo del nombre en la tienda: no la escribas también en el nombre.
+          {% if ia_activa %}Si la tiene, la IA la pone en la etiqueta de la foto.{% endif %}</small>
+      </label>
+      {% if marcas %}
+        <div class="g-sugerencias g-sugerencias--marca" aria-label="Marcas que ya usaste">
+          {% for m in marcas %}<button type="button" data-marca="{{ m }}">{{ m }}</button>{% endfor %}
+          <button type="button" data-marca="" class="g-sugerencias__quitar">Sin marca</button>
+        </div>
+      {% endif %}
 
       <div class="g-fila">
         <label class="g-campo {% if form.categoria.errors %}g-campo--error{% endif %}">

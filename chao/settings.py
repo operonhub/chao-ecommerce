@@ -82,6 +82,7 @@ TEMPLATES = [
                 "carrito.context_processors.carrito",
                 "catalogo.context_processors.datos_negocio",
                 "catalogo.context_processors.menu_categorias",
+                "catalogo.context_processors.descuento_transferencia",
                 "catalogo.seo.contexto",
             ],
         },

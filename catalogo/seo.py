@@ -107,7 +107,8 @@ def producto_jsonld(request, prenda, fotos) -> dict | None:
         "name": prenda.nombre,
         "url": url,
         "category": prenda.categoria.nombre,
-        "brand": {"@type": "Brand", "name": settings.NEGOCIO["nombre"]},
+        # La marca de la prenda si la tiene (St. Marie…); si no, la tienda.
+        "brand": {"@type": "Brand", "name": prenda.marca or settings.NEGOCIO["nombre"]},
     }
     if prenda.descripcion:
         datos["description"] = prenda.descripcion

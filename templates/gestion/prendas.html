@@ -55,6 +55,7 @@
       <div class="g-prenda__cuerpo">
         <p class="g-prenda__cat">{{ p.categoria.nombre }}</p>
         <a href="{% url 'gestion:prenda_editar' p.pk %}" class="g-prenda__nombre">{{ p.nombre }}</a>
+        {% if p.marca %}<span class="g-prenda__marca">{{ p.marca }}</span>{% endif %}
 
         <label class="g-precio">
           <span>$</span>

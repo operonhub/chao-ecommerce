@@ -47,6 +47,9 @@ class Talle(models.Model):
 
 class Producto(models.Model):
     nombre = models.CharField(max_length=120)
+    # Opcional: no todas las prendas tienen marca (CHAO trabaja con St. Marie, entre
+    # otras). Se muestra debajo del nombre y es el texto que la IA pone en la etiqueta.
+    marca = models.CharField(max_length=60, blank=True, db_default="")
     slug = models.SlugField(max_length=140, unique=True, blank=True)
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name="productos")
     descripcion = models.TextField(blank=True)

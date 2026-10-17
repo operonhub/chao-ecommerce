@@ -83,9 +83,11 @@ MARCAS_NINGUNA = (
 )
 ETIQUETA_CON_MARCA = (
     '- A sewn-in label that IS in the original (neck, waistband) stays in the same place, size and colors. The brand '
-    'on it is "{marca}": write exactly "{rotulo}" on it, in small clean simple capital letters, centered, spelled '
-    "exactly like that, and nothing else (no sizes, numbers, logos or other words). Do not try to read the label in "
-    "the photo: use only this text."
+    'on it is "{marca}": write exactly "{rotulo}" on it, spelled exactly like that, and nothing else (no sizes, '
+    "numbers, logos or other words). Copy the LOOK of the lettering on the original label as closely as you can: "
+    "same kind of typeface (serif or sans-serif, condensed or wide, thin or bold), same letter color, same size "
+    "relative to the label and same layout (one line, centered, spacing). Only the words come from this text: do "
+    "not try to read them from the photo."
 )
 MARCAS_SOLO_ESA = (
     '- The only brand name allowed anywhere in the photo is "{rotulo}", and only on that sewn-in label. Never write '

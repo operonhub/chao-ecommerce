@@ -14,8 +14,9 @@
   {% endif %}
 </header>
 
-<form method="post" enctype="multipart/form-data" class="g-ficha" id="form-prenda" novalidate>
+<form method="post" enctype="multipart/form-data" class="g-ficha" id="form-prenda" novalidate data-guardar-una-vez>
   {% csrf_token %}
+  {% if not prenda %}<input type="hidden" name="alta" value="{{ alta }}">{% endif %}
 
   {# ===== Fotos ===== #}
   <div class="g-ficha__col">
@@ -283,8 +284,12 @@
   </div>
 
   <div class="g-guardar">
-    <button type="submit" name="despues" value="quedarse" class="btn btn--primario">Guardar</button>
-    <button type="submit" name="despues" value="otra" class="btn btn--secundario">Guardar y cargar otra</button>
+    <button type="submit" name="despues" value="quedarse" class="btn btn--primario" data-guardar-texto="Guardando…">
+      {% if prenda %}Guardar cambios{% else %}Guardar prenda{% endif %}
+    </button>
+    <button type="submit" name="despues" value="otra" class="g-guardar__otra" data-guardar-texto="Guardando…">
+      Guardar y cargar otra
+    </button>
   </div>
 </form>
 

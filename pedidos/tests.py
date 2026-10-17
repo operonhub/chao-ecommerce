@@ -352,6 +352,118 @@ class ConexionTests(Base):
         self.assertEqual(cred.access_token, "nuevo")
 
 
+class GuardarUnaVezTests(Base):
+    """Un doble toque en "Guardar" en una prenda nueva no la duplica."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(get_user_model().objects.create_user("clau-guarda", is_staff=True))
+
+    def datos(self, alta):
+        return {"alta": alta, "nombre": "Remera nueva", "categoria": self.prenda.categoria_id, "precio": "30000",
+                "activo": "on", "despues": "quedarse"}
+
+    def test_el_mismo_formulario_dos_veces_crea_una_sola_prenda(self):
+        r = self.client.get(reverse("gestion:prenda_nueva"))
+        alta = r.context["alta"]
+        self.assertContains(r, f'name="alta" value="{alta}"')
+        primera = self.client.post(reverse("gestion:prenda_nueva"), self.datos(alta))
+        segunda = self.client.post(reverse("gestion:prenda_nueva"), self.datos(alta))
+        self.assertEqual(Producto.objects.filter(nombre="Remera nueva").count(), 1)
+        prenda = Producto.objects.get(nombre="Remera nueva")
+        destino = reverse("gestion:prenda_editar", args=[prenda.pk])
+        self.assertRedirects(primera, destino, fetch_redirect_response=False)
+        self.assertRedirects(segunda, destino, fetch_redirect_response=False)
+
+    def test_otro_formulario_es_otra_prenda_y_editar_no_toca_el_codigo(self):
+        self.client.post(reverse("gestion:prenda_nueva"), self.datos("a" * 32))
+        self.client.post(reverse("gestion:prenda_nueva"), self.datos("b" * 32))
+        self.assertEqual(Producto.objects.filter(nombre="Remera nueva").count(), 2)
+        prenda = Producto.objects.get(alta="a" * 32)
+        datos = self.datos("c" * 32) | {"nombre": "Remera editada"}
+        self.client.post(reverse("gestion:prenda_editar", args=[prenda.pk]), datos)
+        prenda.refresh_from_db()
+        self.assertEqual((prenda.nombre, prenda.alta), ("Remera editada", "a" * 32))
+
+
+class LooksPanelTests(Base):
+    """Armar looks desde el panel principal: foto, prendas y puntos."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(get_user_model().objects.create_user("clau-looks", is_staff=True))
+        self.otra = Producto.objects.create(nombre="Jean recto", slug="jean-recto", categoria=self.prenda.categoria,
+                                            precio=Decimal("40000"))
+
+    @staticmethod
+    def foto():
+        from io import BytesIO
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        b = BytesIO()
+        Image.new("RGB", (60, 80), (200, 180, 160)).save(b, format="JPEG")
+        return SimpleUploadedFile("look.jpg", b.getvalue(), content_type="image/jpeg")
+
+    def test_armar_un_look_con_foto_prendas_y_puntos(self):
+        from catalogo.models import Look
+
+        r = self.client.post(reverse("gestion:look_nuevo"), {
+            "nombre": "Básicos de otoño", "bajada": "Para todos los días", "activo": "on", "foto": self.foto(),
+            "prenda": [self.otra.pk, self.prenda.pk], f"x_{self.otra.pk}": "30.5", f"y_{self.otra.pk}": "70",
+        })
+        self.assertRedirects(r, reverse("gestion:looks"), fetch_redirect_response=False)
+        look = Look.objects.get(nombre="Básicos de otoño")
+        self.assertTrue(look.imagen.name.startswith("looks/"))
+        items = list(look.items.order_by("orden"))
+        self.assertEqual([i.producto_id for i in items], [self.otra.pk, self.prenda.pk])  # orden de elección
+        self.assertEqual((items[0].x, items[0].y), (Decimal("30.50"), Decimal("70.00")))
+        self.assertEqual((items[1].x, items[1].y), (Decimal("50.00"), Decimal("38.00")))  # sin ubicar: se acomoda
+        # La tienda lo muestra en la página de looks.
+        self.assertContains(self.client.get(reverse("catalogo:looks")), "Básicos de otoño")
+
+        # Editar sin foto nueva: se queda con la que tenía; sacar una prenda la quita del look.
+        self.client.post(reverse("gestion:look_editar", args=[look.pk]), {
+            "nombre": "Básicos", "activo": "on", "prenda": [self.prenda.pk],
+        })
+        look.refresh_from_db()
+        self.assertEqual(look.nombre, "Básicos")
+        self.assertTrue(look.imagen)
+        self.assertEqual(list(look.items.values_list("producto_id", flat=True)), [self.prenda.pk])
+
+    def test_look_nuevo_sin_foto_o_sin_nombre_no_se_crea(self):
+        from catalogo.models import Look
+
+        antes = Look.objects.count()
+        self.client.post(reverse("gestion:look_nuevo"), {"nombre": "Sin foto"})
+        self.client.post(reverse("gestion:look_nuevo"), {"nombre": "", "foto": self.foto()})
+        self.assertEqual(Look.objects.count(), antes)
+
+    def test_ordenar_apagar_y_borrar(self):
+        from catalogo.models import Look
+
+        a = Look.objects.create(nombre="A", slug="a", ruta_estatica="x.jpg", orden=1)
+        b = Look.objects.create(nombre="B", slug="b", ruta_estatica="y.jpg", orden=2)
+        self.client.post(reverse("gestion:look_mover", args=[b.pk]), {"hacia": "arriba"})
+        self.assertEqual(list(Look.objects.order_by("orden").values_list("nombre", flat=True))[:2], ["B", "A"])
+        r = self.client.post(reverse("gestion:look_toggle", args=[a.pk]))
+        self.assertEqual(r.json(), {"ok": True, "valor": False})
+        lista = self.client.get(reverse("gestion:looks"))
+        self.assertContains(lista, "En la portada")
+        self.client.post(reverse("gestion:look_borrar", args=[a.pk]))
+        self.assertFalse(Look.objects.filter(pk=a.pk).exists())
+        self.assertTrue(Producto.objects.filter(pk=self.prenda.pk).exists())  # las prendas no se tocan
+
+    def test_looks_pide_login(self):
+        self.client.logout()
+        r = self.client.get(reverse("gestion:looks"))
+        self.assertEqual(r.status_code, 302)
+
+
 class MarcaYTransferenciaTests(Base):
     """Marca debajo del nombre y precio con transferencia en la tienda."""
 
@@ -714,6 +826,7 @@ class FotosIATests(Base):
             self.post("gestion:foto_ia")
         texto = post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
         self.assertIn('write exactly "ST. MARIE"', texto)
+        self.assertIn("Copy the LOOK of the lettering on the original label", texto)
         self.assertIn('The only brand name allowed anywhere in the photo is "ST. MARIE"', texto)
         self.assertNotIn("PLAIN patch", texto)
         self.assertNotIn("{regla", texto)

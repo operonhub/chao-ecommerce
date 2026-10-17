@@ -1,0 +1,109 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}{% if look %}{{ look.nombre }}{% else %}Look nuevo{% endif %}{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup"><a href="{% url 'gestion:looks' %}">← Looks</a></p>
+    <h1 class="display g-titulo">{% if look %}{{ look.nombre }}{% else %}Look <em>nuevo</em>{% endif %}</h1>
+  </div>
+  {% if look and look.activo %}
+    <a href="{% url 'catalogo:looks' %}#look-{{ look.pk }}" class="btn btn--secundario" target="_blank" rel="noopener">Ver en la tienda ↗</a>
+  {% endif %}
+</header>
+
+<form method="post" enctype="multipart/form-data" class="g-ficha" novalidate data-guardar-una-vez data-look-editor>
+  {% csrf_token %}
+
+  {# ===== Foto ===== #}
+  <div class="g-ficha__col">
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Foto del look</h2>
+      <div class="g-look-foto {% if not look.url %}g-look-foto--vacia{% endif %}" data-look-foto>
+        <img src="{{ look.url|default:'' }}" alt="" data-look-img {% if not look.url %}hidden{% endif %}>
+        <div class="g-look-foto__puntos" data-look-puntos></div>
+        <p class="g-look-foto__vacia" data-look-vacia {% if look.url %}hidden{% endif %}>Subí la foto del look</p>
+      </div>
+      <p class="g-look-foto__guia" data-look-guia hidden></p>
+      <label class="g-subir g-subir--ancho">
+        <input type="file" name="foto" accept="image/*" data-look-input>
+        <span class="g-subir__mas" aria-hidden="true">+</span>
+        <span>{% if look %}Cambiar la foto{% else %}Subir la foto{% endif %}</span>
+        <small>Galería o cámara. Vertical queda mejor.</small>
+      </label>
+    </section>
+  </div>
+
+  {# ===== Datos y prendas ===== #}
+  <div class="g-ficha__col">
+    <section class="g-bloque">
+      <h2 class="g-bloque__titulo">Datos</h2>
+      <label class="g-campo">
+        <span>Nombre del look</span>
+        <input type="text" name="nombre" maxlength="120" required placeholder="Ej: Básicos de otoño"
+               value="{% if valores %}{{ valores.nombre }}{% else %}{{ look.nombre|default:'' }}{% endif %}">
+      </label>
+      <label class="g-campo">
+        <span>Una línea para acompañar <em>(opcional)</em></span>
+        <input type="text" name="bajada" maxlength="220" placeholder="Ej: Para el día a día, cómodo y lindo."
+               value="{% if valores %}{{ valores.bajada }}{% else %}{{ look.bajada|default:'' }}{% endif %}">
+      </label>
+      <label class="g-check">
+        <input type="checkbox" name="activo" {% if valores %}{% if valores.activo %}checked{% endif %}{% elif not look or look.activo %}checked{% endif %}>
+        <i aria-hidden="true"></i>
+        <span><b>En la tienda</b> Si lo apagás, el look deja de verse pero no se borra.</span>
+      </label>
+    </section>
+
+    <section class="g-bloque">
+      <div class="g-bloque__cabeza">
+        <h2 class="g-bloque__titulo">Prendas del look</h2>
+        <span class="g-look-total" data-look-total></span>
+      </div>
+      <p class="g-ayuda">Tocá las prendas que se ven en la foto. Después tocá la foto donde está cada una para ubicar su puntito (si no, se acomodan solas).</p>
+
+      <ol class="g-look-elegidas" data-look-elegidas></ol>
+      <div data-look-ocultos></div>
+
+      <label class="g-campo g-look-buscar">
+        <span class="solo-lectores">Buscar prenda</span>
+        <input type="search" placeholder="Buscar por nombre o marca…" data-look-buscar autocomplete="off">
+      </label>
+      <div class="g-look-prendas" data-look-prendas>
+        {% for p in prendas %}
+          {% with f=p.foto_principal %}
+          <button type="button" class="g-look-prenda" data-pk="{{ p.pk }}" data-nombre="{{ p.nombre }}"
+                  data-busqueda="{{ p.nombre|lower }} {{ p.marca|lower }} {{ p.categoria.nombre|lower }}"
+                  data-precio="{{ p.precio|floatformat:'0' }}" data-foto="{% if f %}{{ f.url }}{% endif %}" aria-pressed="false">
+            <span class="g-look-prenda__foto">{% if f %}<img src="{{ f.url }}" alt="" loading="lazy">{% endif %}</span>
+            <span class="g-look-prenda__nombre">{{ p.nombre }}</span>
+            <span class="g-look-prenda__precio">${{ p.precio|pesos }}{% if not p.activo %} · <em>oculta</em>{% endif %}</span>
+          </button>
+          {% endwith %}
+        {% empty %}
+          <p class="g-vacio">No hay prendas publicadas todavía.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <div class="g-guardar">
+    <button type="submit" class="btn btn--primario" data-guardar-texto="Guardando…">
+      {% if look %}Guardar cambios{% else %}Guardar look{% endif %}
+    </button>
+  </div>
+</form>
+
+{{ elegidos|json_script:"look-elegidos" }}
+{{ posiciones|json_script:"look-posiciones" }}
+
+{% if look %}
+  <form method="post" action="{% url 'gestion:look_borrar' look.pk %}" class="g-zona-peligro"
+        data-confirmar="¿Borrar el look «{{ look.nombre }}»? Las prendas no se borran.">
+    {% csrf_token %}
+    <button type="submit">Borrar este look</button>
+  </form>
+{% endif %}
+{% endblock %}

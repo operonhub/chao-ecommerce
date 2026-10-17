@@ -12,6 +12,8 @@
   <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="btn btn--secundario">Ver la portada ↗</a>
 </header>
 
+{% include "gestion/_vidriera_nav.html" with activa="portada" %}
+
 <form method="post" class="g-portada" data-portada>
   {% csrf_token %}
 
@@ -37,7 +39,7 @@
 
     <section class="g-bloque">
       <h2 class="g-bloque__titulo">Foto principal</h2>
-      <p class="g-ayuda">Elegí una de tus fotos de looks. Para sumar fotos nuevas de looks, usá el <a href="{% url 'admin:catalogo_look_add' %}">panel avanzado</a>.</p>
+      <p class="g-ayuda">Elegí una de tus fotos de looks. Para sumar fotos nuevas o marcar las prendas, andá a <a href="{% url 'gestion:looks' %}">Looks</a>.</p>
       <div class="g-looks">
         {% for look in looks %}
           <label class="g-look">

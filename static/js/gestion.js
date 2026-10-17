@@ -60,13 +60,14 @@
   document.addEventListener("click", async (e) => {
     const sw = e.target.closest("[data-toggle-campo]");
     if (!sw) return;
-    const card = sw.closest("[data-prenda]");
+    const card = sw.closest("[data-url-toggle]");
+    if (!card) return;
     const campo = sw.dataset.toggleCampo;
     sw.dataset.cargando = "";
     try {
       const { valor } = await postear(card.dataset.urlToggle, { campo });
       sw.setAttribute("aria-pressed", String(valor));
-      if (campo === "activo") card.classList.toggle("g-prenda--oculta", !valor);
+      if (campo === "activo") card.classList.toggle(card.dataset.claseOculta || "g-prenda--oculta", !valor);
       const [si, no] = ETIQUETAS_TOGGLE[campo] || ["Guardado", "Guardado"];
       toast(valor ? si : no);
     } catch (err) {
@@ -637,6 +638,207 @@
     fila.querySelector('input[type="text"]').placeholder = "Otro color";
     modelo.parentElement.appendChild(fila);
     fila.querySelector('input[type="text"]').focus();
+  });
+
+  /* --- Looks: elegir prendas y ubicar sus puntos en la foto ------------------- */
+  // Las prendas elegidas viajan como campos ocultos (prenda, x_<pk>, y_<pk>) en el
+  // orden en que se eligieron. Ubicar: se toca una prenda de la lista y después la
+  // foto; las que no se ubican se acomodan solas en el servidor.
+  const editorLook = $("[data-look-editor]");
+  if (editorLook) {
+    const leer = (id) => {
+      try {
+        return JSON.parse(document.getElementById(id).textContent);
+      } catch {
+        return null;
+      }
+    };
+    const botones = new Map($$("[data-look-prendas] [data-pk]").map((b) => [b.dataset.pk, b]));
+    const posiciones = leer("look-posiciones") || {};
+    let elegidas = (leer("look-elegidos") || [])
+      .map(String)
+      .filter((pk) => botones.has(pk))
+      .map((pk) => ({ pk, ...(posiciones[pk] || {}) }));
+    let ubicando = null;
+
+    const foto = $("[data-look-foto]", editorLook);
+    const img = $("[data-look-img]", editorLook);
+    const puntos = $("[data-look-puntos]", editorLook);
+    const lista = $("[data-look-elegidas]", editorLook);
+    const ocultos = $("[data-look-ocultos]", editorLook);
+    const guia = $("[data-look-guia]", editorLook);
+    const total = $("[data-look-total]", editorLook);
+    const hayFoto = () => !img.hidden && img.getAttribute("src");
+
+    const dibujar = () => {
+      ocultos.replaceChildren(
+        ...elegidas.flatMap((e) => {
+          const campos = [Object.assign(document.createElement("input"), { type: "hidden", name: "prenda", value: e.pk })];
+          if (e.x != null) {
+            campos.push(Object.assign(document.createElement("input"), { type: "hidden", name: `x_${e.pk}`, value: e.x.toFixed(2) }));
+            campos.push(Object.assign(document.createElement("input"), { type: "hidden", name: `y_${e.pk}`, value: e.y.toFixed(2) }));
+          }
+          return campos;
+        })
+      );
+      lista.replaceChildren(
+        ...elegidas.map((e, i) => {
+          const b = botones.get(e.pk);
+          const li = document.createElement("li");
+          li.className = "g-look-elegida" + (ubicando === e.pk ? " g-look-elegida--activa" : "");
+          li.innerHTML = `<span class="g-look-elegida__num">${i + 1}</span>
+            <span class="g-look-elegida__nombre"></span>
+            <button type="button" class="g-look-elegida__ubicar" data-ubicar="${e.pk}">${
+              ubicando === e.pk ? "Tocá la foto…" : e.x != null ? "Mover punto" : "Ubicar en la foto"
+            }</button>
+            <button type="button" class="g-look-elegida__quitar" data-quitar="${e.pk}" aria-label="Quitar del look">×</button>`;
+          $(".g-look-elegida__nombre", li).textContent = b.dataset.nombre;
+          return li;
+        })
+      );
+      puntos.replaceChildren(
+        ...elegidas
+          .map((e, i) => ({ e, i }))
+          .filter(({ e }) => e.x != null)
+          .map(({ e, i }) => {
+            const p = document.createElement("span");
+            p.className = "g-look-punto" + (ubicando === e.pk ? " g-look-punto--activo" : "");
+            p.style.left = `${e.x}%`;
+            p.style.top = `${e.y}%`;
+            p.textContent = String(i + 1);
+            return p;
+          })
+      );
+      botones.forEach((b, pk) => b.setAttribute("aria-pressed", String(elegidas.some((e) => e.pk === pk))));
+      const suma = elegidas.reduce((s, e) => s + Number(botones.get(e.pk).dataset.precio || 0), 0);
+      total.textContent = elegidas.length ? `${elegidas.length} prenda${elegidas.length > 1 ? "s" : ""} · $${pesos(suma)}` : "";
+      guia.hidden = !ubicando;
+      if (ubicando) guia.textContent = `Tocá la foto donde está «${botones.get(ubicando).dataset.nombre}».`;
+      foto.classList.toggle("g-look-foto--ubicando", Boolean(ubicando));
+    };
+
+    botones.forEach((b, pk) =>
+      b.addEventListener("click", () => {
+        if (elegidas.some((e) => e.pk === pk)) {
+          elegidas = elegidas.filter((e) => e.pk !== pk);
+          if (ubicando === pk) ubicando = null;
+        } else {
+          elegidas.push({ pk });
+          ubicando = hayFoto() ? pk : null; // recién elegida: lista para ubicar
+        }
+        dibujar();
+      })
+    );
+
+    lista.addEventListener("click", (e) => {
+      const quitar = e.target.closest("[data-quitar]");
+      const ubicar = e.target.closest("[data-ubicar]");
+      if (quitar) {
+        elegidas = elegidas.filter((x) => x.pk !== quitar.dataset.quitar);
+        if (ubicando === quitar.dataset.quitar) ubicando = null;
+      } else if (ubicar) {
+        if (!hayFoto()) return toast("Primero subí la foto del look.", "error");
+        ubicando = ubicando === ubicar.dataset.ubicar ? null : ubicar.dataset.ubicar;
+        if (ubicando) foto.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      dibujar();
+    });
+
+    foto.addEventListener("click", (e) => {
+      if (!ubicando || !hayFoto()) return;
+      const caja = img.getBoundingClientRect();
+      const x = ((e.clientX - caja.left) / caja.width) * 100;
+      const y = ((e.clientY - caja.top) / caja.height) * 100;
+      if (x < 0 || x > 100 || y < 0 || y > 100) return;
+      const elegida = elegidas.find((x2) => x2.pk === ubicando);
+      Object.assign(elegida, { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
+      // Pasa sola a la siguiente sin ubicar, para que sea toque y toque.
+      const siguiente = elegidas.find((x2) => x2.x == null);
+      ubicando = siguiente ? siguiente.pk : null;
+      dibujar();
+    });
+
+    const buscar = $("[data-look-buscar]", editorLook);
+    buscar?.addEventListener("input", () => {
+      const q = buscar.value.trim().toLowerCase();
+      botones.forEach((b) => (b.hidden = Boolean(q) && !b.dataset.busqueda.includes(q)));
+    });
+
+    // La foto nueva se achica acá (igual que las de las prendas) y se ve al toque.
+    const inputFoto = $("[data-look-input]", editorLook);
+    inputFoto?.addEventListener("change", async () => {
+      const original = inputFoto.files[0];
+      if (!original) return;
+      let lista2 = original;
+      try {
+        lista2 = await achicarFoto(original);
+        const dt = new DataTransfer();
+        dt.items.add(lista2);
+        inputFoto.files = dt.files;
+      } catch {
+        /* va la original y la valida el servidor */
+      }
+      img.src = URL.createObjectURL(lista2);
+      img.hidden = false;
+      $("[data-look-vacia]", editorLook).hidden = true;
+      foto.classList.remove("g-look-foto--vacia");
+    });
+
+    editorLook.addEventListener("submit", (e) => {
+      if (!editorLook.elements.nombre.value.trim()) {
+        e.preventDefault();
+        toast("Ponele un nombre al look.", "error");
+        editorLook.elements.nombre.focus();
+      } else if (!hayFoto()) {
+        e.preventDefault();
+        toast("Subí la foto del look.", "error");
+      }
+    });
+
+    dibujar();
+  }
+
+  /* --- Guardar una sola vez ------------------------------------------------------ */
+  // Con fotos, guardar tarda unos segundos y parecía que no pasaba nada: la dueña
+  // tocaba "Guardar" otra vez y la prenda salía repetida. Al primer toque los
+  // botones se bloquean y dicen qué está pasando (el servidor igual descarta un
+  // segundo envío del mismo formulario).
+  $$("form[data-guardar-una-vez]").forEach((form) => {
+    form.addEventListener("submit", (e) => {
+      if (e.defaultPrevented) return; // otro control frenó el envío (fotos preparándose…)
+      if (form.dataset.enviando) {
+        e.preventDefault();
+        return;
+      }
+      form.dataset.enviando = "1";
+      const boton = e.submitter;
+      // Un botón deshabilitado no viaja en el formulario: su valor va en un campo oculto.
+      if (boton && boton.name) {
+        const oculto = Object.assign(document.createElement("input"), { type: "hidden", name: boton.name, value: boton.value });
+        form.appendChild(oculto);
+      }
+      const fotos = $("[data-fotos-input]", form)?.files.length || 0;
+      setTimeout(() => {
+        $$('button[type="submit"]', form).forEach((b) => (b.disabled = true));
+        if (boton) {
+          boton.dataset.textoOriginal = boton.textContent;
+          boton.textContent = fotos ? `Guardando y subiendo ${fotos === 1 ? "la foto" : `${fotos} fotos`}…` : boton.dataset.guardarTexto || "Guardando…";
+          boton.dataset.cargando = "";
+        }
+      }, 0);
+    });
+  });
+  // Si vuelve con "atrás", el formulario tiene que estar usable de nuevo.
+  window.addEventListener("pageshow", (e) => {
+    if (!e.persisted) return;
+    $$("form[data-guardar-una-vez]").forEach((form) => {
+      delete form.dataset.enviando;
+      $$('button[type="submit"]', form).forEach((b) => {
+        b.disabled = false;
+        if (b.dataset.textoOriginal) b.textContent = b.dataset.textoOriginal;
+        delete b.dataset.cargando;
+      });
+    });
   });
 
   /* --- Confirmaciones ---------------------------------------------------------- */

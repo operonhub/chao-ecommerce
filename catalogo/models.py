@@ -59,6 +59,10 @@ class Producto(models.Model):
     destacado = models.BooleanField(default=False, help_text="Aparece primero en el catálogo.")
     orden = models.PositiveSmallIntegerField(default=0)
     creado = models.DateTimeField(auto_now_add=True)
+    # Código del formulario con que se dio de alta. Si el mismo formulario llega dos
+    # veces (doble toque en "Guardar" mientras suben las fotos), la prenda se crea una
+    # sola vez: el segundo envío choca con el unique y va a la prenda ya creada.
+    alta = models.CharField(max_length=32, null=True, blank=True, unique=True, editable=False)
 
     # Herramientas de vidriera que maneja la dueña desde /gestion/.
     etiqueta = models.CharField(

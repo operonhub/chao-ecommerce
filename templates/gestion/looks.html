@@ -1,0 +1,68 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Looks{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup">— La vidriera de la tienda</p>
+    <h1 class="display g-titulo">Looks</h1>
+  </div>
+  <a href="{% url 'gestion:look_nuevo' %}" class="btn btn--primario">+ Armar un look</a>
+</header>
+
+{% include "gestion/_vidriera_nav.html" with activa="looks" %}
+
+<p class="g-ayuda g-looks-ayuda">
+  Un look es una foto de prendas armadas juntas (en la percha, el maniquí o puestas) con las prendas que se ven
+  marcadas. <b>Los 3 primeros que están en la tienda salen arriba de todo en la portada</b>, y el primero que tiene
+  prendas, en "Comprá el look". Con las flechas cambiás el orden.
+</p>
+
+<div class="g-looks-lista">
+  {% for fila in filas %}
+    {% with l=fila.look %}
+    <article class="g-look-fila {% if not l.activo %}g-look-fila--oculto{% endif %}" id="look-{{ l.pk }}"
+             data-url-toggle="{% url 'gestion:look_toggle' l.pk %}" data-clase-oculta="g-look-fila--oculto">
+      <a href="{% url 'gestion:look_editar' l.pk %}" class="g-look-fila__foto">
+        {% if l.url %}<img src="{{ l.url }}" alt="" loading="lazy">{% endif %}
+      </a>
+      <div class="g-look-fila__datos">
+        <p class="g-look-fila__sellos">
+          {% if fila.en_portada %}<span class="g-sello g-sello--portada">En la portada</span>{% endif %}
+          {% if fila.en_compra %}<span class="g-sello">Comprá el look</span>{% endif %}
+          {% if not l.activo %}<span class="g-sello g-sello--oculto">Oculto</span>{% endif %}
+        </p>
+        <a href="{% url 'gestion:look_editar' l.pk %}" class="g-look-fila__nombre">{{ l.nombre }}</a>
+        {% if fila.items %}
+          <p class="g-look-fila__prendas">
+            {% for i in fila.items %}{{ i.producto.nombre }}{% if not i.producto.activo %} <em>(oculta)</em>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}
+          </p>
+        {% else %}
+          <p class="g-look-fila__prendas g-look-fila__prendas--vacio">Sin prendas marcadas: se ve la foto, pero no se puede comprar.</p>
+        {% endif %}
+        <div class="g-look-fila__acciones">
+          <button type="button" class="g-switch" data-toggle-campo="activo" aria-pressed="{{ l.activo|yesno:'true,false' }}">
+            <i aria-hidden="true"></i>En la tienda
+          </button>
+          <form method="post" action="{% url 'gestion:look_mover' l.pk %}" class="g-look-fila__mover">
+            {% csrf_token %}
+            <button type="submit" name="hacia" value="arriba" aria-label="Subir" title="Subir" {% if forloop.first %}disabled{% endif %}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+            </button>
+            <button type="submit" name="hacia" value="abajo" aria-label="Bajar" title="Bajar" {% if forloop.last %}disabled{% endif %}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </form>
+          <a href="{% url 'gestion:look_editar' l.pk %}" class="cta-ghost">Editar</a>
+        </div>
+      </div>
+    </article>
+    {% endwith %}
+  {% empty %}
+    <p class="g-vacio">Todavía no hay looks. Armá el primero con una foto y las prendas que se ven.</p>
+  {% endfor %}
+</div>
+{% csrf_token %}
+{% endblock %}

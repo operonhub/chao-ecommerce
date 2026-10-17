@@ -26,12 +26,13 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import user_passes_test
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Max, Q, Sum
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 from PIL import Image, ImageOps
 
@@ -39,6 +40,7 @@ from catalogo.models import (
     Categoria,
     ColorPrenda,
     Look,
+    LookItem,
     Portada,
     Producto,
     ProductoImagen,
@@ -310,22 +312,47 @@ def _guardar_colores_de_fotos(post, prenda):
             foto.save(update_fields=["color"])
 
 
+def _guardar_prenda(request, form, talles):
+    prenda = form.save()
+    # Primero el stock tal como se veía en pantalla y después los cambios de
+    # colores (un color nuevo todavía no tenía casillas).
+    _guardar_talles(request.POST, prenda, talles)
+    prenda._avisos = _guardar_colores(request.POST, prenda)
+    _guardar_colores_de_fotos(request.POST, prenda)
+    prenda._errores = _guardar_fotos(request.FILES.getlist("fotos"), prenda)
+    return prenda
+
+
 @solo_duena
 def prenda_editar(request, pk=None):
     prenda = get_object_or_404(Producto, pk=pk) if pk else None
     talles = list(Talle.objects.all())
 
+    # Código del formulario de alta (ver Producto.alta): con un doble envío, la
+    # prenda se crea una sola vez.
+    alta = (request.POST.get("alta") or "")[:32] if request.method == "POST" else secrets.token_hex(16)
+    if request.method == "POST" and not prenda and alta:
+        ya_creada = Producto.objects.filter(alta=alta).first()
+        if ya_creada:
+            messages.info(request, f"«{ya_creada.nombre}» ya estaba guardada: no se duplicó.")
+            return redirect("gestion:prenda_editar", pk=ya_creada.pk)
+
     if request.method == "POST":
         form = ProductoForm(request.POST, instance=prenda)
         if form.is_valid():
-            with transaction.atomic():
-                prenda = form.save()
-                # Primero el stock tal como se veía en pantalla y después los
-                # cambios de colores (un color nuevo todavía no tenía casillas).
-                _guardar_talles(request.POST, prenda, talles)
-                avisos = _guardar_colores(request.POST, prenda)
-                _guardar_colores_de_fotos(request.POST, prenda)
-                errores = _guardar_fotos(request.FILES.getlist("fotos"), prenda)
+            if not prenda and alta:
+                form.instance.alta = alta
+            try:
+                with transaction.atomic():
+                    prenda = _guardar_prenda(request, form, talles)
+            except IntegrityError:
+                # Dos envíos casi juntos: el otro ya la creó.
+                ya_creada = Producto.objects.filter(alta=alta).first() if alta else None
+                if not ya_creada:
+                    raise
+                messages.info(request, f"«{ya_creada.nombre}» ya estaba guardada: no se duplicó.")
+                return redirect("gestion:prenda_editar", pk=ya_creada.pk)
+            avisos, errores = prenda._avisos, prenda._errores
             for aviso in avisos:
                 messages.info(request, aviso)
             for error in errores:
@@ -360,6 +387,7 @@ def prenda_editar(request, pk=None):
             "seccion": "prendas",
             "form": form,
             "prenda": prenda,
+            "alta": alta,
             "fotos": prenda.imagenes.all() if prenda else [],
             "filas_talle": filas_talle,
             "colores": colores,
@@ -743,6 +771,196 @@ def pedido_borrar(request, pk):
     else:
         messages.success(request, f"Eliminamos el pedido #{numero}.")
     return redirect(reverse("gestion:pedidos") + (f"?ver={request.POST['ver']}" if request.POST.get("ver") else ""))
+
+
+# --- Looks ---------------------------------------------------------------------
+# Las fotos de percha armadas en el local. Los primeros salen en la portada de la
+# tienda (el tríptico de arriba) y el primero con prendas en "Comprá el look";
+# todos, en la página de looks con un punto sobre cada prenda.
+def _looks_en_orden():
+    """Ordena 1, 2, 3… para que las flechas siempre tengan con quién cambiar."""
+    looks = list(Look.objects.order_by("orden", "nombre"))
+    for i, look in enumerate(looks, start=1):
+        if look.orden != i:
+            look.orden = i
+            look.save(update_fields=["orden"])
+    return looks
+
+
+@solo_duena
+def looks(request):
+    lista = _looks_en_orden()
+    portada = Portada.actual()
+    activos = [l for l in lista if l.activo]
+    # Igual que la home: la foto principal elegida en Portada va primera.
+    if portada.foto_hero_id and portada.foto_hero in activos:
+        activos.remove(portada.foto_hero)
+        activos.insert(0, portada.foto_hero)
+    con_prendas = {
+        look_id
+        for look_id in LookItem.objects.filter(producto__activo=True, look__activo=True).values_list(
+            "look_id", flat=True
+        )
+    }
+    compra = next((l.pk for l in activos if l.pk in con_prendas), None)
+    items = {}
+    for item in LookItem.objects.select_related("producto").order_by("orden", "id"):
+        items.setdefault(item.look_id, []).append(item)
+    filas = [
+        {
+            "look": l,
+            "items": items.get(l.pk, []),
+            "en_portada": l in activos[:3],
+            "en_compra": l.pk == compra,
+        }
+        for l in lista
+    ]
+    return render(request, "gestion/looks.html", {"seccion": "looks", "filas": filas})
+
+
+@solo_duena
+def look_editar(request, pk=None):
+    look = get_object_or_404(Look, pk=pk) if pk else None
+    if request.method == "POST":
+        nombre = (request.POST.get("nombre") or "").strip()[:120]
+        archivo = request.FILES.get("foto")
+        errores = []
+        if not nombre:
+            errores.append("Ponele un nombre al look.")
+        if not look and not archivo:
+            errores.append("Subí la foto del look.")
+        contenido = None
+        if archivo:
+            try:
+                forms.ImageField().clean(archivo)
+                archivo.seek(0)
+                contenido = _normalizar_imagen(archivo)
+            except (ValidationError, OSError):
+                errores.append("La foto no se pudo abrir. Probá con otra.")
+        if errores:
+            for e in errores:
+                messages.error(request, e)
+        else:
+            with transaction.atomic():
+                nuevo = look is None
+                if nuevo:
+                    look = Look(orden=(Look.objects.aggregate(m=Max("orden"))["m"] or 0) + 1)
+                look.nombre = nombre
+                look.bajada = (request.POST.get("bajada") or "").strip()[:220]
+                look.alt = nombre
+                look.activo = "activo" in request.POST
+                if nuevo or not look.slug:
+                    look.slug = _slug_libre(Look, nombre, look.pk)
+                if contenido:
+                    viejo = look.imagen.name if look.imagen else ""
+                    look.imagen.save(f"{look.slug}.jpg", contenido, save=False)
+                    look.ruta_estatica = ""
+                    if viejo:
+                        _borrar_archivo(viejo)
+                look.save()
+                _guardar_items_look(request.POST, look)
+            messages.success(request, f"Guardamos el look «{look.nombre}».")
+            return redirect("gestion:looks")
+
+    elegidos = {}
+    if look:
+        elegidos = {i.producto_id: i for i in look.items.all()}
+    if request.method == "POST":
+        # Volver a mostrar lo que había marcado, aunque no se haya guardado.
+        elegidos = {int(v): None for v in request.POST.getlist("prenda") if v.isdigit()}
+    prendas = list(
+        Producto.objects.filter(Q(activo=True) | Q(pk__in=list(elegidos)))
+        .select_related("categoria")
+        .prefetch_related("imagenes")
+        .order_by("-activo", "-destacado", "-creado")
+    )
+    orden_elegidos = list(elegidos)
+    return render(
+        request,
+        "gestion/look_form.html",
+        {
+            "seccion": "looks",
+            "look": look,
+            "prendas": prendas,
+            "elegidos": orden_elegidos,
+            "posiciones": {
+                pk: {"x": float(i.x), "y": float(i.y)} for pk, i in elegidos.items() if i is not None
+            },
+            "valores": request.POST if request.method == "POST" else None,
+        },
+    )
+
+
+def _slug_libre(modelo, nombre, pk=None):
+    base = slugify(nombre)[:120] or "look"
+    slug, n = base, 2
+    while modelo.objects.filter(slug=slug).exclude(pk=pk).exists():
+        slug, n = f"{base}-{n}", n + 1
+    return slug
+
+
+def _guardar_items_look(post, look):
+    """Las prendas tildadas, en el orden en que se eligieron, con su punto en la foto."""
+    elegidos = []
+    for valor in post.getlist("prenda"):
+        if valor.isdigit() and int(valor) not in elegidos:
+            elegidos.append(int(valor))
+    validos = set(Producto.objects.filter(pk__in=elegidos).values_list("pk", flat=True))
+    elegidos = [pk for pk in elegidos if pk in validos]
+    LookItem.objects.filter(look=look).exclude(producto_id__in=elegidos).delete()
+    actuales = {i.producto_id: i for i in LookItem.objects.filter(look=look)}
+    for orden, pk in enumerate(elegidos, start=1):
+        x = _porcentaje(post.get(f"x_{pk}"), 50)
+        # Sin ubicar: una debajo de la otra, para que no queden encimadas.
+        y = _porcentaje(post.get(f"y_{pk}"), min(20 + (orden - 1) * 18, 90))
+        item = actuales.get(pk) or LookItem(look=look, producto_id=pk)
+        item.x, item.y, item.orden = x, y, orden
+        item.save()
+
+
+def _porcentaje(valor, por_defecto):
+    try:
+        numero = Decimal(str(valor).replace(",", "."))
+    except (InvalidOperation, ValueError):
+        return Decimal(por_defecto)
+    return max(Decimal(0), min(Decimal(100), numero)).quantize(Decimal("0.01"))
+
+
+@solo_duena
+@require_POST
+def look_toggle(request, pk):
+    look = get_object_or_404(Look, pk=pk)
+    look.activo = not look.activo
+    look.save(update_fields=["activo"])
+    return JsonResponse({"ok": True, "valor": look.activo})
+
+
+@solo_duena
+@require_POST
+def look_mover(request, pk):
+    lista = _looks_en_orden()
+    i = next((n for n, l in enumerate(lista) if l.pk == pk), None)
+    if i is None:
+        return redirect("gestion:looks")
+    j = i - 1 if request.POST.get("hacia") == "arriba" else i + 1
+    if 0 <= j < len(lista):
+        a, b = lista[i], lista[j]
+        a.orden, b.orden = b.orden, a.orden
+        a.save(update_fields=["orden"])
+        b.save(update_fields=["orden"])
+    return redirect(reverse("gestion:looks") + f"#look-{pk}")
+
+
+@solo_duena
+@require_POST
+def look_borrar(request, pk):
+    look = get_object_or_404(Look, pk=pk)
+    nombre = look.nombre
+    if look.imagen:
+        _borrar_archivo(look.imagen.name)
+    look.delete()
+    messages.success(request, f"Borramos el look «{nombre}».")
+    return redirect("gestion:looks")
 
 
 # --- Portada -------------------------------------------------------------------

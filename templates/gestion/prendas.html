@@ -65,13 +65,20 @@
         </label>
         {% if p.en_oferta %}<p class="g-prenda__antes">Antes ${{ p.precio_anterior|pesos }}</p>{% endif %}
 
-        <p class="g-prenda__stock">
+        <p class="g-prenda__stock" data-stock-linea>
           {% for v in p.variantes.all %}
             <span class="{% if v.stock == 0 %}cero{% elif v.stock <= 2 %}poco{% endif %}">{{ v.talle }} <b>{{ v.stock }}</b></span>
           {% empty %}
             <span class="sin">Sin talles cargados</span>
           {% endfor %}
         </p>
+
+        <button type="button" class="g-vender-btn" data-vender
+                data-url-opciones="{% url 'gestion:venta_opciones' p.pk %}" data-url-vender="{% url 'gestion:venta_rapida' p.pk %}"
+                {% if p.tiene_talles and not p.hay_stock %}disabled title="Sin stock"{% endif %}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/><path d="M9.5 13.5l2 2 3.5-4"/></svg>
+          {% if p.tiene_talles and not p.hay_stock %}Sin stock{% else %}Vendí una{% endif %}
+        </button>
 
         <div class="g-switches">
           <button type="button" class="g-switch" data-toggle-campo="activo" aria-pressed="{{ p.activo|yesno:'true,false' }}">
@@ -89,4 +96,5 @@
   {% endfor %}
 </div>
 {% csrf_token %}
+{% include "gestion/_vender.html" %}
 {% endblock %}

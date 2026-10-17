@@ -1,0 +1,130 @@
+{% extends "gestion/base.html" %}
+{% load humanize_ar %}
+
+{% block titulo %}Finanzas{% endblock %}
+
+{% block contenido %}
+<header class="g-cabeza">
+  <div>
+    <p class="sup">— Lo que entró</p>
+    <h1 class="display g-titulo">Finanzas</h1>
+  </div>
+  <a href="{% url 'gestion:prendas' %}" class="btn btn--secundario">Vender una prenda</a>
+</header>
+
+<nav class="g-chips" aria-label="Período">
+  {% for valor, nombre in periodos.items %}
+    <a href="?periodo={{ valor }}" {% if periodo == valor %}aria-current="true"{% endif %}>{{ nombre }}</a>
+  {% endfor %}
+</nav>
+<p class="g-ayuda g-fin__rango">
+  {% if desde == hasta %}{{ desde|date:"l j \d\e F" }}{% else %}Del {{ desde|date:"j \d\e F" }} al {{ hasta|date:"j \d\e F" }}{% endif %}
+</p>
+
+<section class="g-kpis g-fin__kpis">
+  <div class="g-kpi g-fin__total">
+    <span class="g-kpi__lbl">Ingresos</span>
+    <span class="g-kpi__num">${{ total|pesos }}</span>
+    <span class="g-kpi__sub">{{ n_ventas }} venta{{ n_ventas|pluralize }}{% if n_ventas %} · promedio ${{ promedio|pesos }}{% endif %}</span>
+  </div>
+  <div class="g-kpi">
+    <span class="g-kpi__lbl"><i class="g-fin__clave g-fin__clave--local" aria-hidden="true"></i>En el local</span>
+    <span class="g-kpi__num">${{ total_local|pesos }}</span>
+    <span class="g-kpi__sub">{{ n_local }} venta{{ n_local|pluralize }}{% if total %} · {{ pct_local }}%{% endif %}</span>
+  </div>
+  <div class="g-kpi">
+    <span class="g-kpi__lbl"><i class="g-fin__clave g-fin__clave--web" aria-hidden="true"></i>En la página</span>
+    <span class="g-kpi__num">${{ total_web|pesos }}</span>
+    <span class="g-kpi__sub">{{ n_web }} pedido{{ n_web|pluralize }} pagado{{ n_web|pluralize }}{% if total %} · {{ pct_web }}%{% endif %}</span>
+  </div>
+</section>
+
+<div class="g-dos">
+  <section class="g-bloque">
+    <div class="g-bloque__cabeza">
+      <h2 class="g-bloque__titulo">{% if por_mes %}Por mes{% else %}Por día{% endif %}</h2>
+      <p class="g-fin__leyenda">
+        <span><i class="g-fin__clave g-fin__clave--local" aria-hidden="true"></i>Local</span>
+        <span><i class="g-fin__clave g-fin__clave--web" aria-hidden="true"></i>Página</span>
+      </p>
+    </div>
+    {% if total %}
+      <div class="g-fin__grafico {% if barras|length > 16 %}g-fin__grafico--denso{% endif %}" role="img"
+           aria-label="Ingresos {% if por_mes %}por mes{% else %}por día{% endif %}: ${{ total|pesos }} en total">
+        {% for b in barras %}
+          <div class="g-fin__col" tabindex="0" data-fin-col
+               data-titulo="{% if por_mes %}{{ b.fecha|date:'F' }}{% else %}{{ b.fecha|date:'D j/n' }}{% endif %}"
+               data-local="{{ b.local|pesos }}" data-web="{{ b.web|pesos }}" data-total="{{ b.total|pesos }}">
+            <div class="g-fin__pila">
+              {% if b.web %}<span class="g-fin__seg g-fin__seg--web" style="height: {{ b.alto_web|stringformat:'s' }}%"></span>{% endif %}
+              {% if b.local %}<span class="g-fin__seg g-fin__seg--local" style="height: {{ b.alto_local|stringformat:'s' }}%"></span>{% endif %}
+            </div>
+            <span class="g-fin__eje">{% if por_mes %}{{ b.fecha|date:"M" }}{% elif barras|length <= 16 or forloop.first or forloop.last or b.fecha.day == 15 %}{{ b.fecha|date:"j" }}{% endif %}</span>
+          </div>
+        {% endfor %}
+        <div class="g-fin__tip" data-fin-tip hidden></div>
+      </div>
+    {% else %}
+      <p class="g-vacio">Todavía no hay ventas en este período.</p>
+    {% endif %}
+  </section>
+
+  <section class="g-bloque">
+    <h2 class="g-bloque__titulo">Por medio de pago</h2>
+    {% for m in medios %}
+      <div class="g-fin__medio">
+        <div class="g-fin__medio-cabeza">
+          <b>{{ m.nombre }}</b>
+          <span>${{ m.total|pesos }} <small>{{ m.pct }}%</small></span>
+        </div>
+        <p class="g-fin__medio-detalle">
+          {% if m.local %}Local ${{ m.local|pesos }}{% endif %}{% if m.local and m.web %} · {% endif %}{% if m.web %}Página ${{ m.web|pesos }}{% endif %}
+        </p>
+      </div>
+    {% empty %}
+      <p class="g-vacio">Sin ventas todavía.</p>
+    {% endfor %}
+
+    <details class="g-fin__otra">
+      <summary>Anotar otra venta del local</summary>
+      <p class="g-ayuda">Para algo que no está cargado en la tienda. Las prendas cargadas se venden con "Vendí una" y así baja el stock.</p>
+      <form method="post" action="{% url 'gestion:venta_otra' %}" class="g-fin__otra-form">
+        {% csrf_token %}
+        <input type="hidden" name="periodo" value="{{ periodo }}">
+        <label class="g-campo"><span>Qué vendiste</span><input type="text" name="descripcion" maxlength="140" required placeholder="Ej: Medias, arreglo"></label>
+        <label class="g-campo"><span>Cuánto cobraste</span><span class="g-pesos"><i>$</i><input type="text" name="monto" inputmode="numeric" required></span></label>
+        <label class="g-campo"><span>Cómo te pagó</span>
+          <select name="medio">{% for valor, nombre in medios_local %}<option value="{{ valor }}">{{ nombre }}</option>{% endfor %}</select>
+        </label>
+        <button type="submit" class="btn btn--secundario">Anotar</button>
+      </form>
+    </details>
+  </section>
+</div>
+
+<section class="g-bloque">
+  <h2 class="g-bloque__titulo">Movimientos</h2>
+  {% for m in movimientos %}
+    <div class="g-fin__mov">
+      <span class="g-fin__origen g-fin__origen--{{ m.origen }}">{% if m.origen == 'local' %}Local{% else %}Página{% endif %}</span>
+      <div class="g-fin__mov-datos">
+        <b>{% if m.cantidad and m.cantidad > 1 %}{{ m.cantidad }}× {% endif %}{{ m.titulo }}</b>
+        <small>{{ m.fecha|date:"j/n H:i" }} · {{ m.medio }}{% if m.detalle %} · {{ m.detalle }}{% endif %}</small>
+      </div>
+      <span class="g-fin__mov-total">${{ m.total|pesos }}</span>
+      {% if m.venta %}
+        <form method="post" action="{% url 'gestion:venta_deshacer' m.venta.pk %}" class="g-fin__deshacer"
+              data-confirmar="¿Borrar esta venta?{% if m.venta.stock_descontado %} El stock vuelve a la prenda.{% endif %}">
+          {% csrf_token %}
+          <input type="hidden" name="periodo" value="{{ periodo }}">
+          <button type="submit" aria-label="Borrar esta venta" title="Borrar esta venta">×</button>
+        </form>
+      {% elif m.pedido %}
+        <a href="{% url 'gestion:pedidos' %}#pedido-{{ m.pedido.pk }}" class="g-fin__ver" aria-label="Ver el pedido">→</a>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="g-vacio">No hay movimientos en este período.</p>
+  {% endfor %}
+</section>
+{% endblock %}

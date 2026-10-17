@@ -40,13 +40,26 @@
   /* --- Toast --------------------------------------------------------------- */
   const toastEl = $("[data-toast]");
   let toastTimer;
-  function toast(texto, tipo = "ok") {
+  // `boton` opcional: {texto, accion} (por ejemplo "Deshacer"); el aviso dura más.
+  function toast(texto, tipo = "ok", boton = null) {
     if (!toastEl) return;
-    toastEl.textContent = texto;
+    toastEl.replaceChildren(document.createTextNode(texto));
+    if (boton) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "g-toast__accion";
+      b.textContent = boton.texto;
+      b.addEventListener("click", () => {
+        delete toastEl.dataset.visible;
+        boton.accion();
+      });
+      toastEl.append(b);
+    }
     toastEl.dataset.tipo = tipo;
     toastEl.dataset.visible = "1";
+    toastEl.classList.toggle("g-toast--accion", Boolean(boton));
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => delete toastEl.dataset.visible, 2400);
+    toastTimer = setTimeout(() => delete toastEl.dataset.visible, boton ? 6000 : 2400);
   }
 
   const pesos = (n) => Math.round(n).toLocaleString("es-AR");
@@ -796,6 +809,226 @@
     });
 
     dibujar();
+  }
+
+  /* --- Venta rápida en el local ("Vendí una") ---------------------------------- */
+  const modalVenta = $("[data-vender-modal]");
+  if (modalVenta) {
+    const form = $("[data-vender-form]", modalVenta);
+    const nombre = $("[data-vender-nombre]", modalVenta);
+    const opciones = $("[data-vender-opciones]", modalVenta);
+    const cajaOpciones = $("[data-vender-opciones-caja]", modalVenta);
+    const medios = $("[data-vender-medios]", modalVenta);
+    const cantidad = $("[data-vender-cantidad]", modalVenta);
+    const precio = $("[data-vender-precio]", modalVenta);
+    const error = $("[data-vender-error]", modalVenta);
+    const ok = $("[data-vender-ok]", modalVenta);
+    let actual = null; // { boton, urlVender, elegido: {talle, color} }
+    const MEDIO_KEY = "chao-ultimo-medio";
+
+    const cerrar = () => {
+      modalVenta.hidden = true;
+      document.body.style.overflow = "";
+      actual = null;
+    };
+    $$("[data-vender-cerrar]", modalVenta).forEach((b) => b.addEventListener("click", cerrar));
+    document.addEventListener("keydown", (e) => e.key === "Escape" && !modalVenta.hidden && cerrar());
+
+    const chip = (datos, activo, deshabilitado) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "g-vender__chip";
+      Object.assign(b.dataset, datos);
+      b.setAttribute("aria-pressed", String(Boolean(activo)));
+      if (deshabilitado) b.disabled = true;
+      return b;
+    };
+
+    document.addEventListener("click", async (e) => {
+      const boton = e.target.closest("[data-vender]");
+      if (!boton || boton.disabled) return;
+      e.preventDefault();
+      error.hidden = true;
+      cantidad.value = "1";
+      nombre.textContent = "Cargando…";
+      opciones.replaceChildren();
+      medios.replaceChildren();
+      modalVenta.hidden = false;
+      document.body.style.overflow = "hidden";
+      ok.disabled = true;
+      try {
+        const res = await fetch(boton.dataset.urlOpciones, { headers: { "X-Requested-With": "fetch" } });
+        const datos = await res.json();
+        actual = { boton, urlVender: boton.dataset.urlVender, elegido: null };
+        nombre.textContent = datos.nombre;
+        precio.value = pesos(datos.precio);
+        const conStock = datos.opciones.filter((o) => o.stock > 0);
+        cajaOpciones.hidden = datos.opciones.length === 0;
+        // Si queda un solo talle con stock, ya viene elegido: un toque menos.
+        if (conStock.length === 1) actual.elegido = { talle: String(conStock[0].talle), color: String(conStock[0].color || "") };
+        opciones.replaceChildren(
+          ...datos.opciones.map((o) => {
+            const elegido =
+              actual.elegido && actual.elegido.talle === String(o.talle) && actual.elegido.color === String(o.color || "");
+            const b = chip({ talle: o.talle, color: o.color || "" }, elegido, o.stock <= 0);
+            if (o.hex) {
+              const punto = document.createElement("span");
+              punto.className = "g-punto";
+              punto.style.setProperty("--c", o.hex);
+              b.append(punto);
+            }
+            const texto = document.createElement("span");
+            texto.textContent = o.texto;
+            const quedan = document.createElement("small");
+            quedan.textContent = o.stock <= 0 ? "sin stock" : `quedan ${o.stock}`;
+            b.append(texto, quedan);
+            return b;
+          })
+        );
+        let ultimo = "efectivo";
+        try {
+          ultimo = localStorage.getItem(MEDIO_KEY) || "efectivo";
+        } catch {
+          /* sin almacenamiento: efectivo */
+        }
+        medios.replaceChildren(
+          ...datos.medios.map(([valor, texto]) => {
+            const b = chip({ medio: valor }, valor === ultimo, false);
+            b.textContent = texto;
+            return b;
+          })
+        );
+        ok.disabled = false;
+      } catch {
+        error.textContent = "No pudimos cargar la prenda. Probá de nuevo.";
+        error.hidden = false;
+      }
+    });
+
+    opciones.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-talle]");
+      if (!b || b.disabled || !actual) return;
+      actual.elegido = { talle: b.dataset.talle, color: b.dataset.color };
+      $$("[data-talle]", opciones).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      error.hidden = true;
+    });
+    medios.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-medio]");
+      if (!b) return;
+      $$("[data-medio]", medios).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    });
+    $("[data-vender-menos]", modalVenta).addEventListener("click", () => {
+      cantidad.value = String(Math.max(1, (parseInt(cantidad.value, 10) || 1) - 1));
+    });
+    $("[data-vender-mas]", modalVenta).addEventListener("click", () => {
+      cantidad.value = String(Math.min(50, (parseInt(cantidad.value, 10) || 1) + 1));
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!actual || ok.disabled) return;
+      if (!cajaOpciones.hidden && !actual.elegido) {
+        error.textContent = "Elegí el talle que vendiste.";
+        error.hidden = false;
+        return;
+      }
+      const medio = $('[data-medio][aria-pressed="true"]', medios)?.dataset.medio || "efectivo";
+      try {
+        localStorage.setItem(MEDIO_KEY, medio);
+      } catch {
+        /* no importa */
+      }
+      ok.disabled = true;
+      ok.textContent = "Registrando…";
+      const { boton, urlVender } = actual;
+      try {
+        const res = await postear(urlVender, {
+          talle: actual.elegido?.talle || "",
+          color: actual.elegido?.color || "",
+          cantidad: cantidad.value,
+          precio: precio.value,
+          medio,
+        });
+        cerrar();
+        actualizarStock(boton, res.stock);
+        // En la ficha, la página se recarga para que el stock de los casilleros quede al día.
+        const recargar = "recargar" in boton.dataset;
+        toast(res.mensaje, "ok", {
+          texto: "Deshacer",
+          accion: async () => {
+            try {
+              await postear(res.deshacer, {});
+              toast("Listo: deshicimos la venta y el stock volvió.");
+              setTimeout(() => location.reload(), 900);
+            } catch (err) {
+              toast(err.message, "error");
+            }
+          },
+        });
+        if (recargar) setTimeout(() => location.reload(), 6200);
+      } catch (err) {
+        error.textContent = err.message;
+        error.hidden = false;
+      } finally {
+        ok.disabled = false;
+        ok.textContent = "Registrar venta";
+      }
+    });
+
+    function actualizarStock(boton, stock) {
+      const card = boton.closest("[data-prenda]");
+      const linea = card && $("[data-stock-linea]", card);
+      if (!linea || !stock) return;
+      linea.replaceChildren(
+        ...stock.map((s) => {
+          const span = document.createElement("span");
+          if (s.stock === 0) span.className = "cero";
+          else if (s.stock <= 2) span.className = "poco";
+          span.append(`${s.talle} `);
+          const b = document.createElement("b");
+          b.textContent = s.stock;
+          span.append(b);
+          return span;
+        })
+      );
+      if (stock.length && stock.every((s) => s.stock <= 0)) {
+        boton.disabled = true;
+        boton.lastChild.textContent = " Sin stock";
+      }
+    }
+  }
+
+  /* --- Finanzas: detalle de cada barra al pasar o tocar ------------------------ */
+  const graficoFin = $("[data-fin-tip]")?.parentElement;
+  if (graficoFin) {
+    const tip = $("[data-fin-tip]", graficoFin);
+    const mostrar = (col) => {
+      const d = col.dataset;
+      tip.replaceChildren();
+      const titulo = document.createElement("b");
+      titulo.textContent = d.titulo;
+      tip.append(titulo);
+      [["Local", d.local], ["Página", d.web], ["Total", d.total]].forEach(([nombre, valor]) => {
+        const fila = document.createElement("span");
+        fila.textContent = `${nombre}: $${valor}`;
+        tip.append(fila);
+      });
+      tip.hidden = false;
+      const caja = graficoFin.getBoundingClientRect();
+      const c = col.getBoundingClientRect();
+      const x = Math.min(Math.max(c.left - caja.left + c.width / 2, 70), caja.width - 70);
+      tip.style.left = `${x}px`;
+      $$("[data-fin-col]", graficoFin).forEach((x2) => x2.classList.toggle("g-fin__col--activa", x2 === col));
+    };
+    $$("[data-fin-col]", graficoFin).forEach((col) => {
+      col.addEventListener("mouseenter", () => mostrar(col));
+      col.addEventListener("focus", () => mostrar(col));
+      col.addEventListener("click", () => mostrar(col));
+    });
+    graficoFin.addEventListener("mouseleave", () => {
+      tip.hidden = true;
+      $$("[data-fin-col]", graficoFin).forEach((x2) => x2.classList.remove("g-fin__col--activa"));
+    });
   }
 
   /* --- Guardar una sola vez ------------------------------------------------------ */

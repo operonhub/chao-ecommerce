@@ -385,3 +385,54 @@ class ConexionMP(models.Model):
     @property
     def por_vencer(self) -> bool:
         return self.vence - timezone.now() < timedelta(days=15)
+
+
+class VentaLocal(models.Model):
+    """
+    Una venta hecha en el local (no por la web). La anota la dueña con el botón
+    "Vendí una" del panel: descuenta el stock en el momento y suma en Finanzas.
+    Se guarda el nombre de la prenda y el talle tal como estaban, así el historial
+    sigue legible aunque después se borre o se renombre la prenda.
+    """
+
+    class Medio(models.TextChoices):
+        EFECTIVO = "efectivo", "Efectivo"
+        TRANSFERENCIA = "transferencia", "Transferencia"
+        TARJETA = "tarjeta", "Tarjeta (posnet)"
+        MERCADOPAGO = "mercadopago", "Mercado Pago / QR"
+
+    producto = models.ForeignKey(Producto, null=True, blank=True, on_delete=models.SET_NULL, related_name="ventas_local")
+    talle = models.ForeignKey(Talle, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    color = models.ForeignKey(
+        "catalogo.ColorPrenda", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Para "otra venta" sin prenda cargada (algo que no está en la tienda).
+    descripcion = models.CharField(max_length=140)
+    detalle = models.CharField(max_length=80, blank=True, help_text="Talle y color, como se vendió.")
+    cantidad = models.PositiveSmallIntegerField(default=1)
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    medio = models.CharField(max_length=15, choices=Medio.choices, default=Medio.EFECTIVO)
+    # Si descontó stock (las "otra venta" no), para devolverlo al deshacer.
+    stock_descontado = models.BooleanField(default=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creado"]
+        verbose_name = "venta en el local"
+        verbose_name_plural = "ventas en el local"
+
+    def __str__(self):
+        return f"{self.descripcion} · ${self.total}"
+
+    def deshacer(self) -> None:
+        """Borra la venta y, si había descontado stock, lo devuelve."""
+        from catalogo.models import Variante
+
+        with transaction.atomic():
+            venta = VentaLocal.objects.select_for_update().get(pk=self.pk)
+            if venta.stock_descontado and venta.producto_id:
+                Variante.objects.filter(
+                    producto_id=venta.producto_id, talle_id=venta.talle_id, color_id=venta.color_id
+                ).update(stock=F("stock") + venta.cantidad)
+            venta.delete()

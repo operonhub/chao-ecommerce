@@ -1,0 +1,38 @@
+{# Ventana de "Vendí una": se abre desde cualquier botón [data-vender] con data-url-opciones y data-url-vender. #}
+<div class="g-vender" data-vender-modal hidden role="dialog" aria-modal="true" aria-labelledby="g-vender-titulo">
+  <div class="g-vender__velo" data-vender-cerrar></div>
+  <form class="g-vender__caja" data-vender-form>
+    <button type="button" class="g-vender__x" data-vender-cerrar aria-label="Cerrar">×</button>
+    <p class="sup">Venta en el local</p>
+    <p class="g-vender__titulo" id="g-vender-titulo" data-vender-nombre>…</p>
+
+    <div class="g-vender__bloque" data-vender-opciones-caja>
+      <p class="g-vender__lbl">¿Qué talle vendiste?</p>
+      <div class="g-vender__opciones" data-vender-opciones></div>
+    </div>
+
+    <div class="g-vender__fila">
+      <label class="g-vender__campo">
+        <span class="g-vender__lbl">Cantidad</span>
+        <span class="g-vender__cantidad">
+          <button type="button" data-vender-menos aria-label="Una menos">−</button>
+          <input type="number" name="cantidad" value="1" min="1" max="50" inputmode="numeric" data-vender-cantidad>
+          <button type="button" data-vender-mas aria-label="Una más">+</button>
+        </span>
+      </label>
+      <label class="g-vender__campo">
+        <span class="g-vender__lbl">Cobraste (c/u)</span>
+        <span class="g-pesos"><i>$</i><input type="text" name="precio" inputmode="numeric" data-vender-precio></span>
+      </label>
+    </div>
+
+    <div class="g-vender__bloque">
+      <p class="g-vender__lbl">¿Cómo te pagó?</p>
+      <div class="g-vender__medios" data-vender-medios></div>
+    </div>
+
+    <p class="g-ia__error" data-vender-error hidden role="alert"></p>
+    <button type="submit" class="btn btn--primario g-vender__ok" data-vender-ok>Registrar venta</button>
+    <p class="g-ayuda g-vender__nota">El stock baja al toque y la venta suma en Finanzas. Si te equivocás, la podés deshacer.</p>
+  </form>
+</div>

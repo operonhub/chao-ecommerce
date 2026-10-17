@@ -9,8 +9,15 @@
     <p class="sup"><a href="{% url 'gestion:prendas' %}">← Prendas</a></p>
     <h1 class="display g-titulo">{% if prenda %}{{ prenda.nombre }}{% else %}Prenda <em>nueva</em>{% endif %}</h1>
   </div>
-  {% if prenda and prenda.activo %}
-    <a href="{{ prenda.get_absolute_url }}" class="btn btn--secundario" target="_blank" rel="noopener">Ver en la tienda ↗</a>
+  {% if prenda %}
+    <div class="g-cabeza__acciones">
+      <button type="button" class="btn btn--primario" data-vender
+              data-url-opciones="{% url 'gestion:venta_opciones' prenda.pk %}" data-url-vender="{% url 'gestion:venta_rapida' prenda.pk %}"
+              data-recargar>Vendí una</button>
+      {% if prenda.activo %}
+        <a href="{{ prenda.get_absolute_url }}" class="btn btn--secundario" target="_blank" rel="noopener">Ver en la tienda ↗</a>
+      {% endif %}
+    </div>
   {% endif %}
 </header>
 
@@ -338,6 +345,7 @@
 {% endif %}
 
 {% if prenda %}
+  {% include "gestion/_vender.html" %}
   <form method="post" action="{% url 'gestion:prenda_borrar' prenda.pk %}" class="g-zona-peligro"
         data-confirmar="{% if vendida %}Esta prenda tiene pedidos: se va a ocultar de la tienda en vez de borrarse. ¿Seguimos?{% else %}¿Borrar «{{ prenda.nombre }}» para siempre? No se puede deshacer.{% endif %}">
     {% csrf_token %}

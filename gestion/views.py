@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from urllib.parse import urlencode
@@ -47,7 +47,8 @@ from catalogo.models import (
     Talle,
     Variante,
 )
-from pedidos.models import Cobros, ConexionMP, Pedido, ZonaEnvio
+from catalogo.templatetags.humanize_ar import pesos as pesos_ar
+from pedidos.models import Cobros, ConexionMP, Pedido, VentaLocal, ZonaEnvio
 from pedidos.services import mercadopago
 
 from . import ia
@@ -97,8 +98,9 @@ def inicio(request):
         "n_destacadas": sum(1 for p in activas if p.destacado),
         "n_pendientes": Pedido.objects.filter(estado=Pedido.Estado.PENDIENTE).count(),
         "n_sin_entregar": Pedido.objects.filter(estado=Pedido.Estado.PAGADO, entregado=False).count(),
-        "vendido_30": pagados_mes.aggregate(t=Sum("total"))["t"] or 0,
-        "n_vendidos_30": pagados_mes.count(),
+        "vendido_30": (pagados_mes.aggregate(t=Sum("total"))["t"] or 0)
+        + (VentaLocal.objects.filter(creado__gte=hace_30).aggregate(t=Sum("total"))["t"] or 0),
+        "n_vendidos_30": pagados_mes.count() + VentaLocal.objects.filter(creado__gte=hace_30).count(),
         "recientes": Pedido.objects.prefetch_related("items__producto", "items__talle")[:5],
         # Lo que falta para cobrar online: se avisa arriba de todo en el Inicio.
         "falta_mp": not ConexionMP.actual(),
@@ -961,6 +963,277 @@ def look_borrar(request, pk):
     look.delete()
     messages.success(request, f"Borramos el look «{nombre}».")
     return redirect("gestion:looks")
+
+
+# --- Venta rápida en el local -------------------------------------------------
+# "Vendí una": la dueña vende en el mostrador, toca el botón, elige talle (y
+# color) y el stock baja al toque, así la web no ofrece lo que ya no está. La
+# venta queda anotada y suma en Finanzas.
+def _opciones_venta(prenda):
+    variantes = (
+        prenda.variantes.select_related("talle", "color").order_by("color__orden", "color__nombre", "talle__orden")
+    )
+    return [
+        {
+            "talle": v.talle_id,
+            "color": v.color_id,
+            "texto": " · ".join(x for x in (v.color.nombre if v.color_id else "", f"Talle {v.talle.nombre}") if x),
+            "hex": v.color.hex if v.color_id else "",
+            "stock": v.stock,
+        }
+        for v in variantes
+    ]
+
+
+@solo_duena
+def venta_opciones(request, pk):
+    prenda = get_object_or_404(Producto, pk=pk)
+    return JsonResponse(
+        {
+            "ok": True,
+            "nombre": prenda.nombre,
+            "precio": int(prenda.precio),
+            "opciones": _opciones_venta(prenda),
+            "medios": VentaLocal.Medio.choices,
+        }
+    )
+
+
+@solo_duena
+@require_POST
+def venta_rapida(request, pk):
+    prenda = get_object_or_404(Producto, pk=pk)
+    try:
+        cantidad = max(1, min(int(request.POST.get("cantidad") or 1), 50))
+    except ValueError:
+        cantidad = 1
+    precio = _monto(request.POST.get("precio"), prenda.precio)
+    if precio is None:
+        return JsonResponse({"ok": False, "error": "Revisá el precio."}, status=400)
+    medio = request.POST.get("medio")
+    if medio not in VentaLocal.Medio.values:
+        medio = VentaLocal.Medio.EFECTIVO
+    talle_id = request.POST.get("talle") or None
+    color_id = request.POST.get("color") or None
+
+    with transaction.atomic():
+        variantes = Variante.objects.select_for_update().filter(producto=prenda)
+        detalle, descontado, talle = "", False, None
+        if variantes.exists():
+            variante = variantes.filter(talle_id=talle_id, color_id=color_id).select_related("talle", "color").first()
+            if not variante:
+                return JsonResponse({"ok": False, "error": "Elegí el talle que vendiste."}, status=400)
+            if variante.stock < cantidad:
+                quedan = "no queda ninguna" if variante.stock == 0 else f"quedan {variante.stock}"
+                return JsonResponse({"ok": False, "error": f"De ese talle {quedan} cargadas."}, status=400)
+            variante.stock -= cantidad
+            variante.save(update_fields=["stock"])
+            talle, descontado = variante.talle, True
+            detalle = " · ".join(
+                x for x in (variante.color.nombre if variante.color_id else "", f"talle {variante.talle.nombre}") if x
+            )
+        venta = VentaLocal.objects.create(
+            producto=prenda,
+            talle=talle,
+            color_id=color_id if descontado else None,
+            descripcion=prenda.nombre,
+            detalle=detalle,
+            cantidad=cantidad,
+            precio_unitario=precio,
+            total=precio * cantidad,
+            medio=medio,
+            stock_descontado=descontado,
+        )
+    return JsonResponse(
+        {
+            "ok": True,
+            "mensaje": f"Vendida: {prenda.nombre}{' · ' + detalle if detalle else ''} · ${pesos_ar(venta.total)}",
+            "deshacer": reverse("gestion:venta_deshacer", args=[venta.pk]),
+            "stock": _stock_texto(prenda),
+        }
+    )
+
+
+def _stock_texto(prenda):
+    """El renglón de stock de la tarjeta, para actualizarlo sin recargar."""
+    return [
+        {"talle": v.talle.nombre, "stock": v.stock}
+        for v in prenda.variantes.select_related("talle").order_by("talle__orden")
+    ]
+
+
+def _monto(crudo, por_defecto=None):
+    texto = (crudo or "").replace("$", "").replace(".", "").replace(",", ".").strip()
+    if not texto:
+        return por_defecto
+    try:
+        valor = Decimal(texto)
+    except InvalidOperation:
+        return None
+    return valor if 0 < valor < Decimal("100000000") else None
+
+
+@solo_duena
+@require_POST
+def venta_deshacer(request, pk):
+    venta = get_object_or_404(VentaLocal, pk=pk)
+    venta.deshacer()
+    if request.headers.get("X-Requested-With") == "fetch":
+        return JsonResponse({"ok": True})
+    messages.success(request, "Borramos la venta" + (" y el stock volvió." if venta.stock_descontado else "."))
+    return redirect(reverse("gestion:finanzas") + _query_periodo(request))
+
+
+@solo_duena
+@require_POST
+def venta_otra(request):
+    """Una venta del local que no es de una prenda cargada (algo que no está en la web)."""
+    descripcion = (request.POST.get("descripcion") or "").strip()[:140]
+    monto = _monto(request.POST.get("monto"))
+    medio = request.POST.get("medio")
+    if not descripcion or monto is None:
+        messages.error(request, "Para anotar una venta poné qué vendiste y cuánto cobraste.")
+    else:
+        VentaLocal.objects.create(
+            descripcion=descripcion,
+            precio_unitario=monto,
+            total=monto,
+            medio=medio if medio in VentaLocal.Medio.values else VentaLocal.Medio.EFECTIVO,
+        )
+        messages.success(request, f"Anotamos la venta: {descripcion} · ${pesos_ar(monto)}.")
+    return redirect(reverse("gestion:finanzas") + _query_periodo(request))
+
+
+def _query_periodo(request):
+    periodo = request.POST.get("periodo") or ""
+    return f"?periodo={periodo}" if periodo in PERIODOS else ""
+
+
+# --- Finanzas -------------------------------------------------------------------
+PERIODOS = {
+    "hoy": "Hoy",
+    "semana": "Últimos 7 días",
+    "mes": "Este mes",
+    "mes-pasado": "Mes pasado",
+    "anio": "Este año",
+}
+
+
+def _rango(periodo):
+    """(desde, hasta) en fechas locales, hasta incluido."""
+    hoy = timezone.localdate()
+    if periodo == "hoy":
+        return hoy, hoy
+    if periodo == "semana":
+        return hoy - timedelta(days=6), hoy
+    if periodo == "mes-pasado":
+        fin = hoy.replace(day=1) - timedelta(days=1)
+        return fin.replace(day=1), fin
+    if periodo == "anio":
+        return hoy.replace(month=1, day=1), hoy
+    return hoy.replace(day=1), hoy
+
+
+def _desde_hasta_dt(desde, hasta):
+    zona = timezone.get_current_timezone()
+    inicio = datetime.combine(desde, time.min, tzinfo=zona)
+    fin = datetime.combine(hasta + timedelta(days=1), time.min, tzinfo=zona)
+    return inicio, fin
+
+
+@solo_duena
+def finanzas(request):
+    periodo = request.GET.get("periodo") or "mes"
+    if periodo not in PERIODOS:
+        periodo = "mes"
+    desde, hasta = _rango(periodo)
+    inicio, fin = _desde_hasta_dt(desde, hasta)
+
+    web = Pedido.objects.filter(estado=Pedido.Estado.PAGADO, creado__gte=inicio, creado__lt=fin)
+    local = VentaLocal.objects.filter(creado__gte=inicio, creado__lt=fin)
+    total_web = web.aggregate(t=Sum("total"))["t"] or Decimal(0)
+    total_local = local.aggregate(t=Sum("total"))["t"] or Decimal(0)
+    n_web, n_local = web.count(), local.count()
+    total = total_web + total_local
+    n_ventas = n_web + n_local
+
+    # Por medio de pago, juntando los dos orígenes (la plata es la misma).
+    medios = {}
+    nombres_web = dict(Pedido.Metodo.choices)
+    for fila in web.values("metodo_pago").annotate(t=Sum("total"), n=Count("id")):
+        clave = {"mercadopago": "mercadopago"}.get(fila["metodo_pago"], fila["metodo_pago"])
+        m = medios.setdefault(clave, {"nombre": nombres_web.get(fila["metodo_pago"], clave), "web": 0, "local": 0})
+        m["web"] += fila["t"] or 0
+    nombres_local = dict(VentaLocal.Medio.choices)
+    for fila in local.values("medio").annotate(t=Sum("total")):
+        m = medios.setdefault(fila["medio"], {"nombre": nombres_local[fila["medio"]], "web": 0, "local": 0})
+        m["local"] += fila["t"] or 0
+    for m in medios.values():
+        m["total"] = m["web"] + m["local"]
+        m["pct"] = round(m["total"] / total * 100) if total else 0
+    medios = sorted(medios.values(), key=lambda m: -m["total"])
+
+    # Barras: por día (o por mes en "Este año"), local y página apiladas.
+    por_mes = periodo == "anio"
+    claves = []
+    if por_mes:
+        claves = [desde.replace(month=m) for m in range(1, hasta.month + 1)]
+    else:
+        claves = [desde + timedelta(days=i) for i in range((hasta - desde).days + 1)]
+    barras = {k: {"fecha": k, "web": Decimal(0), "local": Decimal(0)} for k in claves}
+
+    def clave(dt):
+        d = timezone.localtime(dt).date()
+        return d.replace(day=1) if por_mes else d
+
+    for creado, t in web.values_list("creado", "total"):
+        barras[clave(creado)]["web"] += t
+    for creado, t in local.values_list("creado", "total"):
+        barras[clave(creado)]["local"] += t
+    barras = list(barras.values())
+    maximo = max((b["web"] + b["local"] for b in barras), default=0) or 1
+    for b in barras:
+        b["total"] = b["web"] + b["local"]
+        b["alto_local"] = round(b["local"] / maximo * 100, 1)
+        b["alto_web"] = round(b["web"] / maximo * 100, 1)
+
+    # Movimientos: lo último de los dos orígenes, mezclado por fecha.
+    movimientos = [
+        {"fecha": v.creado, "origen": "local", "titulo": v.descripcion, "detalle": v.detalle,
+         "cantidad": v.cantidad, "medio": v.get_medio_display(), "total": v.total, "venta": v}
+        for v in local.select_related("producto")[:60]
+    ] + [
+        {"fecha": p.creado, "origen": "web", "titulo": f"Pedido #{p.pk} · {p.nombre}", "detalle": "",
+         "cantidad": None, "medio": p.get_metodo_pago_display(), "total": p.total, "pedido": p}
+        for p in web[:60]
+    ]
+    movimientos.sort(key=lambda m: m["fecha"], reverse=True)
+
+    return render(
+        request,
+        "gestion/finanzas.html",
+        {
+            "seccion": "finanzas",
+            "periodo": periodo,
+            "periodos": PERIODOS,
+            "desde": desde,
+            "hasta": hasta,
+            "total": total,
+            "total_web": total_web,
+            "total_local": total_local,
+            "n_web": n_web,
+            "n_local": n_local,
+            "n_ventas": n_ventas,
+            "promedio": (total / n_ventas) if n_ventas else 0,
+            "pct_local": round(total_local / total * 100) if total else 0,
+            "pct_web": (100 - round(total_local / total * 100)) if total else 0,
+            "medios": medios,
+            "barras": barras,
+            "por_mes": por_mes,
+            "movimientos": movimientos[:60],
+            "medios_local": VentaLocal.Medio.choices,
+        },
+    )
 
 
 # --- Portada -------------------------------------------------------------------

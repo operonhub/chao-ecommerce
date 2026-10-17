@@ -41,6 +41,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a2 2 0 0 1 2 2c0 1-1 1.5-2 2v1l8 5.5a1 1 0 0 1-.6 1.8H4.6a1 1 0 0 1-.6-1.8L12 9"/><path d="M8 20h8"/></svg>
         Looks
       </a>
+      <a href="{% url 'gestion:finanzas' %}" {% if seccion == 'finanzas' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        Finanzas
+      </a>
       <a href="{% url 'gestion:cobros' %}" {% if seccion == 'cobros' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/></svg>
         Cobros y envíos
@@ -64,6 +68,9 @@
         <span class="g-marca__texto">Mi <em>tienda</em></span>
       </a>
       <div class="g-top__der">
+        <a href="{% url 'gestion:finanzas' %}" class="g-top__cobros" aria-label="Finanzas" title="Finanzas" {% if seccion == 'finanzas' %}aria-current="page"{% endif %}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        </a>
         <a href="{% url 'gestion:cobros' %}" class="g-top__cobros" aria-label="Cobros y envíos" {% if seccion == 'cobros' %}aria-current="page"{% endif %}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/></svg>
         </a>

@@ -30,10 +30,10 @@
 {% endif %}
 
 <section class="g-kpis">
-  <a href="{% url 'gestion:pedidos' %}?ver=pagado" class="g-kpi">
+  <a href="{% url 'gestion:finanzas' %}?periodo=mes" class="g-kpi">
     <span class="g-kpi__lbl">Vendido · últimos 30 días</span>
     <span class="g-kpi__num">${{ vendido_30|pesos }}</span>
-    <span class="g-kpi__sub">{{ n_vendidos_30 }} pedido{{ n_vendidos_30|pluralize }} pagado{{ n_vendidos_30|pluralize }}</span>
+    <span class="g-kpi__sub">{{ n_vendidos_30 }} venta{{ n_vendidos_30|pluralize }} · local y página · ver finanzas</span>
   </a>
   <a href="{% url 'gestion:pedidos' %}?ver=pendiente" class="g-kpi {% if n_pendientes %}g-kpi--alerta{% endif %}">
     <span class="g-kpi__lbl">Pendientes de pago</span>
@@ -133,6 +133,9 @@
     <div class="g-atajos">
       <a href="{% url 'gestion:portada' %}" class="g-atajo">
         <b>Cambiar la portada</b><span>Temporada, frase y foto principal</span>
+      </a>
+      <a href="{% url 'gestion:finanzas' %}" class="g-atajo">
+        <b>Finanzas</b><span>Lo que entró en el local y en la página</span>
       </a>
       <a href="{% url 'gestion:looks' %}" class="g-atajo">
         <b>Armar un look</b><span>Foto y prendas para la portada</span>

@@ -352,6 +352,80 @@ class ConexionTests(Base):
         self.assertEqual(cred.access_token, "nuevo")
 
 
+class VentaLocalTests(Base):
+    """"Vendí una": baja el stock en el momento, se puede deshacer y suma en Finanzas."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(get_user_model().objects.create_user("clau-vende", is_staff=True))
+
+    def vender(self, **extra):
+        datos = {"talle": self.talle.pk, "color": "", "cantidad": 1, "medio": "efectivo"} | extra
+        return self.client.post(reverse("gestion:venta_rapida", args=[self.prenda.pk]), datos)
+
+    def test_opciones_muestran_talles_con_stock(self):
+        r = self.client.get(reverse("gestion:venta_opciones", args=[self.prenda.pk]))
+        datos = r.json()
+        self.assertEqual(datos["precio"], 50000)
+        self.assertEqual(datos["opciones"][0]["texto"], "Talle M")
+        self.assertEqual(datos["opciones"][0]["stock"], 3)
+
+    def test_vender_baja_stock_y_deshacer_lo_devuelve(self):
+        from pedidos.models import VentaLocal
+
+        r = self.vender(cantidad=2, precio="45.000", medio="transferencia")
+        self.assertTrue(r.json()["ok"])
+        self.assertIn("Vendida: Sweater de prueba · talle M · $90.000", r.json()["mensaje"])
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 1)
+        venta = VentaLocal.objects.get()
+        self.assertEqual((venta.total, venta.medio, venta.detalle), (Decimal("90000"), "transferencia", "talle M"))
+        self.client.post(r.json()["deshacer"], HTTP_X_REQUESTED_WITH="fetch")
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 3)
+        self.assertFalse(VentaLocal.objects.exists())
+
+    def test_no_vende_mas_de_lo_que_hay(self):
+        r = self.vender(cantidad=5)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("quedan 3", r.json()["error"])
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 3)
+
+    def test_pide_talle_si_la_prenda_tiene_talles(self):
+        r = self.vender(talle="")
+        self.assertEqual(r.status_code, 400)
+
+    def test_finanzas_suma_local_y_pagina(self):
+        self.vender(precio="40000")
+        p = self.pedido(metodo=Pedido.Metodo.MERCADOPAGO)
+        p.marcar_pagado("1")
+        self.client.post(reverse("gestion:venta_otra"), {"descripcion": "Medias", "monto": "3.000", "medio": "efectivo"})
+        r = self.client.get(reverse("gestion:finanzas") + "?periodo=hoy")
+        self.assertEqual(r.context["total_local"], Decimal("43000"))
+        self.assertEqual(r.context["total_web"], p.total)
+        self.assertEqual(r.context["n_ventas"], 3)
+        self.assertContains(r, "Medias")
+        self.assertContains(r, f"Pedido #{p.pk}")
+        efectivo = next(m for m in r.context["medios"] if m["local"] and m["nombre"].startswith("Efectivo"))
+        self.assertEqual(efectivo["local"], Decimal("43000"))
+        # El inicio cuenta lo vendido en el local y en la página.
+        inicio = self.client.get(reverse("gestion:inicio"))
+        self.assertEqual(inicio.context["vendido_30"], Decimal("43000") + p.total)
+
+    def test_finanzas_periodos_y_login(self):
+        for periodo in ("hoy", "semana", "mes", "mes-pasado", "anio", "cualquiera"):
+            self.assertEqual(self.client.get(reverse("gestion:finanzas") + f"?periodo={periodo}").status_code, 200)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("gestion:finanzas")).status_code, 302)
+        r = self.vender()
+        self.assertEqual(r.status_code, 302)
+        self.variante.refresh_from_db()
+        self.assertEqual(self.variante.stock, 3)
+
+
 class GuardarUnaVezTests(Base):
     """Un doble toque en "Guardar" en una prenda nueva no la duplica."""
 

@@ -95,8 +95,9 @@
     <a href="{% url 'gestion:pedidos' %}" {% if seccion == 'pedidos' %}aria-current="page"{% endif %}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>Pedidos
     </a>
-    <a href="{% url 'gestion:portada' %}" {% if seccion == 'portada' or seccion == 'looks' %}aria-current="page"{% endif %}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 15l5-4 4 3 3-2 6 4"/></svg>Portada
+    {# En el celular entran 5: "Looks" lleva a la vidriera (looks y, con la pestañita de arriba, la portada). #}
+    <a href="{% url 'gestion:looks' %}" {% if seccion == 'portada' or seccion == 'looks' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 15l5-4 4 3 3-2 6 4"/></svg>Looks
     </a>
   </nav>
   {% endblock %}

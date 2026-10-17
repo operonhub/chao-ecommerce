@@ -458,6 +458,14 @@ class LooksPanelTests(Base):
         self.assertFalse(Look.objects.filter(pk=a.pk).exists())
         self.assertTrue(Producto.objects.filter(pk=self.prenda.pk).exists())  # las prendas no se tocan
 
+    def test_barra_del_celular_lleva_a_looks(self):
+        import re
+
+        html = self.client.get(reverse("gestion:inicio")).content.decode()
+        barra = re.search(r'<nav class="g-tabs".*?</nav>', html, re.S).group(0)
+        self.assertIn(f'href="{reverse("gestion:looks")}"', barra)
+        self.assertIn("Looks", barra)
+
     def test_looks_pide_login(self):
         self.client.logout()
         r = self.client.get(reverse("gestion:looks"))

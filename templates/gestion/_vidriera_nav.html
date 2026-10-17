@@ -1,5 +1,5 @@
 {# Portada y Looks son la misma pestaña del panel: la vidriera de la tienda. #}
 <nav class="g-chips g-vidriera-nav" aria-label="Vidriera">
-  <a href="{% url 'gestion:portada' %}" {% if activa == 'portada' %}aria-current="true"{% endif %}>Textos y foto principal</a>
   <a href="{% url 'gestion:looks' %}" {% if activa == 'looks' %}aria-current="true"{% endif %}>Looks</a>
+  <a href="{% url 'gestion:portada' %}" {% if activa == 'portada' %}aria-current="true"{% endif %}>Portada: textos y foto principal</a>
 </nav>

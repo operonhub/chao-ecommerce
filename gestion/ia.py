@@ -42,11 +42,12 @@ Turn this phone photo, taken inside the shop, into a clean professional e-commer
 - Remove everything else: racks, mannequins, other clothes, the shop window, the street, people.
 - Vertical 3:4 framing (comfortable margins around the garment only when it is shown whole).
 
-CRITICAL — the garment must stay EXACTLY the same as in the original photo:
-- Same cut, length, sleeves, neckline, fit and proportions.
-- Same exact colors and fabric texture. Do not make it brighter, whiter or more saturated than it really is.
-- Same prints, graphics, embroidery and any text on it, letter by letter, in the same place and size.
-- Do not add, remove, redraw, smooth away or "improve" any detail of the garment. Only fix wrinkles caused by the hanger lightly.
+CRITICAL — this is a real product that a customer will receive. The garment must be IDENTICAL to the one in the original photo:
+- LENGTH AND WIDTHS: keep the exact proportions of the garment. Same ratio between its length and its width; same width at the shoulders, chest, waist and hem; same length and width of the sleeves (or legs); same neckline shape and depth. Do not make it longer, shorter, slimmer, wider, more fitted, more cropped or more flowy. Do not change the cut or the fit. When it is shown whole on the hanger, it hangs with the same shape it has in the original.
+- COLOR: exactly the same color, shade and tone as the garment in the original, as it would look in neutral daylight. Do not change the hue and do not make it brighter, darker, whiter, more saturated or more faded. Black stays black, a beige stays that same beige, a washed denim keeps its exact wash and fading. The new studio light changes the background, not the garment's color.
+- PRINT: copy the print, graphic, embroidery or pattern exactly: every element, with the same colors, the same size relative to the garment and the same position (same distance to the neckline, the hem and the sides). Do not redraw, simplify, complete, sharpen, mirror, recolor or add any element. Any text that is part of the print is copied letter by letter. If part of the print is hidden, folded or cut off in the original, it stays that way.
+- TEXTURE AND DETAILS: same fabric texture (knit, slub cotton, ribbing, denim), seams, stitching, buttons, pockets, rips and trims, in the same places.
+- Do not add, remove, redraw, smooth away or "improve" anything on the garment. Only lightly reduce wrinkles caused by the hanger.
 
 NO INVENTED LABELS, TAGS OR TEXT — this is strict:
 - Remove ALL hang tags and price tags (cardboard or paper tags hanging on a string or plastic fastener). They are not part of the garment.
@@ -59,6 +60,8 @@ NO INVENTED LABELS, TAGS OR TEXT — this is strict:
 DO NOT INVENT PARTS OF THE GARMENT:
 - If the garment is cut off by an edge of the original photo, it must be cut off at the same place in the result. Keep that same partial framing (for example just the waist and a pocket, or the t-shirt without its hem).
 - Never draw the missing parts (legs, hem, sleeves, bottom of a print) that are not in the photo.
+
+Before returning the image, compare the garment with the original one more time: length, widths, color, print, label and details. If anything is different, fix it so it matches the original.
 
 Do not add any text, logo, watermark or props. Return only the edited image."""
 

@@ -740,7 +740,7 @@ class FotosIATests(Base):
         self.assertEqual(r.status_code, 200, r.content)
         self.assertTrue(post.call_args.args[0].endswith("/models/pro-test:generateContent"))
         cuerpo = post.call_args.kwargs["json"]
-        self.assertIn("EXACTLY the same", cuerpo["contents"][0]["parts"][0]["text"])
+        self.assertIn("must be IDENTICAL to the one in the original photo", cuerpo["contents"][0]["parts"][0]["text"])
         self.assertEqual(cuerpo["generationConfig"]["imageConfig"], {"aspectRatio": "3:4", "imageSize": "2K"})
         self.foto.refresh_from_db()
         self.assertTrue(self.foto.ia_pendiente)
@@ -796,6 +796,11 @@ class FotosIATests(Base):
         self.assertIn("PLAIN patch of the same color with NO letters", texto)
         self.assertIn("Remove ALL hang tags", texto)
         self.assertIn("Never draw the missing parts", texto)
+        # Fidelidad: largo y anchos, color y estampado, y un repaso final.
+        self.assertIn("LENGTH AND WIDTHS: keep the exact proportions", texto)
+        self.assertIn("COLOR: exactly the same color, shade and tone", texto)
+        self.assertIn("PRINT: copy the print, graphic, embroidery or pattern exactly", texto)
+        self.assertIn("compare the garment with the original one more time", texto)
         self.assertIn("Más luz 'por favor'", texto)  # el pedido viaja, sin romper las comillas
         self.assertNotIn("Keep the brand label", texto)
 

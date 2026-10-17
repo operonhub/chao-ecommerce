@@ -351,7 +351,7 @@ class Portada(models.Model):
     """
 
     temporada = models.CharField(max_length=40, default="Otoño / 26")
-    frase = models.CharField(max_length=120, default="Ropa para cada versión tuya.")
+    frase = models.CharField(max_length=120, default="Prenda para cada versión tuya.")
     bajada_coleccion = models.CharField(
         max_length=200,
         default="Las piezas que acaban de llegar al local. Agregalas directo o pasá a probarlas.",

@@ -867,6 +867,19 @@ class FotosIATests(Base):
         self.assertEqual((credito.ultimo_error, credito.ultimo_error_tipo), ("Quota exceeded / billing", "limite"))
         self.assertContains(self.client.get(reverse("gestion:inicio")), "límite de uso, no falta de crédito")
 
+    def test_tope_de_gasto_mensual_se_explica_y_no_prueba_el_respaldo(self):
+        from gestion.models import CreditoIA
+
+        tope = respuesta(429, {"error": {"message": "Your project has exceeded its monthly spending cap. Please go to AI Studio at https://ai.studio/spend"}})
+        with mock.patch("gestion.ia.requests.post", return_value=tope) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertIn("tope de gasto mensual", r.json()["error"])
+        self.assertIn("ai.studio/spend", r.json()["error"])
+        self.assertEqual(post.call_count, 1)  # el tope es del proyecto: el respaldo también lo choca
+        credito = CreditoIA.actual()
+        self.assertFalse(credito.sin_credito)
+        self.assertEqual(credito.ultimo_error_tipo, "tope")
+
     def test_prepago_agotado_aunque_venga_como_429_es_falta_de_credito(self):
         from gestion.models import CreditoIA
 

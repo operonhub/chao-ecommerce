@@ -205,6 +205,13 @@ def _error_de_google(status: int, error: dict, crudo: str = "") -> ErrorIA:
         return ErrorIA(
             "Se terminó el crédito de la IA. Hay que cargar más en Google AI Studio → Billing.", "credito", detalle
         )
+    if "spending cap" in texto or "spend cap" in texto:
+        return ErrorIA(
+            "Se llegó al tope de gasto mensual que tiene configurado el proyecto en Google AI Studio (no es falta "
+            "de crédito). Hay que subirlo en ai.studio/spend.",
+            "tope",
+            detalle,
+        )
     if status == 429:
         return ErrorIA(
             "Google frenó la IA por un rato: se llegó al límite de pedidos por minuto o por día (no es falta de "
@@ -247,7 +254,7 @@ def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "", m
             ultimo_error = exc
             # Sin crédito o clave inválida: el respaldo va a fallar igual. Con el
             # límite sí vale probarlo: cada modelo tiene su propio cupo.
-            if exc.tipo in ("clave", "credito"):
+            if exc.tipo in ("clave", "credito", "tope"):
                 break
     raise ultimo_error or ErrorIA("La IA no pudo editar la foto.")
 
@@ -323,7 +330,7 @@ def describir(fotos: list[bytes], nombre: str = "", categoria: str = "", notas: 
                 error = {}
             logger.error("Gemini %s respondió %s: %s", modelo, r.status_code, (error.get("message") or r.text)[:300])
             ultimo_error = _error_de_google(r.status_code, error, r.text)
-            if ultimo_error.tipo in ("clave", "credito"):
+            if ultimo_error.tipo in ("clave", "credito", "tope"):
                 break
             continue
         texto = "".join(

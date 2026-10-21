@@ -88,7 +88,7 @@
     {% endif %}
     {% if c.ultimo_error and c.ultimo_error_el %}
       <p class="g-credito__aviso">
-        <b>Último aviso de Google ({{ c.ultimo_error_el|date:"j/n H:i" }}{% if c.ultimo_error_tipo == "limite" %} · límite de uso, no falta de crédito{% elif c.ultimo_error_tipo == "credito" %} · sin crédito{% endif %}):</b>
+        <b>Último aviso de Google ({{ c.ultimo_error_el|date:"j/n H:i" }}{% if c.ultimo_error_tipo == "limite" %} · límite de uso, no falta de crédito{% elif c.ultimo_error_tipo == "credito" %} · sin crédito{% elif c.ultimo_error_tipo == "tope" %} · tope de gasto mensual: subilo en ai.studio/spend{% endif %}):</b>
         {{ c.ultimo_error }}
       </p>
     {% endif %}

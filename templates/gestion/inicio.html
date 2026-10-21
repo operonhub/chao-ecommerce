@@ -86,6 +86,12 @@
         <span style="width: {{ c.porcentaje }}%"></span>
       </div>
     {% endif %}
+    {% if c.ultimo_error and c.ultimo_error_el %}
+      <p class="g-credito__aviso">
+        <b>Último aviso de Google ({{ c.ultimo_error_el|date:"j/n H:i" }}{% if c.ultimo_error_tipo == "limite" %} · límite de uso, no falta de crédito{% elif c.ultimo_error_tipo == "credito" %} · sin crédito{% endif %}):</b>
+        {{ c.ultimo_error }}
+      </p>
+    {% endif %}
     <details class="g-credito__anotar" {% if c.estado == "sin-dato" or c.estado == "agotado" %}open{% endif %}>
       <summary>{% if c.con_dato %}Se recargó: anotar el saldo nuevo{% else %}Anotar el saldo{% endif %}</summary>
       <form method="post" action="{% url 'gestion:credito_ia' %}" class="g-credito__form">

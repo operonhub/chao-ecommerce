@@ -853,12 +853,33 @@ class FotosIATests(Base):
         self.assertEqual(r.json()["modelo"], "rapido-test")
         self.assertEqual(post.call_count, 2)
 
-    def test_sin_credito_explica_y_no_reintenta(self):
+    def test_limite_429_no_es_falta_de_credito_y_prueba_el_respaldo(self):
+        from gestion.models import CreditoIA
+
         with mock.patch("gestion.ia.requests.post", return_value=self.gemini(429)) as post:
             r = self.post("gestion:foto_ia")
         self.assertEqual(r.status_code, 502)
-        self.assertIn("crédito", r.json()["error"])
+        self.assertIn("límite", r.json()["error"])
+        self.assertIn("no es falta de crédito", r.json()["error"])
+        self.assertEqual(post.call_count, 2)  # cada modelo tiene su propio cupo
+        credito = CreditoIA.actual()
+        self.assertFalse(credito.sin_credito)
+        self.assertEqual((credito.ultimo_error, credito.ultimo_error_tipo), ("Quota exceeded / billing", "limite"))
+        self.assertContains(self.client.get(reverse("gestion:inicio")), "límite de uso, no falta de crédito")
+
+    def test_prepago_agotado_aunque_venga_como_429_es_falta_de_credito(self):
+        from gestion.models import CreditoIA
+
+        agotado = respuesta(429, {"error": {"message": "Your prepayment credits are depleted."}})
+        with mock.patch("gestion.ia.requests.post", return_value=agotado) as post:
+            r = self.post("gestion:foto_ia")
+        self.assertIn("Se terminó el crédito", r.json()["error"])
         self.assertEqual(post.call_count, 1)
+        self.assertTrue(CreditoIA.actual().sin_credito)
+        # Cuando vuelve a andar, el aviso de "sin crédito" se va solo.
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
+            self.post("gestion:foto_ia")
+        self.assertFalse(CreditoIA.actual().sin_credito)
 
     def test_descartar(self):
         with mock.patch("gestion.ia.requests.post", return_value=self.gemini()):
@@ -980,6 +1001,10 @@ class FotosIATests(Base):
         with mock.patch("gestion.ia.requests.post", return_value=self.gemini(429)) as post:
             r = self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
         self.assertEqual(r.status_code, 502)
+        self.assertIn("límite", r.json()["error"])
+        self.assertEqual(post.call_count, 2)  # con el límite sí se prueba el respaldo
+        with mock.patch("gestion.ia.requests.post", return_value=self.gemini(402)) as post:
+            r = self.client.post(reverse("gestion:descripcion_ia"), {"prenda": self.prenda.pk})
         self.assertIn("crédito", r.json()["error"])
         self.assertEqual(post.call_count, 1)  # sin crédito no tiene sentido el respaldo
 

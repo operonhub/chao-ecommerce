@@ -40,8 +40,13 @@ class CreditoIA(models.Model):
 
     saldo_usd = models.DecimalField("Saldo en AI Studio (USD)", max_digits=8, decimal_places=2, null=True, blank=True)
     anotado = models.DateTimeField(null=True, blank=True)
-    # Lo marca la IA cuando Google responde "sin saldo" (402); se borra al anotar uno nuevo.
+    # Lo marca la IA cuando Google responde "sin saldo"; se borra al anotar uno nuevo
+    # o apenas vuelve a salir bien una foto o una descripción.
     sin_credito = models.BooleanField(default=False)
+    # El último error que devolvió Google, tal cual, para entender qué pasó.
+    ultimo_error = models.CharField(max_length=300, blank=True, db_default="")
+    ultimo_error_tipo = models.CharField(max_length=10, blank=True, db_default="")
+    ultimo_error_el = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = verbose_name_plural = "crédito de la IA"

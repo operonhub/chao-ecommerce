@@ -103,7 +103,17 @@ TAMANO_ENTRADA = 2048  # lado mayor de la foto que se manda (más no mejora y pe
 
 
 class ErrorIA(RuntimeError):
-    """No se pudo editar la foto (sin clave, sin crédito, la IA no devolvió imagen…)."""
+    """
+    No se pudo editar la foto. `tipo` dice qué pasó para decidir qué hacer:
+    "clave" (inválida), "credito" (sin saldo prepago), "limite" (Google frena por
+    cantidad de pedidos por minuto o por día: no es falta de plata) u "otro".
+    `detalle` es el mensaje de Google, para mostrarlo en el panel.
+    """
+
+    def __init__(self, mensaje: str, tipo: str = "otro", detalle: str = ""):
+        super().__init__(mensaje)
+        self.tipo = tipo
+        self.detalle = detalle[:300]
 
 
 def configurada() -> bool:
@@ -166,7 +176,7 @@ def _pedir(modelo: str, datos: str, mime: str, timeout: float, pedido: str = "",
         except ValueError:
             error = {}
         logger.error("Gemini %s respondió %s: %s", modelo, r.status_code, (error.get("message") or r.text)[:300])
-        raise ErrorIA(_mensaje_error(r.status_code, error))
+        raise _error_de_google(r.status_code, error, r.text)
 
     datos_resp = r.json()
     for candidato in datos_resp.get("candidates") or []:
@@ -180,15 +190,31 @@ def _pedir(modelo: str, datos: str, mime: str, timeout: float, pedido: str = "",
     raise ErrorIA("La IA no devolvió una foto esta vez. Probá de nuevo.")
 
 
-def _mensaje_error(status: int, error: dict) -> str:
-    texto = (error.get("message") or "").lower()
+def _error_de_google(status: int, error: dict, crudo: str = "") -> ErrorIA:
+    """
+    Traduce la respuesta de error de Google. Ojo con el 429: casi siempre es el
+    límite de pedidos por minuto o por día del plan (su mensaje habla de "quota" y
+    "billing details" aunque haya saldo); solo es falta de saldo si lo dice
+    (prepago agotado) o si viene un 402.
+    """
+    detalle = (error.get("message") or crudo or "").strip()
+    texto = detalle.lower()
     if status in (401, 403) or "api key" in texto:
-        return "La clave de Gemini no es válida o no tiene permiso. Revisala en Vercel."
-    if status in (402, 429) or "quota" in texto or "billing" in texto or "credit" in texto:
-        return "Se terminó el crédito de la IA (o llegó al límite). Hay que cargar más en Google AI Studio → Billing."
+        return ErrorIA("La clave de Gemini no es válida o no tiene permiso. Revisala en Vercel.", "clave", detalle)
+    if status == 402 or "prepay" in texto or "prepayment" in texto or "credits are depleted" in texto:
+        return ErrorIA(
+            "Se terminó el crédito de la IA. Hay que cargar más en Google AI Studio → Billing.", "credito", detalle
+        )
+    if status == 429:
+        return ErrorIA(
+            "Google frenó la IA por un rato: se llegó al límite de pedidos por minuto o por día (no es falta de "
+            "crédito). Probá de nuevo en unos minutos.",
+            "limite",
+            detalle,
+        )
     if status == 404:
-        return "El modelo de IA no está disponible para esta clave."
-    return "La IA no pudo editar la foto ahora. Probá de nuevo en un rato."
+        return ErrorIA("El modelo de IA no está disponible para esta clave.", "otro", detalle)
+    return ErrorIA("La IA no pudo editar la foto ahora. Probá de nuevo en un rato.", "otro", detalle)
 
 
 def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "", marca: str = "") -> tuple[bytes, str]:
@@ -219,8 +245,9 @@ def mejorar(imagen_bytes: bytes, plazo: float | None = None, pedido: str = "", m
             ultimo_error = ErrorIA(f"No se pudo contactar a la IA: {exc.__class__.__name__}.")
         except ErrorIA as exc:
             ultimo_error = exc
-            # Sin crédito o clave inválida: el respaldo va a fallar igual.
-            if "clave" in str(exc) or "crédito" in str(exc):
+            # Sin crédito o clave inválida: el respaldo va a fallar igual. Con el
+            # límite sí vale probarlo: cada modelo tiene su propio cupo.
+            if exc.tipo in ("clave", "credito"):
                 break
     raise ultimo_error or ErrorIA("La IA no pudo editar la foto.")
 
@@ -295,8 +322,8 @@ def describir(fotos: list[bytes], nombre: str = "", categoria: str = "", notas: 
             except ValueError:
                 error = {}
             logger.error("Gemini %s respondió %s: %s", modelo, r.status_code, (error.get("message") or r.text)[:300])
-            ultimo_error = ErrorIA(_mensaje_error(r.status_code, error))
-            if r.status_code in (401, 402, 403, 429):
+            ultimo_error = _error_de_google(r.status_code, error, r.text)
+            if ultimo_error.tipo in ("clave", "credito"):
                 break
             continue
         texto = "".join(

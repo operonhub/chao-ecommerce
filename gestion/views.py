@@ -561,7 +561,7 @@ def foto_ia(request, pk):
     nombre = default_storage.save(f"productos/ia/{foto.producto.slug[:60]}.jpg", archivo)
     foto.ia_pendiente = nombre
     foto.save(update_fields=["ia_pendiente"])
-    UsoIA.anotar(UsoIA.Tipo.FOTO, modelo)
+    _ia_anduvo(UsoIA.Tipo.FOTO, modelo)
     logger.info("Foto %s editada con %s", pk, modelo)
     return JsonResponse({"ok": True, "url": foto.url_ia_pendiente, "original": foto.url, "modelo": modelo})
 
@@ -653,14 +653,29 @@ def descripcion_ia(request):
     except Exception:  # noqa: BLE001
         logger.exception("Falló la descripción con IA")
         return JsonResponse({"ok": False, "error": "No pudimos escribir la descripción. Probá de nuevo."}, status=500)
-    UsoIA.anotar(UsoIA.Tipo.DESCRIPCION, settings.GEMINI_MODELO_TEXTO)
+    _ia_anduvo(UsoIA.Tipo.DESCRIPCION, settings.GEMINI_MODELO_TEXTO)
     return JsonResponse({"ok": True, "texto": texto})
 
 
 def _si_es_sin_credito(exc) -> None:
-    """Google avisó que no hay saldo: el contador pasa a "sin crédito" hasta que se anote uno nuevo."""
-    if "crédito" in str(exc):
-        CreditoIA.objects.update_or_create(pk=1, defaults={"sin_credito": True})
+    """
+    Guarda lo que dijo Google y, solo si es falta de saldo de verdad, pasa el
+    contador a "sin crédito" (el límite por minuto o por día no es falta de plata).
+    """
+    datos = {
+        "ultimo_error": getattr(exc, "detalle", "") or str(exc),
+        "ultimo_error_tipo": getattr(exc, "tipo", "otro"),
+        "ultimo_error_el": timezone.now(),
+    }
+    if getattr(exc, "tipo", "") == "credito":
+        datos["sin_credito"] = True
+    CreditoIA.objects.update_or_create(pk=1, defaults=datos)
+
+
+def _ia_anduvo(tipo, modelo) -> None:
+    """Salió bien: se anota el gasto y, si estaba marcado sin crédito, se desmarca."""
+    UsoIA.anotar(tipo, modelo)
+    CreditoIA.objects.filter(pk=1, sin_credito=True).update(sin_credito=False)
 
 
 @solo_duena

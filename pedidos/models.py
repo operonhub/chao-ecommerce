@@ -136,11 +136,13 @@ class Pedido(models.Model):
         return self.get_estado_display()
 
     # --- Cambios de estado (con stock) -------------------------------------------
-    def marcar_pagado(self, payment_id: str = "", status_detail: str = "") -> None:
+    def marcar_pagado(self, payment_id: str = "", status_detail: str = "") -> bool:
         """Pasa el pedido a pagado y descuenta el stock — una sola vez, aunque el
-        webhook de Mercado Pago llegue repetido."""
+        webhook de Mercado Pago llegue repetido. Devuelve si recién se pagó (para
+        avisar a la dueña una sola vez)."""
         with transaction.atomic():
             pedido = Pedido.objects.select_for_update().get(pk=self.pk)
+            recien = pedido.estado != self.Estado.PAGADO
             pedido.estado = self.Estado.PAGADO
             if payment_id:
                 pedido.mp_payment_id = payment_id
@@ -151,6 +153,7 @@ class Pedido(models.Model):
                 pedido.stock_descontado = True
             pedido.save()
         self.refresh_from_db()
+        return recien
 
     def cambiar_estado(self, nuevo: str) -> None:
         """Desde el panel. Si un pedido pagado se cancela, el stock vuelve."""

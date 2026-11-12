@@ -3795,3 +3795,71 @@
   color: var(--tinta-suave);
   overflow-wrap: anywhere;
 }
+
+/* Avisos de ventas al celular (Inicio) */
+.g-avisos {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.g-avisos[hidden] {
+  display: none;
+}
+
+.g-avisos__icono {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--aqua);
+}
+
+.g-avisos__icono svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--tinta);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+
+.g-avisos[data-estado="activo"] .g-avisos__icono {
+  background: #dcebe3;
+}
+
+.g-avisos__texto b {
+  display: block;
+  font-weight: 500;
+}
+
+.g-avisos__texto p {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--tinta-suave);
+}
+
+.g-avisos__acciones {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+
+.g-avisos__acciones:not(:has(:not([hidden]))) {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .g-avisos {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .g-avisos__acciones {
+    grid-column: auto;
+  }
+}

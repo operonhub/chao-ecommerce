@@ -11,6 +11,15 @@
   <link rel="stylesheet" href="{% static 'css/chao.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestion.css' %}">
   <link rel="icon" href="{% static 'img/favicon.svg' %}">
+  {# Instalable como app en la pantalla de inicio: necesario para los avisos en iPhone. #}
+  <link rel="manifest" href="{% url 'gestion:manifiesto' %}">
+  <link rel="apple-touch-icon" href="{% static 'apple-touch-icon.png' %}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Mi tienda">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#F2EADC">
+  <meta name="chao-sw" content="{% url 'gestion:sw' %}">
 </head>
 <body class="g">
   {% block cuerpo %}

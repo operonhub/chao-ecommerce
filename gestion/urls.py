@@ -6,6 +6,11 @@ app_name = "gestion"
 
 urlpatterns = [
     path("", views.inicio, name="inicio"),
+    path("manifest.webmanifest", views.manifiesto, name="manifiesto"),
+    path("sw.js", views.trabajador, name="sw"),
+    path("avisos/suscribir/", views.push_suscribir, name="push_suscribir"),
+    path("avisos/desuscribir/", views.push_desuscribir, name="push_desuscribir"),
+    path("avisos/probar/", views.push_probar, name="push_probar"),
     path("ingresar/", views.Ingresar.as_view(), name="ingresar"),
     path("salir/", views.salir, name="salir"),
     path("prendas/", views.prendas, name="prendas"),

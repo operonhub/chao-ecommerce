@@ -87,6 +87,12 @@ class CheckoutTests(Base):
         self.assertEqual(p.costo_envio, Decimal("5000"))
         self.assertEqual(p.total, Decimal("50000"))
 
+    def test_pedido_por_transferencia_avisa_a_la_duena(self):
+        self.al_carrito()
+        with mock.patch("pedidos.views.avisar_pedido") as avisar:
+            self.client.post(reverse("pedidos:checkout"), {**self.datos, "entrega": "retiro", "metodo_pago": "transferencia"})
+        avisar.assert_called_once_with(Pedido.objects.get(), "transferencia")
+
     def test_envio_sin_direccion_no_crea_pedido(self):
         self.al_carrito()
         r = self.client.post(reverse("pedidos:checkout"), {
@@ -244,6 +250,18 @@ class PagoTests(Base):
         self.assertEqual(r.status_code, 200)
         p.refresh_from_db()
         self.assertEqual(p.estado, Pedido.Estado.PAGADO)
+
+    def test_pago_aprobado_avisa_a_la_duena_una_sola_vez(self):
+        p = self.pedido()
+        cuerpo = json.dumps({"type": "order", "data": {"id": "ORD01TEST"}})
+        with mock.patch("pedidos.services.mercadopago.requests.get",
+                        return_value=respuesta(200, self.orden(ref=str(p.pk)))), \
+             mock.patch("pedidos.views.avisar_pedido") as avisar:
+            for _ in range(2):  # Mercado Pago repite los avisos
+                self.client.post(reverse("pedidos:mp_webhook") + "?data.id=ORD01TEST&type=order", cuerpo,
+                                 content_type="application/json")
+        avisar.assert_called_once()
+        self.assertEqual(avisar.call_args.args[1], "pagado")
 
     def test_webhook_order_con_monto_menor_no_paga(self):
         p = self.pedido()
@@ -437,6 +455,95 @@ class VentaLocalTests(Base):
         self.assertEqual(r.status_code, 302)
         self.variante.refresh_from_db()
         self.assertEqual(self.variante.stock, 3)
+
+
+class AvisosPushTests(Base):
+    """Avisos de ventas al celular de la dueña (Web Push)."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+
+        self.duena = get_user_model().objects.create_user("clau-avisos", is_staff=True)
+
+    def suscribir(self, endpoint="https://web.push.apple.com/abc123"):
+        return self.client.post(reverse("gestion:push_suscribir"),
+                                {"endpoint": endpoint, "p256dh": "BPk3", "auth": "a1b2", "dispositivo": "iPhone / iPad (app)"})
+
+    def test_manifiesto_y_trabajador_son_publicos(self):
+        m = self.client.get(reverse("gestion:manifiesto"))
+        self.assertEqual(m["Content-Type"], "application/manifest+json")
+        datos = m.json()
+        self.assertEqual((datos["display"], datos["start_url"], datos["scope"]), ("standalone", "/gestion/", "/gestion/"))
+        self.assertTrue(any(i["sizes"] == "512x512" for i in datos["icons"]))
+        sw = self.client.get(reverse("gestion:sw"))
+        self.assertIn("javascript", sw["Content-Type"])
+        self.assertEqual(sw["Service-Worker-Allowed"], "/gestion/")
+        self.assertContains(sw, "showNotification")
+        self.assertContains(sw, "notificationclick")
+
+    def test_suscribir_pide_login_y_no_duplica(self):
+        from gestion.models import SuscripcionPush
+
+        self.assertEqual(self.suscribir().status_code, 302)
+        self.client.force_login(self.duena)
+        self.suscribir()
+        self.suscribir()
+        self.assertEqual(SuscripcionPush.objects.count(), 1)
+        self.assertEqual(self.suscribir("http://inseguro").status_code, 400)
+        self.client.post(reverse("gestion:push_desuscribir"), {"endpoint": "https://web.push.apple.com/abc123"})
+        self.assertFalse(SuscripcionPush.objects.exists())
+
+    def test_inicio_genera_las_claves_y_muestra_la_tarjeta(self):
+        from gestion.models import ClavesPush
+
+        self.client.force_login(self.duena)
+        r = self.client.get(reverse("gestion:inicio"))
+        clave = ClavesPush.objects.get().publica
+        self.assertEqual(len(clave), 87)  # punto público P-256 sin comprimir, en base64url
+        self.assertContains(r, f'data-clave="{clave}"')
+        self.client.get(reverse("gestion:inicio"))
+        self.assertEqual(ClavesPush.objects.count(), 1)  # se generan una sola vez
+
+    def test_aviso_de_venta_llega_y_borra_los_celulares_que_ya_no_estan(self):
+        from gestion import push
+        from gestion.models import SuscripcionPush
+        from pywebpush import WebPushException
+
+        self.client.force_login(self.duena)
+        self.suscribir("https://web.push.apple.com/vivo")
+        self.suscribir("https://web.push.apple.com/muerto")
+        p = self.pedido(cantidad=2)
+
+        def falso(subscription_info, **kwargs):
+            if subscription_info["endpoint"].endswith("muerto"):
+                raise WebPushException("Gone", response=mock.Mock(status_code=410))
+            falso.datos = json.loads(kwargs["data"])
+
+        with mock.patch("pywebpush.webpush", side_effect=falso):
+            push.avisar_pedido(p, "pagado")
+        self.assertEqual(falso.datos["titulo"], "¡Venta en la web! $100.000")
+        self.assertEqual(falso.datos["cuerpo"], "2× Sweater de prueba (M) · Ana Prueba · retira en el local")
+        self.assertEqual(falso.datos["url"], reverse("gestion:pedidos") + f"#pedido-{p.pk}")
+        self.assertEqual(list(SuscripcionPush.objects.values_list("endpoint", flat=True)), ["https://web.push.apple.com/vivo"])
+
+    def test_un_aviso_que_falla_no_frena_la_venta(self):
+        from gestion import push
+
+        self.client.force_login(self.duena)
+        self.suscribir()
+        with mock.patch("pywebpush.webpush", side_effect=RuntimeError("sin red")):
+            push.avisar_pedido(self.pedido(), "transferencia")  # no explota
+
+    def test_aviso_de_prueba(self):
+        self.client.force_login(self.duena)
+        r = self.client.post(reverse("gestion:push_probar"))
+        self.assertEqual(r.status_code, 400)  # sin celulares todavía
+        self.suscribir()
+        with mock.patch("pywebpush.webpush") as webpush:
+            r = self.client.post(reverse("gestion:push_probar"))
+        self.assertEqual(r.json(), {"ok": True, "enviados": 1})
+        self.assertEqual(webpush.call_args.kwargs["vapid_claims"]["sub"], "https://www.chaoindumentaria.com")
 
 
 class GuardarUnaVezTests(Base):

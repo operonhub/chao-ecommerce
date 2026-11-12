@@ -95,3 +95,43 @@ class CreditoIA(models.Model):
         if self.fotos_restantes <= 10:
             return "bajo"
         return "ok"
+
+
+# --- Avisos al celular (Web Push) -------------------------------------------------
+# Cada venta por la página le llega a la dueña como notificación, desde el panel
+# instalado en la pantalla de inicio. No hay servicio externo: el servidor firma
+# los avisos con un par de claves propio (VAPID) y se los manda al servicio de push
+# del celular (Apple o Google), que los entrega.
+class ClavesPush(models.Model):
+    """El par de claves con que la tienda firma los avisos. Se genera solo, una vez."""
+
+    publica = models.CharField(max_length=200)
+    privada = models.TextField()
+    creada = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = verbose_name_plural = "claves de avisos"
+
+    def __str__(self):
+        return "Claves de avisos"
+
+
+class SuscripcionPush(models.Model):
+    """Un celular (o compu) que pidió recibir los avisos de ventas."""
+
+    endpoint = models.URLField(max_length=600, unique=True)
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=100)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name="+"
+    )
+    dispositivo = models.CharField(max_length=120, blank=True)
+    creada = models.DateTimeField(auto_now_add=True)
+    ultimo_envio = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "celular con avisos"
+        verbose_name_plural = "celulares con avisos"
+
+    def __str__(self):
+        return self.dispositivo or self.endpoint[:60]

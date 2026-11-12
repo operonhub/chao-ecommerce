@@ -27,6 +27,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from carrito.cart import Cart
+from gestion.push import avisar_pedido
 
 from .forms import CheckoutForm
 from .models import Cobros, Pedido, PedidoItem
@@ -86,7 +87,9 @@ def checkout(request):
         pedido = _crear_pedido(form, lineas)
         carrito.vaciar()
         if pedido.metodo_pago == Pedido.Metodo.MERCADOPAGO:
+            # Con tarjeta se avisa recién cuando entra la plata (ver marcar_pagado).
             return redirect("pedidos:pago", codigo=pedido.codigo)
+        avisar_pedido(pedido, "transferencia" if pedido.metodo_pago == Pedido.Metodo.TRANSFERENCIA else "efectivo")
         return redirect("pedidos:pedido", codigo=pedido.codigo)
     if request.method == "POST" and form.errors:
         messages.error(request, "Revisá los campos marcados.")
@@ -209,7 +212,8 @@ def procesar(request, codigo):
 
     url_pedido = reverse("pedidos:pedido", args=[codigo])
     if orden.aprobada and mercadopago.orden_coincide(orden, pedido):
-        pedido.marcar_pagado(orden.id, orden.detalle)
+        if pedido.marcar_pagado(orden.id, orden.detalle):
+            avisar_pedido(pedido, "pagado")
         return JsonResponse({"estado": "pagado", "url": url_pedido})
 
     pedido.mp_payment_id = orden.id
@@ -298,7 +302,8 @@ def mp_webhook(request):
     estado_mp = pago_mp.get("status")
     if estado_mp == "approved":
         if mercadopago.pago_coincide(pago_mp, pedido):
-            pedido.marcar_pagado(str(payment_id), pago_mp.get("status_detail", ""))
+            if pedido.marcar_pagado(str(payment_id), pago_mp.get("status_detail", "")):
+                avisar_pedido(pedido, "pagado")
             logger.info("Pedido #%s pagado (pago %s)", pedido.pk, payment_id)
         else:
             logger.error("Pago %s aprobado pero el monto no coincide con el pedido #%s", payment_id, pedido.pk)
@@ -325,7 +330,8 @@ def _webhook_orden(order_id: str) -> HttpResponse:
 
     if orden.aprobada:
         if mercadopago.orden_coincide(orden, pedido):
-            pedido.marcar_pagado(orden.id, orden.detalle)
+            if pedido.marcar_pagado(orden.id, orden.detalle):
+                avisar_pedido(pedido, "pagado")
             logger.info("Pedido #%s pagado (order %s)", pedido.pk, order_id)
         else:
             logger.error("Order %s aprobada pero el monto no coincide con el pedido #%s", order_id, pedido.pk)

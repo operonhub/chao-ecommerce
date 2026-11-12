@@ -1131,6 +1131,126 @@
     });
   }
 
+  /* --- Avisos de ventas al celular (Web Push) ----------------------------------- */
+  // El trabajador se registra en todas las pantallas del panel; la tarjeta del
+  // Inicio pide el permiso (en iPhone solo funciona con el panel abierto desde el
+  // ícono de la pantalla de inicio) y le pasa la suscripción al servidor.
+  const urlTrabajador = $('meta[name="chao-sw"]')?.content;
+  const hayPush = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const registroSW = urlTrabajador && "serviceWorker" in navigator
+    ? navigator.serviceWorker.register(urlTrabajador, { scope: new URL(".", new URL(urlTrabajador, location.href)).pathname }).catch(() => null)
+    : Promise.resolve(null);
+
+  const tarjetaAvisos = $("[data-avisos]");
+  if (tarjetaAvisos) {
+    const titulo = $("[data-avisos-titulo]", tarjetaAvisos);
+    const detalle = $("[data-avisos-detalle]", tarjetaAvisos);
+    const activar = $("[data-avisos-activar]", tarjetaAvisos);
+    const probar = $("[data-avisos-probar]", tarjetaAvisos);
+    const desactivar = $("[data-avisos-desactivar]", tarjetaAvisos);
+    const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const instalada = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+    const clave = () => {
+      const b64 = tarjetaAvisos.dataset.clave.replace(/-/g, "+").replace(/_/g, "/");
+      const crudo = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+      return Uint8Array.from(crudo, (ch) => ch.charCodeAt(0));
+    };
+    const b64url = (buffer) =>
+      btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const dispositivo = () => (esIOS ? "iPhone / iPad" : /Android/i.test(navigator.userAgent) ? "Android" : "Compu") +
+      (instalada ? " (app)" : "");
+
+    const mostrar = (estado) => {
+      tarjetaAvisos.hidden = false;
+      tarjetaAvisos.dataset.estado = estado;
+      activar.hidden = estado !== "apagado";
+      probar.hidden = estado !== "activo";
+      desactivar.hidden = estado !== "activo";
+      if (estado === "activo") {
+        titulo.textContent = "Avisos de ventas activados en este celular ✓";
+        detalle.textContent = "Cada pedido de la página te llega como notificación. Tocándola, abre el pedido.";
+      } else if (estado === "instalar") {
+        titulo.textContent = "Para recibir avisos de ventas";
+        detalle.textContent =
+          "Abrí el panel desde el ícono de la pantalla de inicio. Si todavía no lo agregaste: en Safari tocá Compartir → \"Agregar a inicio\".";
+      } else if (estado === "bloqueado") {
+        titulo.textContent = "Los avisos están bloqueados";
+        detalle.textContent = "Activalos en Ajustes del celular → Notificaciones → Mi tienda, y volvé a abrir el panel.";
+      } else if (estado === "sin-soporte") {
+        titulo.textContent = "Este navegador no permite avisos";
+        detalle.textContent = "Probá desde el celular, con el panel agregado a la pantalla de inicio.";
+      } else {
+        titulo.textContent = "Avisos de ventas en este celular";
+        detalle.textContent = "Cada pedido de la página te llega como notificación, aunque no estés mirando el panel.";
+      }
+    };
+
+    const guardar = (sus) => {
+      const datos = sus.toJSON();
+      return postear(tarjetaAvisos.dataset.urlSuscribir, {
+        endpoint: sus.endpoint,
+        p256dh: datos.keys?.p256dh || b64url(sus.getKey("p256dh")),
+        auth: datos.keys?.auth || b64url(sus.getKey("auth")),
+        dispositivo: dispositivo(),
+      });
+    };
+
+    (async () => {
+      if (!hayPush) return mostrar(esIOS && !instalada ? "instalar" : "sin-soporte");
+      if (Notification.permission === "denied") return mostrar("bloqueado");
+      const reg = await registroSW;
+      const sus = reg && (await reg.pushManager.getSubscription());
+      if (sus) {
+        guardar(sus).catch(() => {}); // por si el servidor no la tenía
+        mostrar("activo");
+      } else {
+        mostrar("apagado");
+      }
+    })();
+
+    activar.addEventListener("click", async () => {
+      activar.disabled = true;
+      try {
+        // Tiene que pedirse dentro del toque: iPhone no deja pedir permiso solo.
+        const permiso = await Notification.requestPermission();
+        if (permiso !== "granted") return mostrar(permiso === "denied" ? "bloqueado" : "apagado");
+        const reg = (await registroSW) || (await navigator.serviceWorker.ready);
+        const sus = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: clave() });
+        await guardar(sus);
+        mostrar("activo");
+        toast("Listo: los avisos de ventas quedaron activados.");
+      } catch (err) {
+        toast(err.message || "No se pudieron activar los avisos.", "error");
+      } finally {
+        activar.disabled = false;
+      }
+    });
+
+    probar.addEventListener("click", async () => {
+      probar.disabled = true;
+      try {
+        await postear(tarjetaAvisos.dataset.urlProbar, {});
+        toast("Mandamos un aviso de prueba: tiene que llegarte en unos segundos.");
+      } catch (err) {
+        toast(err.message, "error");
+      } finally {
+        probar.disabled = false;
+      }
+    });
+
+    desactivar.addEventListener("click", async () => {
+      const reg = await registroSW;
+      const sus = reg && (await reg.pushManager.getSubscription());
+      if (sus) {
+        await postear(tarjetaAvisos.dataset.urlDesuscribir, { endpoint: sus.endpoint }).catch(() => {});
+        await sus.unsubscribe().catch(() => {});
+      }
+      mostrar("apagado");
+      toast("Desactivamos los avisos en este celular.");
+    });
+  }
+
   /* --- Guardar una sola vez ------------------------------------------------------ */
   // Con fotos, guardar tarda unos segundos y parecía que no pasaba nada: la dueña
   // tocaba "Guardar" otra vez y la prenda salía repetida. Al primer toque los

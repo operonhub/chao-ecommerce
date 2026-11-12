@@ -36,6 +36,25 @@
   </a>
 {% endif %}
 
+<section class="g-bloque g-avisos" data-avisos hidden
+         data-clave="{{ push_clave }}"
+         data-url-suscribir="{% url 'gestion:push_suscribir' %}"
+         data-url-desuscribir="{% url 'gestion:push_desuscribir' %}"
+         data-url-probar="{% url 'gestion:push_probar' %}">
+  <span class="g-avisos__icono" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+  </span>
+  <div class="g-avisos__texto">
+    <b data-avisos-titulo>Avisos de ventas en este celular</b>
+    <p data-avisos-detalle>Cada pedido de la página te llega como notificación, aunque no estés mirando el panel.</p>
+  </div>
+  <div class="g-avisos__acciones">
+    <button type="button" class="btn btn--primario g-btn-chico" data-avisos-activar hidden>Activar avisos</button>
+    <button type="button" class="btn btn--secundario g-btn-chico" data-avisos-probar hidden>Mandar uno de prueba</button>
+    <button type="button" class="cta-ghost" data-avisos-desactivar hidden>Desactivar</button>
+  </div>
+</section>
+
 <section class="g-kpis">
   <a href="{% url 'gestion:finanzas' %}?periodo=mes" class="g-kpi">
     <span class="g-kpi__lbl">Vendido · últimos 30 días</span>

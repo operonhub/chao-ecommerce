@@ -30,6 +30,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Max, Q, Sum
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
@@ -51,8 +52,8 @@ from catalogo.templatetags.humanize_ar import pesos as pesos_ar
 from pedidos.models import Cobros, ConexionMP, Pedido, VentaLocal, ZonaEnvio
 from pedidos.services import mercadopago
 
-from . import ia
-from .models import CreditoIA, UsoIA
+from . import ia, push
+from .models import CreditoIA, SuscripcionPush, UsoIA
 from .forms import CobrosForm, PortadaForm, ProductoForm, ZonaForm
 
 
@@ -107,6 +108,8 @@ def inicio(request):
         "falta_transferencia": not Cobros.actual().transferencia_lista,
         "app_mp": mercadopago.app_configurada(),
         "credito_ia": CreditoIA.actual() if ia.configurada() else None,
+        "push_clave": push.claves().publica,
+        "push_celulares": SuscripcionPush.objects.count(),
     }
     return render(request, "gestion/inicio.html", contexto)
 
@@ -1278,6 +1281,76 @@ def finanzas(request):
             "medios_local": VentaLocal.Medio.choices,
         },
     )
+
+
+# --- Avisos al celular (Web Push) ---------------------------------------------
+# El manifiesto y el trabajador van sin login: el navegador los pide solo (el
+# manifiesto, incluso sin cookies) y no tienen nada privado.
+def manifiesto(request):
+    datos = {
+        "id": reverse("gestion:inicio"),
+        "name": "CHAO · Mi tienda",
+        "short_name": "Mi tienda",
+        "start_url": reverse("gestion:inicio"),
+        "scope": reverse("gestion:inicio"),
+        "display": "standalone",
+        "background_color": "#F2EADC",
+        "theme_color": "#F2EADC",
+        "icons": [
+            {"src": static("icono-panel-192.png"), "sizes": "192x192", "type": "image/png"},
+            {"src": static("icono-panel-512.png"), "sizes": "512x512", "type": "image/png"},
+            {"src": static("icono-panel-512.png"), "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+    }
+    return JsonResponse(datos, content_type="application/manifest+json", json_dumps_params={"ensure_ascii": False})
+
+
+def trabajador(request):
+    respuesta = render(request, "gestion/sw.js", content_type="application/javascript; charset=utf-8")
+    respuesta["Cache-Control"] = "no-cache"
+    respuesta["Service-Worker-Allowed"] = reverse("gestion:inicio")
+    return respuesta
+
+
+@solo_duena
+@require_POST
+def push_suscribir(request):
+    endpoint = (request.POST.get("endpoint") or "").strip()
+    p256dh = (request.POST.get("p256dh") or "").strip()
+    auth = (request.POST.get("auth") or "").strip()
+    if not endpoint.startswith("https://") or not p256dh or not auth or len(endpoint) > 600:
+        return JsonResponse({"ok": False, "error": "No se pudo activar en este celular."}, status=400)
+    SuscripcionPush.objects.update_or_create(
+        endpoint=endpoint,
+        defaults={
+            "p256dh": p256dh[:200],
+            "auth": auth[:100],
+            "usuario": request.user,
+            "dispositivo": (request.POST.get("dispositivo") or "")[:120],
+        },
+    )
+    return JsonResponse({"ok": True})
+
+
+@solo_duena
+@require_POST
+def push_desuscribir(request):
+    SuscripcionPush.objects.filter(endpoint=(request.POST.get("endpoint") or "").strip()).delete()
+    return JsonResponse({"ok": True})
+
+
+@solo_duena
+@require_POST
+def push_probar(request):
+    enviados = push.avisar(
+        "Avisos activados ✓",
+        "Así te va a llegar cada venta de la página.",
+        url=reverse("gestion:pedidos"),
+        etiqueta="prueba",
+    )
+    if not enviados:
+        return JsonResponse({"ok": False, "error": "No llegó a ningún celular. Volvé a activar los avisos."}, status=400)
+    return JsonResponse({"ok": True, "enviados": enviados})
 
 
 # --- Portada -------------------------------------------------------------------
